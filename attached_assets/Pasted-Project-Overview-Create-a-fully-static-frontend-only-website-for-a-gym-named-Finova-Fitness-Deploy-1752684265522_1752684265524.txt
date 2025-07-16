@@ -1,0 +1,159 @@
+Project Overview
+Create a fully static, frontend-only website for a gym named Finova Fitness. Deploy it on Vercel; no backend services. Use placeholder data and dummy content for all features. The color scheme should be neon accents on black background, with a neon-style Finova Fitness logo (e.g. a dumbbell icon with text). The UI must be highly animated, visually appealing, and user-friendly.
+General Requirements
+Implement an initial portal selection/login page: users choose which portal to enter (Public/Non-Member, Member, Trainer, Nutritionist, Admin, Front Desk). The Public/Non-Member portal requires no login; other portals have a mock login form (accept any input as success) that then shows the appropriate portal.
+Use a neon and black theme consistently: neon colors (bright green, blue, pink, etc.) on dark backgrounds. Accent buttons, icons, and highlights with glowing neon effects.
+Add a floating AI chatbot icon on every page (bottom-right). Clicking it toggles a chat window with a mock AI assistant. Pre-load sample Q&A in the code: e.g. on public pages include "Which membership is best for me?" with a sample answer; on member pages include questions like "Recommend leg day exercises" or "What should my macros be?"; on trainer pages "Suggest warm-up drills for a HIIT session"; on nutritionist pages "Generate a 1500-calorie meal plan for a 65 kg user"; on admin pages something like "Which location lost the most members last month?". Provide dummy answers for each query.
+Ensure the site is highly animated and interactive: use CSS animations/transitions for buttons, modals, and content sections (sliding or fading in). For example, animate CTA buttons with hover glows, and make form transitions (like multi-step wizards) smooth.
+Non-Member Public Portal (No Login Required)
+Homepage
+Hero banner with the slogan "Functional Training for Everyone." Finova Fitness logo top-left and a main navigation to About, Services, Membership, Store, etc.
+Two prominent CTA buttons:
+Join Now → leads to the portal-selection page (Member signup stub).
+Book Free Class → opens a modal form (3-step booking process):
+Step 1: Collect basic info (Name, Email, Phone).
+Step 2: Class preferences (type, date/time).
+Step 3: Review & Submit (show success message).
+Include a progress indicator (e.g. "Step 1 of 3").
+Below the hero, display a strip of features (icons + text) such as "24/7 Access", "Certified Trainers", "Pool & Sauna" with neon icons and short captions.
+About Page
+Two paragraphs: "Our Story" (Finova Fitness philosophy) and "Our Mission" (goals and vision).
+Embed a Google Map iframe showing gym locations and list each address.
+Show audience icons labeled "Men", "Women", "Unisex" with brief descriptions (who the gym caters to).
+Services Page
+A grid of facility/service cards: Weights, Cardio, CrossFit, Boxing, Sauna, Pool. Each card has an icon, title, and a 2–3 line description.
+Below, list Additional Services: Personal Training, Nutrition Plans, Physiotherapy (with short descriptions or icons).
+Class Schedule
+Display a weekly calendar of classes (static sample data). Provide a filter bar: Trainer (dropdown), Difficulty (dropdown), Time of day (dropdown).
+Clicking a class opens a detail modal: show class name/time, trainer name with brief bio, and a "Book Free Trial" button (show a confirmation toast on click).
+Membership Plans
+A pricing table with columns: Monthly, Quarterly, Yearly, Drop-In. Each column shows price and features (e.g. access hours, guest passes, sauna sessions).
+Add discount badges on plans (e.g. "Student", "Couple", "Family").
+Include a toggle or button for auto-renew (static, no real functionality).
+Photo & Video Gallery
+A masonry grid of placeholder high-res images (gym/fitness photos).
+Embed a 360° virtual tour iframe.
+A "Short Reels" section with a few embedded YouTube/TikTok videos (use iframes or placeholders).
+Trainer Profiles
+Profile cards for each trainer: circular photo, name, specialization (e.g. "HIIT Specialist"), list of certifications, short bio.
+Include social media icons (Instagram, Facebook) with dummy # links.
+Blog (Stub)
+Three blog post teaser cards: each with title, thumbnail image, short excerpt, and a "Read More" link (links can be # or to empty pages).
+Contact Page
+Embed a Google Map and list all gym addresses.
+A contact form (Name, Email, Subject, Message) with a submit button (no real submission).
+Quick-contact links: a WhatsApp chat link, an mailto: email link, and a tel: phone link.
+Public Online Store
+A product grid: categories like Gym Wear, Supplements, Equipment. Each card has product image, title, price, and "Add to Cart" button.
+Show a "Members save 10%" badge on each card (price remains static).
+A floating cart modal: clicking "Add to Cart" shows the modal listing dummy items and a total price (all static).
+Member Portal (After Mock Login)
+After login, show a navbar with only member links (Dashboard, Profile, Membership, etc.).
+Dashboard
+Greeting card: "Welcome back, [Name]!".
+Summary cards: Current Plan (plan name & days remaining), Loyalty Points (with a "Redeem Now" button), Consistency Streak (e.g. "90 days in a row"), Referral Invites count.
+Quick-link tiles: Book a Session, Book a Facility, View Workout Schedule, Visit Store (these link to respective sections with static content).
+My Profile
+Editable form fields: Name, Email, Phone, Fitness Goals, Health Notes.
+A Save button that shows a toast "Profile saved!" (no actual saving).
+Membership & Subscription
+Card showing current plan details (name, start/end dates, price).
+Buttons/toggles: Pause Subscription, Cancel Subscription, Auto-Renew (toggles or switches; show confirmation toasts).
+Create Workout Schedule
+Weekly grid (Mon–Sun vs Morning/Afternoon/Evening) of empty workout slots.
+Each cell has a dropdown to select an exercise from mock options (e.g. Squats, Bench Press, etc.).
+"Add New Exercise" button opens a modal to name a new exercise and upload an icon (mock).
+A "Save Schedule" button that populates the grid with selected exercises (store in local state).
+Book Sessions
+Tabs: Trainers and Nutritionists.
+Trainers tab: list available session slots for each trainer (static data) with a "Book" button for each (show a confirmation on click).
+Nutritionists tab: list consultation slots; include a file input "Upload Food Diary" (no actual upload) next to each, and a "Request Plan" button (show confirmation).
+Facilities Booking
+Calendar view with daily slots for facilities (Sauna, Pool, Jacuzzi).
+Each slot card shows time and status (Open/Full) and a "Reserve" button (change to Reserved and show toast on click).
+Online Store (Member view)
+Similar product grid as public, but display a "Member Price (10% off)" next to the regular price.
+Update the cart modal to reflect discounted totals (static calculation via JS).
+Loyalty & Referrals
+Points Wallet: show points earned and points spent.
+Referrals section: show a unique referral link (dummy URL), "Invites Sent" counter, and "Points Earned" from referrals.
+History & Reviews
+Table of past bookings: columns (Date, Type, Trainer/Facility).
+Each entry has a "Review" button that opens a modal with a 5-star rating input and comment box (show "Thank you for your review!" on save).
+Consistency Rewards
+If consistency streak ≥ 90 days, show a card "Claim Your Voucher" with a sample code (e.g. "FITNESS90"). If below threshold, omit this section.
+AI Coach
+Floating chat icon with member context (include user weight/goals in code).
+Chat example prompts (e.g. "Recommend leg day exercises", "What should my macros be for 70kg?") with pre-written responses. (This chat is mock and displays canned answers.)
+Trainer & Nutritionist Portals (After Mock Login)
+Common Layout
+Sidebar: links for Dashboard, Schedule, Client Requests, Notes/Plans, Subscription, AI Assistant.
+Top bar: Finova logo and user profile avatar. Theme consistent (neon on black).
+My Schedule
+Calendar/list view of upcoming sessions (static JSON data).
+Clicking a slot toggles "Unavailable" state (change color/overlay).
+Client Requests
+Trainers: Show list of member booking requests (static entries) with "Approve" and "Reject" buttons.
+Nutritionists: Show list of diet plan requests (with dummy file name icon for uploaded diary) and a "Create Plan" button for each.
+Notes / Reports
+For each confirmed session, provide a textarea to write session notes. Include a "Save" button that triggers a "Saved!" toast.
+Resource Library (Nutritionist Only)
+Section to manage meal plan templates: list dummy file names and an "Upload" form (no actual upload).
+Subscription
+Show trainer/nutritionist subscription status (if any) with Pause/Cancel controls similar to member.
+Analytics (Trainer Only)
+Placeholder bar chart: "This Week vs Last Week Sessions" with dummy data.
+AI Assistant
+Floating chat icon. Pre-load role-specific example Q&A:
+Trainer example prompt: “Suggest warm-up drills for a HIIT session.”
+Nutritionist example prompt: “Generate a 1500-calorie meal plan for a 65 kg user.”
+Include sample canned responses in the chat.
+Admin Portal (After Mock Login)
+Overview Dashboard
+Metric cards (dummy data): Total Members, Active Plans, Sessions Today, Revenue Today, Points Redeemed Today.
+Charts (static or dummy data): Monthly Revenue (bar chart), Facility Usage (heatmap by day/time), Churn Rate (line chart).
+Member Directory
+Search/filter bar (by name, plan, signup date).
+Table listing members: Name, Email, Plan, Last Visit. Include "View/Edit" actions (link to stub modal).
+Staff Management
+List of staff (trainers and nutritionists) with fields: Name, Role, Contact.
+Add/Edit form (Name, Role dropdown, Contact info). Use static entries.
+Bookings & Facilities
+Master calendar showing all bookings. Allow toggling slots as maintenance/closed (change style).
+Plans & Pricing
+Form to create/edit membership plans: fields for Plan Name, Duration, Price, Perks.
+Show current plans in a list or table (static).
+Loyalty & Referrals
+Rule settings: inputs for points per check-in, per booking, referral bonus points.
+Referral report: show total invites and conversions (dummy stats).
+Consistency Rewards
+Configure streak thresholds (e.g. 30/60/90 days) and voucher codes. Display configured values in a list.
+Analytics (All-in-One)
+Section to display tables for metrics by location/trainer/date (static mock).
+"Export CSV" button (no real export, just mock).
+Subscription Management
+Toggle gyms on/off, manage plan tiers (fields to enable/disable plans).
+AI Admin Assistant
+Floating chat icon. Sample admin queries:
+“Which location lost the most members last month?”
+“Generate a CSV of last week’s revenue by trainer.”
+Include dummy answers in the chat.
+Front-Desk Portal (After Mock Login)
+Manual Check-In
+Search bar to find member by name or ID (static list search).
+Each result has a "Check-In" button: clicking it simulates scanning a QR and shows a toast "Checked in - points added".
+Walk-In Sales
+Quick sale form: select a membership plan (dropdown), enter member details (name, email, phone).
+Confirm sale with a button; show a success toast ("Membership sold to [Name] for $X").
+POS Summary
+Table of today's transactions (static rows) with a total amount at bottom.
+Subscription Management & AI Helper
+Include Pause/Cancel controls for subscriptions (same as above).
+Floating chat icon: sample prompt "How to refund a membership?" with a canned policy answer.
+UI/UX Notes
+Use smooth animations (hover glows, slide-in modals, button ripples). Ensure navigation is intuitive.
+Use modern, clean fonts and icon libraries (FontAwesome, etc.) with neon accents.
+Provide immediate feedback on actions (toasts, color change). The overall feel should be energetic and futuristic.
+Dummy Data/Placeholders
+Use placeholder images (e.g. unsplash URLs) and dummy JSON/arrays in code for lists (trainers, classes, products, etc.).
+All forms and buttons can use dummy handlers (e.g. alert() or toasts) to simulate interactions.
