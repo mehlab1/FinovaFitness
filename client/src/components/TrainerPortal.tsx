@@ -23,6 +23,8 @@ export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
         return <SessionNotes showToast={showToast} />;
       case 'analytics':
         return <TrainerAnalytics showToast={showToast} />;
+      case 'announcements':
+        return <TrainerAnnouncements showToast={showToast} />;
       case 'subscription':
         return <TrainerSubscription showToast={showToast} />;
       default:
@@ -47,6 +49,7 @@ export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
             { id: 'client-requests', icon: 'fas fa-user-friends', label: 'Client Requests', color: 'text-green-400' },
             { id: 'notes', icon: 'fas fa-sticky-note', label: 'Session Notes', color: 'text-purple-400' },
             { id: 'analytics', icon: 'fas fa-chart-bar', label: 'Analytics', color: 'text-orange-400' },
+            { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
             { id: 'subscription', icon: 'fas fa-credit-card', label: 'Subscription', color: 'text-blue-400' }
           ].map((item) => (
             <button
@@ -349,29 +352,144 @@ const SessionNotes = ({ showToast }: { showToast: (message: string, type?: 'succ
 
 const TrainerAnalytics = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => (
   <div className="animate-fade-in">
-    <div className="glass-card p-6 rounded-2xl">
-      <h3 className="text-xl font-bold text-pink-400 mb-4">This Week vs Last Week Sessions</h3>
-      <div className="bg-gray-900 p-8 rounded-lg">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <i className="fas fa-chart-bar text-6xl text-pink-400 mb-4"></i>
-            <h4 className="text-xl font-bold mb-2">Analytics Dashboard</h4>
-            <p className="text-gray-300">Session analytics and performance metrics</p>
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between">
-                <span>This Week:</span>
-                <span className="text-green-400">32 sessions</span>
+    <div className="mb-8">
+      <h2 className="text-2xl font-bold text-pink-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+        Analytics Dashboard
+      </h2>
+    </div>
+
+    {/* Analytics Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="metric-card p-6 rounded-xl border-green-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Total Sessions</h3>
+          <i className="fas fa-calendar-check text-green-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">156</p>
+        <p className="text-gray-300">This month</p>
+      </div>
+      
+      <div className="metric-card p-6 rounded-xl border-blue-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Client Retention</h3>
+          <i className="fas fa-users text-blue-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">94%</p>
+        <p className="text-gray-300">+2.3% from last month</p>
+      </div>
+      
+      <div className="metric-card p-6 rounded-xl border-purple-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-purple-400" style={{ fontFamily: 'Orbitron, monospace' }}>Average Rating</h3>
+          <i className="fas fa-star text-purple-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">4.8</p>
+        <p className="text-gray-300">From 127 reviews</p>
+      </div>
+      
+      <div className="metric-card p-6 rounded-xl border-orange-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-orange-400" style={{ fontFamily: 'Orbitron, monospace' }}>Revenue</h3>
+          <i className="fas fa-dollar-sign text-orange-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">PKR 45,600</p>
+        <p className="text-gray-300">This month</p>
+      </div>
+    </div>
+
+    {/* Charts Section */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      {/* Sessions Chart */}
+      <div className="glass-card p-6 rounded-2xl">
+        <h3 className="text-xl font-bold text-pink-400 mb-4">Weekly Sessions Trend</h3>
+        <div className="bg-gray-900 p-6 rounded-lg">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex space-x-4">
+              <div className="flex items-center">
+                <div className="w-4 h-4 bg-green-400 rounded mr-2"></div>
+                <span className="text-sm">This Week</span>
               </div>
-              <div className="flex justify-between">
-                <span>Last Week:</span>
-                <span className="text-blue-400">28 sessions</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Growth:</span>
-                <span className="text-pink-400">+14.3%</span>
+              <div className="flex items-center">
+                <div className="w-4 h-4 bg-blue-400 rounded mr-2"></div>
+                <span className="text-sm">Last Week</span>
               </div>
             </div>
           </div>
+          <div className="space-y-3">
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
+              <div key={day} className="flex items-center">
+                <div className="w-12 text-sm text-gray-400">{day}</div>
+                <div className="flex-1 flex space-x-2">
+                  <div 
+                    className="bg-green-400 rounded"
+                    style={{ 
+                      width: `${Math.random() * 60 + 20}%`, 
+                      height: '20px' 
+                    }}
+                  ></div>
+                  <div 
+                    className="bg-blue-400 rounded"
+                    style={{ 
+                      width: `${Math.random() * 60 + 20}%`, 
+                      height: '20px' 
+                    }}
+                  ></div>
+                </div>
+                <div className="w-16 text-right text-sm">
+                  <div className="text-green-400">{Math.floor(Math.random() * 8 + 4)}</div>
+                  <div className="text-blue-400">{Math.floor(Math.random() * 8 + 4)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Client Progress Chart */}
+      <div className="glass-card p-6 rounded-2xl">
+        <h3 className="text-xl font-bold text-pink-400 mb-4">Client Progress</h3>
+        <div className="bg-gray-900 p-6 rounded-lg">
+          <div className="space-y-4">
+            {[
+              { name: 'John Smith', progress: 85, goal: 'Weight Loss' },
+              { name: 'Sarah Davis', progress: 72, goal: 'Muscle Gain' },
+              { name: 'Mike Johnson', progress: 93, goal: 'Endurance' },
+              { name: 'Lisa Park', progress: 68, goal: 'Strength' }
+            ].map((client, index) => (
+              <div key={index} className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-white">{client.name}</span>
+                  <span className="text-gray-400">{client.progress}%</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-pink-400 to-purple-400 h-2 rounded-full"
+                    style={{ width: `${client.progress}%` }}
+                  ></div>
+                </div>
+                <div className="text-xs text-gray-400">{client.goal}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Performance Metrics */}
+    <div className="glass-card p-6 rounded-2xl">
+      <h3 className="text-xl font-bold text-pink-400 mb-4">Performance Metrics</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-gray-900 p-4 rounded-lg text-center">
+          <div className="text-3xl font-bold text-green-400 mb-2">98%</div>
+          <div className="text-sm text-gray-300">Session Completion Rate</div>
+        </div>
+        <div className="bg-gray-900 p-4 rounded-lg text-center">
+          <div className="text-3xl font-bold text-blue-400 mb-2">24</div>
+          <div className="text-sm text-gray-300">Active Clients</div>
+        </div>
+        <div className="bg-gray-900 p-4 rounded-lg text-center">
+          <div className="text-3xl font-bold text-purple-400 mb-2">156</div>
+          <div className="text-sm text-gray-300">Total Sessions This Month</div>
         </div>
       </div>
     </div>
@@ -379,60 +497,253 @@ const TrainerAnalytics = ({ showToast }: { showToast: (message: string, type?: '
 );
 
 const TrainerSubscription = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [autoRenew, setAutoRenew] = useState(true);
+  const [clients, setClients] = useState([
+    {
+      id: 1,
+      name: 'John Smith',
+      plan: 'Quarterly',
+      startDate: '2024-01-01',
+      endDate: '2024-03-31',
+      status: 'active',
+      sessionsRemaining: 8,
+      totalSessions: 12,
+      price: 'PKR 55,000'
+    },
+    {
+      id: 2,
+      name: 'Sarah Davis',
+      plan: 'Monthly',
+      startDate: '2024-01-15',
+      endDate: '2024-02-15',
+      status: 'active',
+      sessionsRemaining: 3,
+      totalSessions: 8,
+      price: 'PKR 22,000'
+    },
+    {
+      id: 3,
+      name: 'Mike Johnson',
+      plan: 'Yearly',
+      startDate: '2024-01-01',
+      endDate: '2024-12-31',
+      status: 'paused',
+      sessionsRemaining: 45,
+      totalSessions: 48,
+      price: 'PKR 165,000'
+    },
+    {
+      id: 4,
+      name: 'Lisa Park',
+      plan: 'Monthly',
+      startDate: '2024-01-10',
+      endDate: '2024-02-10',
+      status: 'cancelled',
+      sessionsRemaining: 0,
+      totalSessions: 8,
+      price: 'PKR 22,000'
+    }
+  ]);
+
+  const handleSubscriptionAction = (clientId: number, action: 'pause' | 'cancel' | 'resume') => {
+    setClients(clients.map(client => {
+      if (client.id === clientId) {
+        let newStatus = client.status;
+        if (action === 'pause') newStatus = 'paused';
+        else if (action === 'cancel') newStatus = 'cancelled';
+        else if (action === 'resume') newStatus = 'active';
+        
+        return { ...client, status: newStatus };
+      }
+      return client;
+    }));
+    
+    showToast(`Client subscription ${action}d successfully`, 'success');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'text-green-400';
+      case 'paused': return 'text-yellow-400';
+      case 'cancelled': return 'text-red-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getStatusBg = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-500';
+      case 'paused': return 'bg-yellow-500';
+      case 'cancelled': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
 
   return (
     <div className="animate-fade-in">
-      <div className="glass-card p-8 rounded-2xl max-w-2xl">
-        <h2 className="text-2xl font-bold mb-6 text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-          Trainer Subscription
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-pink-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Client Subscriptions
         </h2>
-        
-        <div className="space-y-6">
-          <div className="bg-gray-900 p-6 rounded-lg">
-            <h3 className="text-lg font-bold text-green-400 mb-4">Current Plan</h3>
-            <div className="space-y-2">
-              <p><strong>Plan:</strong> Professional Trainer</p>
-              <p><strong>Start Date:</strong> January 1, 2024</p>
-              <p><strong>End Date:</strong> December 31, 2024</p>
-              <p><strong>Monthly Fee:</strong> $99</p>
-              <p><strong>Status:</strong> <span className="text-green-400">Active</span></p>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span>Auto-Renew</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoRenew}
-                  onChange={(e) => {
-                    setAutoRenew(e.target.checked);
-                    showToast(`Auto-renew ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
-                  }}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
-              </label>
+        <p className="text-gray-300">Manage your clients' subscription plans and sessions</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {clients.map((client) => (
+          <div key={client.id} className="glass-card p-6 rounded-2xl">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-white mb-1">{client.name}</h3>
+                <p className="text-gray-300">{client.plan} Plan</p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBg(client.status)} text-white`}>
+                {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
+              </span>
             </div>
             
-            <div className="flex space-x-4">
-              <button
-                onClick={() => showToast('Subscription paused for 30 days', 'info')}
-                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold transition-colors"
-              >
-                Pause Subscription
-              </button>
-              <button
-                onClick={() => showToast('Subscription cancelled. You can reactivate anytime.', 'info')}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition-colors"
-              >
-                Cancel Subscription
-              </button>
+            <div className="space-y-3 mb-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Start Date:</span>
+                <span className="text-white">{client.startDate}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">End Date:</span>
+                <span className="text-white">{client.endDate}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Price:</span>
+                <span className="text-green-400 font-semibold">{client.price}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Sessions:</span>
+                <span className="text-blue-400">{client.sessionsRemaining}/{client.totalSessions}</span>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Progress</span>
+                <span>{Math.round(((client.totalSessions - client.sessionsRemaining) / client.totalSessions) * 100)}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-pink-400 to-purple-400 h-2 rounded-full"
+                  style={{ width: `${((client.totalSessions - client.sessionsRemaining) / client.totalSessions) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-2">
+              {client.status === 'active' ? (
+                <>
+                  <button
+                    onClick={() => handleSubscriptionAction(client.id, 'pause')}
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Pause
+                  </button>
+                  <button
+                    onClick={() => handleSubscriptionAction(client.id, 'cancel')}
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : client.status === 'paused' ? (
+                <>
+                  <button
+                    onClick={() => handleSubscriptionAction(client.id, 'resume')}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Resume
+                  </button>
+                  <button
+                    onClick={() => handleSubscriptionAction(client.id, 'cancel')}
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => handleSubscriptionAction(client.id, 'resume')}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Reactivate
+                </button>
+              )}
             </div>
           </div>
-        </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const TrainerAnnouncements = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const announcements = [
+    {
+      id: 1,
+      title: 'New Equipment Arrival',
+      message: 'We have new cardio machines arriving next week!',
+      priority: 'high',
+      date: '2024-01-20',
+      target: 'all'
+    },
+    {
+      id: 2,
+      title: 'Trainer Meeting',
+      message: 'Monthly trainer meeting this Friday at 3 PM',
+      priority: 'medium',
+      date: '2024-01-18',
+      target: 'trainers'
+    },
+    {
+      id: 3,
+      title: 'Holiday Schedule',
+      message: 'Gym will be closed on Independence Day',
+      priority: 'high',
+      date: '2024-01-15',
+      target: 'all'
+    }
+  ];
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-400';
+      case 'medium': return 'text-yellow-400';
+      case 'low': return 'text-green-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-pink-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Announcements
+        </h2>
+        <p className="text-gray-300">Stay updated with the latest gym announcements</p>
+      </div>
+
+      <div className="space-y-6">
+        {announcements.map((announcement) => (
+          <div key={announcement.id} className="glass-card p-6 rounded-2xl">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center space-x-3 mb-2">
+                  <h3 className="text-xl font-bold text-white">{announcement.title}</h3>
+                  <span className={`text-sm font-semibold ${getPriorityColor(announcement.priority)}`}>
+                    {announcement.priority.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-gray-300 mb-2">{announcement.message}</p>
+                <p className="text-sm text-gray-400">Posted: {announcement.date}</p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

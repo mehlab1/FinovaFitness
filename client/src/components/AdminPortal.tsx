@@ -30,6 +30,8 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
         return <RewardsManagement showToast={showToast} />;
       case 'analytics':
         return <AdminAnalytics showToast={showToast} />;
+      case 'announcements':
+        return <AnnouncementsManagement showToast={showToast} />;
       case 'subscription':
         return <SubscriptionManagement showToast={showToast} />;
       default:
@@ -40,37 +42,52 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
-      <div className="sidebar w-64 h-screen fixed left-0 top-0 p-6">
-        <div className="flex items-center space-x-3 mb-8">
+      <div className="sidebar w-64 h-screen fixed left-0 top-0 p-6 flex flex-col">
+        <div className="flex items-center space-x-3 mb-6 flex-shrink-0">
           <i className="fas fa-dumbbell text-2xl text-orange-400 neon-glow"></i>
           <h1 className="text-xl font-bold text-orange-400" style={{ fontFamily: 'Orbitron, monospace' }}>
             FINOVA FITNESS
           </h1>
         </div>
-        <nav className="space-y-2">
-          {[
-            { id: 'dashboard', icon: 'fas fa-tachometer-alt', label: 'Dashboard', color: 'text-orange-400' },
-            { id: 'members', icon: 'fas fa-users', label: 'Member Directory', color: 'text-blue-400' },
-            { id: 'staff', icon: 'fas fa-user-tie', label: 'Staff Management', color: 'text-green-400' },
-            { id: 'bookings', icon: 'fas fa-calendar-alt', label: 'Bookings & Facilities', color: 'text-pink-400' },
-            { id: 'plans', icon: 'fas fa-tags', label: 'Plans & Pricing', color: 'text-purple-400' },
-            { id: 'loyalty', icon: 'fas fa-gift', label: 'Loyalty & Referrals', color: 'text-blue-400' },
-            { id: 'rewards', icon: 'fas fa-trophy', label: 'Consistency Rewards', color: 'text-green-400' },
-            { id: 'analytics', icon: 'fas fa-chart-line', label: 'Analytics', color: 'text-pink-400' },
-            { id: 'subscription', icon: 'fas fa-cogs', label: 'Subscription Management', color: 'text-purple-400' }
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setCurrentPage(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-orange-400 hover:bg-opacity-10 transition-all ${
-                currentPage === item.id ? 'bg-orange-400 bg-opacity-20' : ''
-              }`}
-            >
-              <i className={`${item.icon} ${item.color}`}></i>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
+        {/* Scrollable Navigation */}
+        <div className="flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-orange-400 scrollbar-track-gray-800 pr-2">
+            <nav className="space-y-2 pb-4">
+              {[
+                { id: 'dashboard', icon: 'fas fa-tachometer-alt', label: 'Dashboard', color: 'text-orange-400' },
+                { id: 'members', icon: 'fas fa-users', label: 'Member Directory', color: 'text-blue-400' },
+                { id: 'staff', icon: 'fas fa-user-tie', label: 'Staff Management', color: 'text-green-400' },
+                { id: 'bookings', icon: 'fas fa-calendar-alt', label: 'Bookings & Facilities', color: 'text-pink-400' },
+                { id: 'plans', icon: 'fas fa-tags', label: 'Plans & Pricing', color: 'text-purple-400' },
+                { id: 'loyalty', icon: 'fas fa-gift', label: 'Loyalty & Referrals', color: 'text-blue-400' },
+                { id: 'rewards', icon: 'fas fa-trophy', label: 'Consistency Rewards', color: 'text-green-400' },
+                { id: 'analytics', icon: 'fas fa-chart-line', label: 'Analytics', color: 'text-pink-400' },
+                { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
+                { id: 'subscription', icon: 'fas fa-cogs', label: 'Subscription Management', color: 'text-purple-400' }
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setCurrentPage(item.id)}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-orange-400 hover:bg-opacity-10 transition-all ${
+                    currentPage === item.id ? 'bg-orange-400 bg-opacity-20' : ''
+                  }`}
+                >
+                  <i className={`${item.icon} ${item.color}`}></i>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+        {/* Scroll Indicators */}
+        <div className="flex-shrink-0 mt-4 text-center">
+          <div className="text-xs text-gray-400 mb-2">Scroll to see all tabs</div>
+          <div className="flex justify-center space-x-1">
+            <div className="w-1 h-1 bg-orange-400 rounded-full animate-pulse"></div>
+            <div className="w-1 h-1 bg-orange-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+            <div className="w-1 h-1 bg-orange-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -161,25 +178,29 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
       <div className="glass-card p-6 rounded-2xl">
         <h3 className="text-xl font-bold text-orange-400 mb-4">Monthly Revenue</h3>
-        <div className="bg-gray-900 p-8 rounded-lg">
-          <div className="flex items-center justify-center h-48">
-            <div className="text-center">
-              <i className="fas fa-chart-bar text-4xl text-orange-400 mb-4"></i>
-              <h4 className="text-lg font-bold mb-2">Revenue Chart</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Jan:</span>
-                  <span className="text-green-400">$45,000</span>
+        <div className="bg-gray-900 p-6 rounded-lg">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-300">Total Revenue</span>
+              <span className="text-2xl font-bold text-green-400">$145,000</span>
+            </div>
+            <div className="space-y-3">
+              {[
+                { month: 'Jan', revenue: 45000, color: 'bg-green-500' },
+                { month: 'Feb', revenue: 52000, color: 'bg-blue-500' },
+                { month: 'Mar', revenue: 48000, color: 'bg-purple-500' }
+              ].map((item, index) => (
+                <div key={index} className="flex items-center space-x-3">
+                  <span className="text-sm text-gray-300 w-8">{item.month}</span>
+                  <div className="flex-1 bg-gray-700 rounded-full h-3">
+                    <div 
+                      className={`${item.color} h-3 rounded-full transition-all duration-1000`}
+                      style={{ width: `${(item.revenue / 52000) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-semibold text-green-400">${item.revenue.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Feb:</span>
-                  <span className="text-green-400">$52,000</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Mar:</span>
-                  <span className="text-green-400">$48,000</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -187,25 +208,30 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
       
       <div className="glass-card p-6 rounded-2xl">
         <h3 className="text-xl font-bold text-blue-400 mb-4">Facility Usage</h3>
-        <div className="bg-gray-900 p-8 rounded-lg">
-          <div className="flex items-center justify-center h-48">
-            <div className="text-center">
-              <i className="fas fa-calendar-week text-4xl text-blue-400 mb-4"></i>
-              <h4 className="text-lg font-bold mb-2">Usage Heatmap</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Peak Hours:</span>
-                  <span className="text-pink-400">6-8 PM</span>
+        <div className="bg-gray-900 p-6 rounded-lg">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-300">Peak Hours</span>
+              <span className="text-lg font-bold text-pink-400">6-8 PM</span>
+            </div>
+            <div className="space-y-3">
+              {[
+                { facility: 'Cardio', usage: 85, color: 'bg-pink-500' },
+                { facility: 'Weights', usage: 72, color: 'bg-blue-500' },
+                { facility: 'Pool', usage: 45, color: 'bg-cyan-500' },
+                { facility: 'Classes', usage: 68, color: 'bg-purple-500' }
+              ].map((item, index) => (
+                <div key={index} className="flex items-center space-x-3">
+                  <span className="text-sm text-gray-300 w-16">{item.facility}</span>
+                  <div className="flex-1 bg-gray-700 rounded-full h-3">
+                    <div 
+                      className={`${item.color} h-3 rounded-full transition-all duration-1000`}
+                      style={{ width: `${item.usage}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-semibold text-blue-400">{item.usage}%</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Avg Occupancy:</span>
-                  <span className="text-blue-400">73%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Most Used:</span>
-                  <span className="text-green-400">Cardio</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -213,25 +239,32 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
       
       <div className="glass-card p-6 rounded-2xl">
         <h3 className="text-xl font-bold text-pink-400 mb-4">Churn Rate</h3>
-        <div className="bg-gray-900 p-8 rounded-lg">
-          <div className="flex items-center justify-center h-48">
-            <div className="text-center">
-              <i className="fas fa-chart-line text-4xl text-pink-400 mb-4"></i>
-              <h4 className="text-lg font-bold mb-2">Churn Analysis</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>This Month:</span>
-                  <span className="text-red-400">2.1%</span>
+        <div className="bg-gray-900 p-6 rounded-lg">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-300">Current Rate</span>
+              <span className="text-2xl font-bold text-red-400">2.1%</span>
+            </div>
+            <div className="space-y-3">
+              {[
+                { month: 'Jan', rate: 2.8, color: 'bg-red-500' },
+                { month: 'Feb', rate: 2.5, color: 'bg-orange-500' },
+                { month: 'Mar', rate: 2.1, color: 'bg-yellow-500' }
+              ].map((item, index) => (
+                <div key={index} className="flex items-center space-x-3">
+                  <span className="text-sm text-gray-300 w-8">{item.month}</span>
+                  <div className="flex-1 bg-gray-700 rounded-full h-3">
+                    <div 
+                      className={`${item.color} h-3 rounded-full transition-all duration-1000`}
+                      style={{ width: `${(item.rate / 3) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-semibold text-red-400">{item.rate}%</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Last Month:</span>
-                  <span className="text-red-400">2.8%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Trend:</span>
-                  <span className="text-green-400">↓ Improving</span>
-                </div>
-              </div>
+              ))}
+            </div>
+            <div className="text-center pt-2">
+              <span className="text-sm text-green-400 font-semibold">↓ Improving Trend</span>
             </div>
           </div>
         </div>
@@ -556,71 +589,149 @@ const BookingsManagement = ({ showToast }: { showToast: (message: string, type?:
 
 const PlansManagement = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newPlan, setNewPlan] = useState({ name: '', duration: '', price: '', perks: '' });
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [newPlan, setNewPlan] = useState({ name: '', duration: '', price: '', perks: '', discount: '' });
+  const [newDiscount, setNewDiscount] = useState({ name: '', code: '', percentage: '', validUntil: '', conditions: '' });
 
   const plans = [
-    { id: 1, name: 'Monthly', duration: '1 month', price: '$79', perks: '24/7 access, All classes, 2 guest passes' },
-    { id: 2, name: 'Quarterly', duration: '3 months', price: '$199', perks: '24/7 access, All classes, 3 guest passes, 2 PT sessions' },
-    { id: 3, name: 'Yearly', duration: '12 months', price: '$599', perks: '24/7 access, All classes, 5 guest passes, 2 PT sessions/month' }
+    { id: 1, name: 'Basic Monthly', duration: '1 month', price: 'PKR 22,000', originalPrice: 'PKR 25,000', perks: '24/7 access, All classes, 2 guest passes', status: 'active' },
+    { id: 2, name: 'Premium Quarterly', duration: '3 months', price: 'PKR 55,000', originalPrice: 'PKR 66,000', perks: '24/7 access, All classes, 3 guest passes, 2 PT sessions', status: 'active' },
+    { id: 3, name: 'Elite Yearly', duration: '12 months', price: 'PKR 165,000', originalPrice: 'PKR 198,000', perks: '24/7 access, All classes, 5 guest passes, 2 PT sessions/month', status: 'active' },
+    { id: 4, name: 'Student Plan', duration: '6 months', price: 'PKR 45,000', originalPrice: 'PKR 60,000', perks: '24/7 access, All classes, Student ID required', status: 'active' },
+    { id: 5, name: 'Family Plan', duration: '12 months', price: 'PKR 220,000', originalPrice: 'PKR 264,000', perks: 'Up to 4 family members, All classes, 10 guest passes', status: 'active' }
+  ];
+
+  const discounts = [
+    { id: 1, name: 'New Year Special', code: 'NEWYEAR2024', percentage: '20%', validUntil: '2024-02-29', conditions: 'New members only', status: 'active' },
+    { id: 2, name: 'Student Discount', code: 'STUDENT15', percentage: '15%', validUntil: '2024-12-31', conditions: 'Valid student ID required', status: 'active' },
+    { id: 3, name: 'Referral Bonus', code: 'REFER10', percentage: '10%', validUntil: '2024-06-30', conditions: 'Both referrer and referee get discount', status: 'active' }
   ];
 
   const handleAddPlan = () => {
     if (newPlan.name && newPlan.duration && newPlan.price && newPlan.perks) {
       showToast(`${newPlan.name} plan created successfully`, 'success');
-      setNewPlan({ name: '', duration: '', price: '', perks: '' });
+      setNewPlan({ name: '', duration: '', price: '', perks: '', discount: '' });
       setShowAddModal(false);
+    }
+  };
+
+  const handleAddDiscount = () => {
+    if (newDiscount.name && newDiscount.code && newDiscount.percentage) {
+      showToast(`${newDiscount.name} discount created successfully`, 'success');
+      setNewDiscount({ name: '', code: '', percentage: '', validUntil: '', conditions: '' });
+      setShowDiscountModal(false);
     }
   };
 
   return (
     <div className="animate-fade-in">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold text-orange-400">Plans & Pricing</h3>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-        >
-          Create New Plan
-        </button>
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-orange-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Plans & Pricing Management
+        </h2>
+        <div className="flex space-x-4">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+          >
+            Create New Plan
+          </button>
+          <button
+            onClick={() => setShowDiscountModal(true)}
+            className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+          >
+            Create Discount
+          </button>
+        </div>
       </div>
 
+      {/* Plans Section */}
+      <div className="glass-card p-6 rounded-2xl mb-8">
+        <h3 className="text-xl font-bold text-orange-400 mb-4">Membership Plans</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {plans.map((plan) => (
+            <div key={plan.id} className="bg-gray-900 p-6 rounded-xl border border-gray-700">
+              <div className="flex justify-between items-start mb-4">
+                <h4 className="text-lg font-bold text-white">{plan.name}</h4>
+                <span className="px-2 py-1 bg-green-500 text-white text-xs rounded-full">Active</span>
+              </div>
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Duration:</span>
+                  <span className="text-white">{plan.duration}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Price:</span>
+                  <span className="text-green-400 font-bold">{plan.price}</span>
+                </div>
+                {plan.originalPrice !== plan.price && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Original:</span>
+                    <span className="text-red-400 line-through">{plan.originalPrice}</span>
+                  </div>
+                )}
+                <div className="text-sm text-gray-300 mt-2">{plan.perks}</div>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => showToast(`Editing ${plan.name}`, 'info')}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => showToast(`${plan.name} disabled`, 'info')}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Disable
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Discounts Section */}
       <div className="glass-card p-6 rounded-2xl">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="table-header">
-                <th className="text-left p-3">Plan Name</th>
-                <th className="text-left p-3">Duration</th>
-                <th className="text-left p-3">Price</th>
-                <th className="text-left p-3">Perks</th>
-                <th className="text-left p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((plan) => (
-                <tr key={plan.id} className="table-row">
-                  <td className="p-3 font-semibold">{plan.name}</td>
-                  <td className="p-3">{plan.duration}</td>
-                  <td className="p-3 text-green-400 font-bold">{plan.price}</td>
-                  <td className="p-3 text-gray-300">{plan.perks}</td>
-                  <td className="p-3">
-                    <button
-                      onClick={() => showToast(`Editing ${plan.name} plan`, 'info')}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors mr-2"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => showToast(`${plan.name} plan disabled`, 'info')}
-                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors"
-                    >
-                      Disable
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <h3 className="text-xl font-bold text-orange-400 mb-4">Active Discounts</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {discounts.map((discount) => (
+            <div key={discount.id} className="bg-gray-900 p-6 rounded-xl border border-gray-700">
+              <div className="flex justify-between items-start mb-4">
+                <h4 className="text-lg font-bold text-white">{discount.name}</h4>
+                <span className="px-2 py-1 bg-green-500 text-white text-xs rounded-full">Active</span>
+              </div>
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Code:</span>
+                  <span className="text-yellow-400 font-mono">{discount.code}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Discount:</span>
+                  <span className="text-green-400 font-bold">{discount.percentage}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Valid Until:</span>
+                  <span className="text-white">{discount.validUntil}</span>
+                </div>
+                <div className="text-sm text-gray-300 mt-2">{discount.conditions}</div>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => showToast(`Editing ${discount.name}`, 'info')}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => showToast(`${discount.name} disabled`, 'info')}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Disable
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -646,7 +757,7 @@ const PlansManagement = ({ showToast }: { showToast: (message: string, type?: 's
               />
               <input
                 type="text"
-                placeholder="Price (e.g., $79)"
+                placeholder="Price (e.g., PKR 22,000)"
                 value={newPlan.price}
                 onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
                 className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
@@ -667,6 +778,66 @@ const PlansManagement = ({ showToast }: { showToast: (message: string, type?: 's
                 </button>
                 <button
                   onClick={() => setShowAddModal(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Discount Modal */}
+      {showDiscountModal && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-orange-400 mb-4">Create New Discount</h3>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Discount name"
+                value={newDiscount.name}
+                onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Discount code"
+                value={newDiscount.code}
+                onChange={(e) => setNewDiscount({ ...newDiscount, code: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Percentage (e.g., 20%)"
+                value={newDiscount.percentage}
+                onChange={(e) => setNewDiscount({ ...newDiscount, percentage: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+              />
+              <input
+                type="date"
+                placeholder="Valid until"
+                value={newDiscount.validUntil}
+                onChange={(e) => setNewDiscount({ ...newDiscount, validUntil: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+              />
+              <textarea
+                placeholder="Conditions"
+                value={newDiscount.conditions}
+                onChange={(e) => setNewDiscount({ ...newDiscount, conditions: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+                rows={2}
+              />
+              <div className="flex space-x-4">
+                <button
+                  onClick={handleAddDiscount}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Create Discount
+                </button>
+                <button
+                  onClick={() => setShowDiscountModal(false)}
                   className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
                 >
                   Cancel
@@ -842,78 +1013,348 @@ const RewardsManagement = ({ showToast }: { showToast: (message: string, type?: 
 };
 
 const AdminAnalytics = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => (
-  <div className="animate-fade-in space-y-6">
-    {/* Analytics Tables */}
-    <div className="glass-card p-6 rounded-2xl">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xl font-bold text-orange-400">Analytics Overview</h3>
-        <button
-          onClick={() => showToast('CSV export initiated', 'success')}
-          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-        >
-          Export CSV
-        </button>
+  <div className="animate-fade-in">
+    <div className="mb-8">
+      <h2 className="text-2xl font-bold text-orange-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+        Analytics Dashboard
+      </h2>
+    </div>
+
+    {/* Analytics Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="metric-card p-6 rounded-xl border-green-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Total Revenue</h3>
+          <i className="fas fa-dollar-sign text-green-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">PKR 2.4M</p>
+        <p className="text-gray-300">This quarter</p>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
-          <h4 className="text-lg font-semibold text-blue-400 mb-3">Revenue by Location</h4>
-          <div className="space-y-2">
-            <div className="flex justify-between bg-gray-900 p-3 rounded">
-              <span>Downtown</span>
-              <span className="text-green-400">$15,240</span>
-            </div>
-            <div className="flex justify-between bg-gray-900 p-3 rounded">
-              <span>Uptown</span>
-              <span className="text-green-400">$12,800</span>
-            </div>
-            <div className="flex justify-between bg-gray-900 p-3 rounded">
-              <span>Midtown</span>
-              <span className="text-green-400">$18,950</span>
-            </div>
+      <div className="metric-card p-6 rounded-xl border-blue-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>New Members</h3>
+          <i className="fas fa-user-plus text-blue-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">156</p>
+        <p className="text-gray-300">This month</p>
+      </div>
+      
+      <div className="metric-card p-6 rounded-xl border-purple-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-purple-400" style={{ fontFamily: 'Orbitron, monospace' }}>Churn Rate</h3>
+          <i className="fas fa-chart-line text-purple-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">2.1%</p>
+        <p className="text-gray-300">-0.3% from last month</p>
+      </div>
+      
+      <div className="metric-card p-6 rounded-xl border-orange-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-orange-400" style={{ fontFamily: 'Orbitron, monospace' }}>Avg Session</h3>
+          <i className="fas fa-clock text-orange-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">67 min</p>
+        <p className="text-gray-300">Per member</p>
+      </div>
+    </div>
+
+    {/* Charts Section */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      {/* Revenue Chart */}
+      <div className="glass-card p-6 rounded-2xl">
+        <h3 className="text-xl font-bold text-orange-400 mb-4">Monthly Revenue Trend</h3>
+        <div className="bg-gray-900 p-6 rounded-lg">
+          <div className="space-y-4">
+            {[
+              { month: 'Jan', revenue: 450000, growth: '+12%' },
+              { month: 'Feb', revenue: 520000, growth: '+15%' },
+              { month: 'Mar', revenue: 480000, growth: '-8%' },
+              { month: 'Apr', revenue: 580000, growth: '+21%' },
+              { month: 'May', revenue: 620000, growth: '+7%' },
+              { month: 'Jun', revenue: 680000, growth: '+10%' }
+            ].map((data, index) => (
+              <div key={data.month} className="flex items-center">
+                <div className="w-12 text-sm text-gray-400">{data.month}</div>
+                <div className="flex-1 mx-4">
+                  <div className="w-full bg-gray-700 rounded-full h-3">
+                    <div 
+                      className="bg-gradient-to-r from-green-400 to-blue-400 h-3 rounded-full"
+                      style={{ width: `${(data.revenue / 700000) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <div className="w-20 text-right">
+                  <div className="text-sm text-white">PKR {(data.revenue / 1000).toFixed(0)}K</div>
+                  <div className="text-xs text-green-400">{data.growth}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-        
-        <div>
-          <h4 className="text-lg font-semibold text-green-400 mb-3">Top Performing Trainers</h4>
-          <div className="space-y-2">
-            <div className="flex justify-between bg-gray-900 p-3 rounded">
-              <span>Sarah Johnson</span>
-              <span className="text-blue-400">$3,240</span>
-            </div>
-            <div className="flex justify-between bg-gray-900 p-3 rounded">
-              <span>Mike Chen</span>
-              <span className="text-blue-400">$2,890</span>
-            </div>
-            <div className="flex justify-between bg-gray-900 p-3 rounded">
-              <span>Alex Rodriguez</span>
-              <span className="text-blue-400">$2,650</span>
-            </div>
+      </div>
+
+      {/* Member Demographics */}
+      <div className="glass-card p-6 rounded-2xl">
+        <h3 className="text-xl font-bold text-orange-400 mb-4">Member Demographics</h3>
+        <div className="bg-gray-900 p-6 rounded-lg">
+          <div className="space-y-4">
+            {[
+              { age: '18-25', percentage: 25, color: 'from-pink-400 to-red-400' },
+              { age: '26-35', percentage: 35, color: 'from-blue-400 to-purple-400' },
+              { age: '36-45', percentage: 28, color: 'from-green-400 to-blue-400' },
+              { age: '46+', percentage: 12, color: 'from-yellow-400 to-orange-400' }
+            ].map((demo, index) => (
+              <div key={demo.age} className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-white">{demo.age} years</span>
+                  <span className="text-gray-400">{demo.percentage}%</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div 
+                    className={`bg-gradient-to-r ${demo.color} h-2 rounded-full`}
+                    style={{ width: `${demo.percentage}%` }}
+                  ></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
     </div>
 
-    {/* Member Insights */}
+    {/* Performance Metrics */}
     <div className="glass-card p-6 rounded-2xl">
-      <h3 className="text-xl font-bold text-orange-400 mb-4">Member Insights</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <h3 className="text-xl font-bold text-orange-400 mb-4">Performance Metrics</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gray-900 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-green-400">92%</div>
-          <div className="text-sm text-gray-400">Member Satisfaction</div>
+          <div className="text-3xl font-bold text-green-400 mb-2">94%</div>
+          <div className="text-sm text-gray-300">Member Retention</div>
         </div>
         <div className="bg-gray-900 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-blue-400">4.2</div>
-          <div className="text-sm text-gray-400">Avg Sessions/Week</div>
+          <div className="text-3xl font-bold text-blue-400 mb-2">4.8</div>
+          <div className="text-sm text-gray-300">Avg Rating</div>
         </div>
         <div className="bg-gray-900 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-pink-400">76%</div>
-          <div className="text-sm text-gray-400">Goal Achievement Rate</div>
+          <div className="text-3xl font-bold text-purple-400 mb-2">78%</div>
+          <div className="text-sm text-gray-300">Facility Utilization</div>
+        </div>
+        <div className="bg-gray-900 p-4 rounded-lg text-center">
+          <div className="text-3xl font-bold text-orange-400 mb-2">156</div>
+          <div className="text-sm text-gray-300">Active Trainers</div>
+        </div>
+      </div>
+    </div>
+
+    {/* Export Section */}
+    <div className="glass-card p-6 rounded-2xl">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-bold text-orange-400">Export Reports</h3>
+        <div className="flex space-x-4">
+          <button
+            onClick={() => showToast('Revenue report exported', 'success')}
+            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+          >
+            Export Revenue
+          </button>
+          <button
+            onClick={() => showToast('Member report exported', 'success')}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+          >
+            Export Members
+          </button>
+          <button
+            onClick={() => showToast('Analytics report exported', 'success')}
+            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+          >
+            Export Analytics
+          </button>
         </div>
       </div>
     </div>
   </div>
 );
+
+const AnnouncementsManagement = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const [announcements, setAnnouncements] = useState([
+    {
+      id: 1,
+      title: 'New Equipment Arrival',
+      message: 'We have new cardio machines arriving next week!',
+      target: 'all',
+      priority: 'high',
+      date: '2024-01-20',
+      status: 'active'
+    },
+    {
+      id: 2,
+      title: 'Trainer Meeting',
+      message: 'Monthly trainer meeting this Friday at 3 PM',
+      target: 'trainers',
+      priority: 'medium',
+      date: '2024-01-18',
+      status: 'active'
+    },
+    {
+      id: 3,
+      title: 'Holiday Schedule',
+      message: 'Gym will be closed on Independence Day',
+      target: 'all',
+      priority: 'high',
+      date: '2024-01-15',
+      status: 'active'
+    }
+  ]);
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newAnnouncement, setNewAnnouncement] = useState({
+    title: '',
+    message: '',
+    target: 'all',
+    priority: 'medium'
+  });
+
+  const handleCreateAnnouncement = () => {
+    const announcement = {
+      id: announcements.length + 1,
+      ...newAnnouncement,
+      date: new Date().toISOString().split('T')[0],
+      status: 'active'
+    };
+    setAnnouncements([...announcements, announcement]);
+    setShowCreateModal(false);
+    setNewAnnouncement({ title: '', message: '', target: 'all', priority: 'medium' });
+    showToast('Announcement created successfully', 'success');
+  };
+
+  const handleDeleteAnnouncement = (id: number) => {
+    setAnnouncements(announcements.filter(a => a.id !== id));
+    showToast('Announcement deleted', 'success');
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-400';
+      case 'medium': return 'text-yellow-400';
+      case 'low': return 'text-green-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getTargetColor = (target: string) => {
+    switch (target) {
+      case 'all': return 'bg-blue-500';
+      case 'trainers': return 'bg-green-500';
+      case 'nutritionists': return 'bg-purple-500';
+      case 'members': return 'bg-orange-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-8">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-orange-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+            Announcements Management
+          </h2>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+          >
+            Create Announcement
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {announcements.map((announcement) => (
+          <div key={announcement.id} className="glass-card p-6 rounded-2xl">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex-1">
+                <div className="flex items-center space-x-3 mb-2">
+                  <h3 className="text-xl font-bold text-white">{announcement.title}</h3>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getTargetColor(announcement.target)} text-white`}>
+                    {announcement.target.charAt(0).toUpperCase() + announcement.target.slice(1)}
+                  </span>
+                  <span className={`text-sm font-semibold ${getPriorityColor(announcement.priority)}`}>
+                    {announcement.priority.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-gray-300 mb-2">{announcement.message}</p>
+                <p className="text-sm text-gray-400">Posted: {announcement.date}</p>
+              </div>
+              <button
+                onClick={() => handleDeleteAnnouncement(announcement.id)}
+                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm font-semibold transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-orange-400 mb-4">Create New Announcement</h3>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Announcement title"
+                value={newAnnouncement.title}
+                onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+              />
+              <textarea
+                placeholder="Announcement message"
+                value={newAnnouncement.message}
+                onChange={(e) => setNewAnnouncement({ ...newAnnouncement, message: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+                rows={3}
+              />
+              <select
+                value={newAnnouncement.target}
+                onChange={(e) => setNewAnnouncement({ ...newAnnouncement, target: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+              >
+                <option value="all">All Staff & Members</option>
+                <option value="trainers">Trainers Only</option>
+                <option value="nutritionists">Nutritionists Only</option>
+                <option value="members">Members Only</option>
+              </select>
+              <select
+                value={newAnnouncement.priority}
+                onChange={(e) => setNewAnnouncement({ ...newAnnouncement, priority: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+              >
+                <option value="low">Low Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+              </select>
+              <div className="flex space-x-4">
+                <button
+                  onClick={handleCreateAnnouncement}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Create
+                </button>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SubscriptionManagement = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const [gymSettings, setGymSettings] = useState({

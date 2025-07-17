@@ -19,6 +19,8 @@ export const FrontDeskPortal = ({ user, onLogout }: FrontDeskPortalProps) => {
         return <WalkInSales showToast={showToast} />;
       case 'pos':
         return <POSSummary showToast={showToast} />;
+      case 'announcements':
+        return <FrontDeskAnnouncements showToast={showToast} />;
       case 'subscription':
         return <FrontDeskSubscription showToast={showToast} />;
       default:
@@ -41,6 +43,7 @@ export const FrontDeskPortal = ({ user, onLogout }: FrontDeskPortalProps) => {
             { id: 'checkin', icon: 'fas fa-qrcode', label: 'Manual Check-In', color: 'text-cyan-400' },
             { id: 'sales', icon: 'fas fa-cash-register', label: 'Walk-In Sales', color: 'text-green-400' },
             { id: 'pos', icon: 'fas fa-receipt', label: 'POS Summary', color: 'text-pink-400' },
+            { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
             { id: 'subscription', icon: 'fas fa-cog', label: 'Subscription Management', color: 'text-purple-400' }
           ].map((item) => (
             <button
@@ -544,6 +547,74 @@ const FrontDeskSubscription = ({ showToast }: { showToast: (message: string, typ
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+const FrontDeskAnnouncements = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const announcements = [
+    {
+      id: 1,
+      title: 'New Equipment Arrival',
+      message: 'We have new cardio machines arriving next week!',
+      priority: 'high',
+      date: '2024-01-20',
+      target: 'all'
+    },
+    {
+      id: 2,
+      title: 'Front Desk Meeting',
+      message: 'Weekly front desk meeting this Friday at 2 PM',
+      priority: 'medium',
+      date: '2024-01-18',
+      target: 'staff'
+    },
+    {
+      id: 3,
+      title: 'Holiday Schedule',
+      message: 'Gym will be closed on Independence Day',
+      priority: 'high',
+      date: '2024-01-15',
+      target: 'all'
+    }
+  ];
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-400';
+      case 'medium': return 'text-yellow-400';
+      case 'low': return 'text-green-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-cyan-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Announcements
+        </h2>
+        <p className="text-gray-300">Stay updated with the latest gym announcements</p>
+      </div>
+
+      <div className="space-y-6">
+        {announcements.map((announcement) => (
+          <div key={announcement.id} className="glass-card p-6 rounded-2xl">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center space-x-3 mb-2">
+                  <h3 className="text-xl font-bold text-white">{announcement.title}</h3>
+                  <span className={`text-sm font-semibold ${getPriorityColor(announcement.priority)}`}>
+                    {announcement.priority.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-gray-300 mb-2">{announcement.message}</p>
+                <p className="text-sm text-gray-400">Posted: {announcement.date}</p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

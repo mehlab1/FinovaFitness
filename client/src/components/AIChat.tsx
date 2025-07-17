@@ -42,7 +42,9 @@ export const AIChat = ({ portal }: AIChatProps) => {
         <div className="mb-4 w-80 h-96 chat-bubble rounded-2xl flex flex-col animate-bounce-in">
           <div className="p-4 border-b border-gray-600 flex items-center justify-between">
             <div className="flex items-center">
-              <i className="fas fa-robot text-blue-400 text-xl mr-2"></i>
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center mr-2 neon-glow">
+                <span className="text-white font-bold text-sm">AI</span>
+              </div>
               <span className="font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
                 AI ASSISTANT
               </span>
@@ -105,12 +107,28 @@ export const AIChat = ({ portal }: AIChatProps) => {
         </div>
       )}
       
-      {/* Chat Toggle Button */}
+      {/* Chat Toggle Button - AI Badge */}
       <button
         onClick={toggleChat}
-        className="w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg hover-glow transition-all duration-300 animate-pulse-glow"
+        className="group relative w-20 h-20 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:from-blue-500 hover:via-purple-600 hover:to-pink-600 text-white rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-500 animate-pulse-glow flex items-center justify-center overflow-hidden"
+        style={{
+          backgroundSize: '200% 200%',
+          animation: 'gradient-shift 3s ease infinite, pulse-glow 2s ease-in-out infinite'
+        }}
       >
-        <i className="fas fa-robot text-xl"></i>
+        {/* Animated background */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 opacity-75 animate-spin-slow"></div>
+        
+        {/* AI Text */}
+        <div className="relative z-10 flex flex-col items-center">
+          <span className="text-xs font-bold tracking-wider" style={{ fontFamily: 'Orbitron, monospace' }}>
+            AI
+          </span>
+          <span className="text-xs opacity-75">CHAT</span>
+        </div>
+        
+        {/* Glow effect */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-500"></div>
       </button>
     </div>
   );

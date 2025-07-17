@@ -1,8 +1,8 @@
-# Finova Fitness - Gym Management System
+# Finova Fitness - Frontend Gym Management System
 
 ## Overview
 
-Finova Fitness is a comprehensive gym management system built as a static frontend application with multiple user portals. The system provides different interfaces for various user types including public users, members, trainers, nutritionists, administrators, and front desk staff. The application features a neon-themed dark UI with extensive animations and an AI chatbot assistant.
+Finova Fitness is a comprehensive gym management system built as a fully static frontend application with multiple user portals. The system provides different interfaces for various user types including public users, members, trainers, nutritionists, administrators, and front desk staff. The application features a neon-themed dark UI with extensive animations and an AI chatbot assistant.
 
 ## User Preferences
 
@@ -17,17 +17,11 @@ Preferred communication style: Simple, everyday language.
 - **UI Components**: Radix UI primitives with shadcn/ui component library
 - **State Management**: React hooks with custom portal management
 - **Animations**: CSS animations and transitions for interactive elements
-
-### Backend Architecture
-- **Server**: Express.js with TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Database Provider**: Neon Database (serverless PostgreSQL)
-- **Session Management**: PostgreSQL session store
-- **API Structure**: RESTful endpoints under `/api` prefix
+- **Data**: Hardcoded mock data for demonstration purposes
 
 ### Key Design Decisions
 1. **Multi-Portal Architecture**: Single application serving different user interfaces based on role
-2. **Static Frontend Focus**: Primarily frontend-only with placeholder data for demonstration
+2. **Static Frontend Focus**: Fully frontend-only with comprehensive mock data
 3. **Neon Theme**: Consistent dark background with bright neon accents (blue, green, pink, purple, orange)
 4. **Component-Based Design**: Modular React components for each portal and feature
 
@@ -72,7 +66,7 @@ Preferred communication style: Simple, everyday language.
 - **Booking State**: Multi-step form progression
 
 ### Data Structure
-- **Mock Data**: Static data for trainers, classes, products, membership plans
+- **Mock Data**: Comprehensive static data for trainers, classes, products, membership plans
 - **Type Definitions**: TypeScript interfaces for User, Trainer, Class, Product, etc.
 - **Portal Configuration**: Centralized portal definitions with colors and icons
 
@@ -85,13 +79,7 @@ Preferred communication style: Simple, everyday language.
 - **Radix UI**: Accessible component primitives
 - **Vite**: Build tool and development server
 
-### Database & ORM
-- **Drizzle ORM**: Type-safe database operations
-- **@neondatabase/serverless**: Serverless PostgreSQL driver
-- **Zod**: Schema validation
-
 ### Development Tools
-- **ESBuild**: Fast JavaScript bundler for production
 - **PostCSS**: CSS processing with Tailwind
 - **Replit Integration**: Development environment support
 
@@ -106,25 +94,20 @@ Preferred communication style: Simple, everyday language.
 
 ### Build Process
 1. **Development**: Vite dev server with hot module replacement
-2. **Production Build**: 
-   - Frontend: Vite builds React app to `dist/public`
-   - Backend: ESBuild bundles Express server to `dist/index.js`
-3. **Static Assets**: Served from `dist/public` directory
+2. **Production Build**: Vite builds React app to `dist` directory
+3. **Static Assets**: All assets bundled for static hosting
 
 ### Environment Configuration
-- **Development**: NODE_ENV=development, Vite dev server
-- **Production**: NODE_ENV=production, Express serves static files
-- **Database**: PostgreSQL connection via DATABASE_URL environment variable
+- **Development**: Vite dev server on port 5173
+- **Production**: Static files ready for any hosting platform
 
 ### Hosting Requirements
-- **Frontend**: Can be deployed as static site (Vercel, Netlify)
-- **Backend**: Node.js environment for Express server
-- **Database**: PostgreSQL database (recommended: Neon Database)
+- **Frontend**: Can be deployed as static site (Vercel, Netlify, GitHub Pages)
+- **No Backend Required**: Fully self-contained frontend application
 
 ### Key Configuration Files
 - **Vite Config**: Frontend build configuration with aliases
 - **Tailwind Config**: Theme customization and neon color palette
 - **TypeScript Config**: Path mapping and compilation settings
-- **Drizzle Config**: Database schema and migration configuration
 
-The application is designed to be easily deployable as a static site while maintaining the option to add full backend functionality later. The mock data and placeholder content allow for immediate demonstration of all features without requiring a live database connection.
+The application is designed to be easily deployable as a static site with comprehensive mock data allowing for immediate demonstration of all features without requiring any backend infrastructure.

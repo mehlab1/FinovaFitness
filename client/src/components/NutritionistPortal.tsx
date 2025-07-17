@@ -23,6 +23,8 @@ export const NutritionistPortal = ({ user, onLogout }: NutritionistPortalProps) 
         return <MealPlanTemplates showToast={showToast} />;
       case 'notes':
         return <ClientNotes showToast={showToast} />;
+      case 'announcements':
+        return <NutritionistAnnouncements showToast={showToast} />;
       case 'subscription':
         return <NutritionistSubscription showToast={showToast} />;
       default:
@@ -47,6 +49,7 @@ export const NutritionistPortal = ({ user, onLogout }: NutritionistPortalProps) 
             { id: 'client-requests', icon: 'fas fa-user-friends', label: 'Diet Plan Requests', color: 'text-green-400' },
             { id: 'templates', icon: 'fas fa-folder', label: 'Meal Plan Templates', color: 'text-pink-400' },
             { id: 'notes', icon: 'fas fa-sticky-note', label: 'Client Notes', color: 'text-orange-400' },
+            { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
             { id: 'subscription', icon: 'fas fa-credit-card', label: 'Subscription', color: 'text-blue-400' }
           ].map((item) => (
             <button
@@ -486,60 +489,244 @@ const ClientNotes = ({ showToast }: { showToast: (message: string, type?: 'succe
 };
 
 const NutritionistSubscription = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [autoRenew, setAutoRenew] = useState(true);
+  const [clients, setClients] = useState([
+    {
+      id: 1,
+      name: 'Emma Wilson',
+      plan: 'Weight Loss Plan',
+      startDate: '2024-01-01',
+      endDate: '2024-02-01',
+      status: 'active',
+      consultationsRemaining: 3,
+      totalConsultations: 4,
+      price: 'PKR 15,000'
+    },
+    {
+      id: 2,
+      name: 'David Brown',
+      plan: 'Sports Nutrition',
+      startDate: '2024-01-15',
+      endDate: '2024-02-15',
+      status: 'active',
+      consultationsRemaining: 2,
+      totalConsultations: 3,
+      price: 'PKR 12,000'
+    },
+    {
+      id: 3,
+      name: 'Lisa Garcia',
+      plan: 'Maintenance Plan',
+      startDate: '2024-01-10',
+      endDate: '2024-02-10',
+      status: 'paused',
+      consultationsRemaining: 1,
+      totalConsultations: 2,
+      price: 'PKR 8,000'
+    },
+    {
+      id: 4,
+      name: 'Mike Johnson',
+      plan: 'Muscle Gain Plan',
+      startDate: '2024-01-05',
+      endDate: '2024-02-05',
+      status: 'cancelled',
+      consultationsRemaining: 0,
+      totalConsultations: 4,
+      price: 'PKR 18,000'
+    }
+  ]);
+
+  const handleSubscriptionAction = (clientId: number, action: 'pause' | 'cancel' | 'resume') => {
+    setClients(clients.map(client => {
+      if (client.id === clientId) {
+        let newStatus = client.status;
+        if (action === 'pause') newStatus = 'paused';
+        else if (action === 'cancel') newStatus = 'cancelled';
+        else if (action === 'resume') newStatus = 'active';
+        
+        return { ...client, status: newStatus };
+      }
+      return client;
+    }));
+    
+    showToast(`Client subscription ${action}d successfully`, 'success');
+  };
+
+  const getStatusBg = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-500';
+      case 'paused': return 'bg-yellow-500';
+      case 'cancelled': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
 
   return (
     <div className="animate-fade-in">
-      <div className="glass-card p-8 rounded-2xl max-w-2xl">
-        <h2 className="text-2xl font-bold mb-6 text-purple-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-          Nutritionist Subscription
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-purple-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Client Subscriptions
         </h2>
-        
-        <div className="space-y-6">
-          <div className="bg-gray-900 p-6 rounded-lg">
-            <h3 className="text-lg font-bold text-green-400 mb-4">Current Plan</h3>
-            <div className="space-y-2">
-              <p><strong>Plan:</strong> Professional Nutritionist</p>
-              <p><strong>Start Date:</strong> January 1, 2024</p>
-              <p><strong>End Date:</strong> December 31, 2024</p>
-              <p><strong>Monthly Fee:</strong> $89</p>
-              <p><strong>Status:</strong> <span className="text-green-400">Active</span></p>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span>Auto-Renew</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoRenew}
-                  onChange={(e) => {
-                    setAutoRenew(e.target.checked);
-                    showToast(`Auto-renew ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
-                  }}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
-              </label>
+        <p className="text-gray-300">Manage your clients' nutrition plans and consultations</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {clients.map((client) => (
+          <div key={client.id} className="glass-card p-6 rounded-2xl">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-white mb-1">{client.name}</h3>
+                <p className="text-gray-300">{client.plan}</p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBg(client.status)} text-white`}>
+                {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
+              </span>
             </div>
             
-            <div className="flex space-x-4">
-              <button
-                onClick={() => showToast('Subscription paused for 30 days', 'info')}
-                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold transition-colors"
-              >
-                Pause Subscription
-              </button>
-              <button
-                onClick={() => showToast('Subscription cancelled. You can reactivate anytime.', 'info')}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition-colors"
-              >
-                Cancel Subscription
-              </button>
+            <div className="space-y-3 mb-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Start Date:</span>
+                <span className="text-white">{client.startDate}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">End Date:</span>
+                <span className="text-white">{client.endDate}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Price:</span>
+                <span className="text-green-400 font-semibold">{client.price}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Consultations:</span>
+                <span className="text-blue-400">{client.consultationsRemaining}/{client.totalConsultations}</span>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Progress</span>
+                <span>{Math.round(((client.totalConsultations - client.consultationsRemaining) / client.totalConsultations) * 100)}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-purple-400 to-pink-400 h-2 rounded-full"
+                  style={{ width: `${((client.totalConsultations - client.consultationsRemaining) / client.totalConsultations) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-2">
+              {client.status === 'active' ? (
+                <>
+                  <button
+                    onClick={() => handleSubscriptionAction(client.id, 'pause')}
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Pause
+                  </button>
+                  <button
+                    onClick={() => handleSubscriptionAction(client.id, 'cancel')}
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : client.status === 'paused' ? (
+                <>
+                  <button
+                    onClick={() => handleSubscriptionAction(client.id, 'resume')}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Resume
+                  </button>
+                  <button
+                    onClick={() => handleSubscriptionAction(client.id, 'cancel')}
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => handleSubscriptionAction(client.id, 'resume')}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Reactivate
+                </button>
+              )}
             </div>
           </div>
-        </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const NutritionistAnnouncements = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const announcements = [
+    {
+      id: 1,
+      title: 'New Equipment Arrival',
+      message: 'We have new cardio machines arriving next week!',
+      priority: 'high',
+      date: '2024-01-20',
+      target: 'all'
+    },
+    {
+      id: 2,
+      title: 'Nutritionist Meeting',
+      message: 'Monthly nutritionist meeting this Friday at 2 PM',
+      priority: 'medium',
+      date: '2024-01-18',
+      target: 'nutritionists'
+    },
+    {
+      id: 3,
+      title: 'Holiday Schedule',
+      message: 'Gym will be closed on Independence Day',
+      priority: 'high',
+      date: '2024-01-15',
+      target: 'all'
+    }
+  ];
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-400';
+      case 'medium': return 'text-yellow-400';
+      case 'low': return 'text-green-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-purple-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Announcements
+        </h2>
+        <p className="text-gray-300">Stay updated with the latest gym announcements</p>
+      </div>
+
+      <div className="space-y-6">
+        {announcements.map((announcement) => (
+          <div key={announcement.id} className="glass-card p-6 rounded-2xl">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center space-x-3 mb-2">
+                  <h3 className="text-xl font-bold text-white">{announcement.title}</h3>
+                  <span className={`text-sm font-semibold ${getPriorityColor(announcement.priority)}`}>
+                    {announcement.priority.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-gray-300 mb-2">{announcement.message}</p>
+                <p className="text-sm text-gray-400">Posted: {announcement.date}</p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

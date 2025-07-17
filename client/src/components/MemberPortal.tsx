@@ -22,16 +22,20 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
         return <Membership user={user} showToast={showToast} />;
       case 'workout':
         return <WorkoutSchedule showToast={showToast} />;
-      case 'book-sessions':
-        return <BookSessions showToast={showToast} />;
+      case 'trainers':
+        return <TrainersTab showToast={showToast} />;
+      case 'nutritionists':
+        return <NutritionistsTab showToast={showToast} />;
       case 'facilities':
         return <FacilitiesBooking showToast={showToast} />;
       case 'store':
         return <MemberStore showToast={showToast} />;
       case 'loyalty':
         return <LoyaltyReferrals user={user} showToast={showToast} />;
-      case 'history':
-        return <HistoryReviews showToast={showToast} />;
+      case 'announcements':
+        return <MemberAnnouncements showToast={showToast} />;
+      case 'reviews':
+        return <Reviews showToast={showToast} />;
       default:
         return <Dashboard user={user} showToast={showToast} />;
     }
@@ -40,37 +44,55 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
-      <div className="sidebar w-64 h-screen fixed left-0 top-0 p-6">
-        <div className="flex items-center space-x-3 mb-8">
+      <div className="sidebar w-64 h-screen fixed left-0 top-0 p-6 flex flex-col">
+        <div className="flex items-center space-x-3 mb-6 flex-shrink-0">
           <i className="fas fa-dumbbell text-2xl text-blue-400 neon-glow"></i>
           <h1 className="text-xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
             FINOVA FITNESS
           </h1>
         </div>
-        <nav className="space-y-2">
-          {[
-            { id: 'dashboard', icon: 'fas fa-tachometer-alt', label: 'Dashboard', color: 'text-blue-400' },
-            { id: 'profile', icon: 'fas fa-user', label: 'My Profile', color: 'text-green-400' },
-            { id: 'membership', icon: 'fas fa-id-card', label: 'Membership', color: 'text-pink-400' },
-            { id: 'workout', icon: 'fas fa-dumbbell', label: 'Workout Schedule', color: 'text-purple-400' },
-            { id: 'book-sessions', icon: 'fas fa-calendar-plus', label: 'Book Sessions', color: 'text-orange-400' },
-            { id: 'facilities', icon: 'fas fa-swimming-pool', label: 'Facilities', color: 'text-blue-400' },
-            { id: 'store', icon: 'fas fa-shopping-cart', label: 'Store', color: 'text-green-400' },
-            { id: 'loyalty', icon: 'fas fa-gift', label: 'Loyalty & Referrals', color: 'text-pink-400' },
-            { id: 'history', icon: 'fas fa-history', label: 'History & Reviews', color: 'text-purple-400' }
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setCurrentPage(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-blue-400 hover:bg-opacity-10 transition-all ${
-                currentPage === item.id ? 'bg-blue-400 bg-opacity-20' : ''
-              }`}
-            >
-              <i className={`${item.icon} ${item.color}`}></i>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
+        
+        {/* Scrollable Navigation */}
+        <div className="flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-blue-400 scrollbar-track-gray-800 pr-2">
+            <nav className="space-y-2 pb-4">
+              {[
+                { id: 'dashboard', icon: 'fas fa-tachometer-alt', label: 'Dashboard', color: 'text-blue-400' },
+                { id: 'profile', icon: 'fas fa-user', label: 'My Profile', color: 'text-green-400' },
+                { id: 'membership', icon: 'fas fa-id-card', label: 'Membership', color: 'text-pink-400' },
+                { id: 'workout', icon: 'fas fa-dumbbell', label: 'Workout Schedule', color: 'text-purple-400' },
+                { id: 'trainers', icon: 'fas fa-user-tie', label: 'Trainers', color: 'text-orange-400' },
+                { id: 'nutritionists', icon: 'fas fa-apple-alt', label: 'Nutritionists', color: 'text-purple-400' },
+                { id: 'facilities', icon: 'fas fa-swimming-pool', label: 'Facilities', color: 'text-blue-400' },
+                { id: 'store', icon: 'fas fa-shopping-cart', label: 'Store', color: 'text-green-400' },
+                { id: 'loyalty', icon: 'fas fa-gift', label: 'Loyalty & Referrals', color: 'text-pink-400' },
+                { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
+                { id: 'reviews', icon: 'fas fa-star', label: 'Reviews', color: 'text-purple-400' }
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setCurrentPage(item.id)}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-blue-400 hover:bg-opacity-10 transition-all ${
+                    currentPage === item.id ? 'bg-blue-400 bg-opacity-20' : ''
+                  }`}
+                >
+                  <i className={`${item.icon} ${item.color}`}></i>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+        
+        {/* Scroll Indicators */}
+        <div className="flex-shrink-0 mt-4 text-center">
+          <div className="text-xs text-gray-400 mb-2">Scroll to see all tabs</div>
+          <div className="flex justify-center space-x-1">
+            <div className="w-1 h-1 bg-blue-400 rounded-full animate-pulse"></div>
+            <div className="w-1 h-1 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+            <div className="w-1 h-1 bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -153,24 +175,34 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
       </div>
     </div>
 
-    {/* Quick Actions */}
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      {[
-        { icon: 'fas fa-calendar-plus', title: 'BOOK SESSION', description: 'Schedule with trainer', color: 'border-blue-400' },
-        { icon: 'fas fa-swimming-pool', title: 'BOOK FACILITY', description: 'Reserve pool/sauna', color: 'border-green-400' },
-        { icon: 'fas fa-dumbbell', title: 'WORKOUT PLAN', description: 'View your schedule', color: 'border-pink-400' },
-        { icon: 'fas fa-shopping-cart', title: 'VISIT STORE', description: 'Member discounts', color: 'border-yellow-400' }
-      ].map((action, index) => (
-        <button
-          key={index}
-          onClick={() => showToast(`${action.title} clicked!`, 'info')}
-          className={`glass-card p-6 rounded-xl hover-glow transition-all duration-300 group ${action.color}`}
-        >
-          <i className={`${action.icon} text-3xl mb-4 group-hover:animate-pulse-glow`}></i>
-          <h3 className="text-lg font-bold mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>{action.title}</h3>
-          <p className="text-gray-300">{action.description}</p>
-        </button>
-      ))}
+    {/* Progress Widgets */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="metric-card p-6 rounded-xl border-green-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Weight Change</h3>
+          <i className="fas fa-weight text-green-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">–3 kg</p>
+        <p className="text-gray-300">since last month</p>
+      </div>
+      
+      <div className="metric-card p-6 rounded-xl border-blue-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>BMI</h3>
+          <i className="fas fa-chart-line text-blue-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">24.1</p>
+        <p className="text-gray-300">Your BMI</p>
+      </div>
+      
+      <div className="metric-card p-6 rounded-xl border-pink-400">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>Workout Completion</h3>
+          <i className="fas fa-check-circle text-pink-400 text-2xl"></i>
+        </div>
+        <p className="text-2xl font-bold text-white">12/15</p>
+        <p className="text-gray-300">scheduled workouts done</p>
+      </div>
     </div>
 
     {/* Consistency Reward */}
@@ -319,6 +351,12 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
             
             <div className="flex space-x-4">
               <button
+                onClick={() => showToast('Launching membership wizard...', 'info')}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-colors"
+              >
+                Change Plan
+              </button>
+              <button
                 onClick={() => showToast('Subscription paused for 30 days', 'info')}
                 className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold transition-colors"
               >
@@ -339,116 +377,188 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
 };
 
 const WorkoutSchedule = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [schedule, setSchedule] = useState<{ [key: string]: string }>({});
-  const [selectedExercise, setSelectedExercise] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newExercise, setNewExercise] = useState('');
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [showAddColumn, setShowAddColumn] = useState(false);
+  const [newColumn, setNewColumn] = useState('');
+
+  const workoutData: { [key: string]: { [key: string]: string[] } } = {
+    Monday: {
+      Shoulders: ['Military Press', 'Lateral Raises', 'Front Raises'],
+      Chest: ['Bench Press', 'Push-ups', 'Dumbbell Flyes'],
+      Biceps: ['Barbell Curls', 'Hammer Curls', 'Preacher Curls']
+    },
+    Tuesday: {
+      Back: ['Pull-ups', 'Deadlifts', 'Rows'],
+      Triceps: ['Dips', 'Skull Crushers', 'Tricep Extensions'],
+      Legs: ['Squats', 'Lunges', 'Calf Raises']
+    },
+    Wednesday: {
+      Chest: ['Incline Bench Press', 'Decline Bench Press', 'Cable Flyes', 'Dumbbell Press', 'Push-ups'],
+      Shoulders: ['Military Press', 'Lateral Raises', 'Front Raises', 'Rear Delt Flyes', 'Arnold Press'],
+      Biceps: ['Barbell Curls', 'Hammer Curls', 'Preacher Curls', 'Concentration Curls', 'Incline Curls'],
+      Triceps: ['Dips', 'Skull Crushers', 'Tricep Extensions', 'Overhead Extensions', 'Rope Pushdowns'],
+      Back: ['Pull-ups', 'Deadlifts', 'Rows', 'Lat Pulldowns', 'Face Pulls'],
+      Legs: ['Squats', 'Lunges', 'Calf Raises', 'Leg Press', 'Romanian Deadlifts']
+    }
+  };
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const times = ['Morning', 'Afternoon', 'Evening'];
 
-  const handleExerciseChange = (day: string, time: string, exercise: string) => {
-    setSchedule({ ...schedule, [`${day}-${time}`]: exercise });
-  };
-
-  const handleSaveSchedule = () => {
-    showToast('Workout schedule saved!', 'success');
-  };
-
-  const handleAddExercise = () => {
-    if (newExercise.trim()) {
-      showToast(`Exercise "${newExercise}" added!`, 'success');
-      setNewExercise('');
-      setShowAddModal(false);
+  const handleAddColumn = () => {
+    if (newColumn.trim() && expandedDay) {
+      if (workoutData[expandedDay]) {
+        workoutData[expandedDay][newColumn] = [];
+      }
+      setNewColumn('');
+      setShowAddColumn(false);
+      showToast(`Added new muscle group: ${newColumn}`, 'success');
     }
+  };
+
+  const handleAddExercise = (day: string, muscleGroup: string) => {
+    const exerciseName = prompt(`Add exercise for ${muscleGroup}:`);
+    if (exerciseName && workoutData[day] && workoutData[day][muscleGroup]) {
+      workoutData[day][muscleGroup].push(exerciseName);
+      showToast(`Added exercise: ${exerciseName}`, 'success');
+    }
+  };
+
+  const getAISuggestion = (day: string) => {
+    if (day === 'Monday' || day === 'Tuesday') {
+      return { message: 'Perfect plan for your goals and BMI!', color: 'text-green-400', bgColor: 'bg-green-500' };
+    } else if (day === 'Wednesday') {
+      return { message: 'This is not healthy! Please consult professional help.', color: 'text-red-400', bgColor: 'bg-red-500' };
+    }
+    return { message: 'Good workout plan!', color: 'text-blue-400', bgColor: 'bg-blue-500' };
   };
 
   return (
     <div className="animate-fade-in">
       <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-            Weekly Workout Schedule
-          </h2>
-          <div className="space-x-4">
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-            >
-              Add New Exercise
-            </button>
-            <button
-              onClick={handleSaveSchedule}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-            >
-              Save Schedule
-            </button>
-          </div>
-        </div>
+        <h2 className="text-2xl font-bold text-blue-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Weekly Workout Schedule
+        </h2>
         
-        <div className="glass-card p-6 rounded-2xl overflow-x-auto">
-          <div className="min-w-full">
-            <div className="grid grid-cols-8 gap-4 mb-4">
-              <div className="font-bold text-center"></div>
-              {days.map(day => (
-                <div key={day} className="font-bold text-center text-blue-400">{day}</div>
-              ))}
-            </div>
-            
-            {times.map(time => (
-              <div key={time} className="grid grid-cols-8 gap-4 mb-4">
-                <div className="font-semibold text-center">{time}</div>
-                {days.map(day => (
-                  <div key={`${day}-${time}`} className="text-center">
-                    <select
-                      value={schedule[`${day}-${time}`] || ''}
-                      onChange={(e) => handleExerciseChange(day, time, e.target.value)}
-                      className="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-sm focus:border-blue-400 focus:outline-none"
-                    >
-                      <option value="">Select Exercise</option>
-                      {exercises.map(exercise => (
-                        <option key={exercise} value={exercise}>{exercise}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
+        {/* Weekly Overview */}
+        <div className="glass-card p-6 rounded-2xl mb-6">
+          <div className="grid grid-cols-7 gap-4">
+            {days.map(day => (
+              <button
+                key={day}
+                onClick={() => setExpandedDay(expandedDay === day ? null : day)}
+                className={`p-4 rounded-lg text-center transition-all duration-300 ${
+                  expandedDay === day 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
+                }`}
+              >
+                <div className="font-bold">{day}</div>
+                <div className="text-sm opacity-75">
+                  {workoutData[day as keyof typeof workoutData] ? 
+                    Object.keys(workoutData[day as keyof typeof workoutData]).length + ' groups' : 
+                    'No plan'
+                  }
+                </div>
+              </button>
             ))}
           </div>
         </div>
-      </div>
-      
-      {/* Add Exercise Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold mb-4 text-green-400">Add New Exercise</h3>
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={newExercise}
-                onChange={(e) => setNewExercise(e.target.value)}
-                placeholder="Exercise name"
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"
-              />
-              <div className="flex space-x-4">
-                <button
-                  onClick={handleAddExercise}
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Add Exercise
-                </button>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
+
+        {/* Expanded Day View */}
+        {expandedDay && workoutData[expandedDay as keyof typeof workoutData] && (
+          <div className="glass-card p-6 rounded-2xl mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-blue-400">{expandedDay} Workout</h3>
+              <button
+                onClick={() => setShowAddColumn(true)}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+              >
+                Add Muscle Group
+              </button>
+            </div>
+
+            {/* Workout Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-600">
+                    <th className="text-left p-3 text-blue-400">Muscle Group</th>
+                    <th className="text-left p-3 text-blue-400">Exercises</th>
+                    <th className="text-left p-3 text-blue-400">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(workoutData[expandedDay as keyof typeof workoutData]).map(([muscleGroup, exercises]) => (
+                    <tr key={muscleGroup} className="border-b border-gray-700">
+                      <td className="p-3 font-semibold text-green-400">{muscleGroup}</td>
+                      <td className="p-3">
+                        <div className="space-y-1">
+                          {exercises.map((exercise, index) => (
+                            <div key={index} className="text-gray-300">• {exercise}</div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => handleAddExercise(expandedDay, muscleGroup)}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                        >
+                          <i className="fas fa-plus mr-1"></i>Add Exercise
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* AI Suggestions Bar */}
+            <div className={`mt-6 p-4 rounded-lg ${getAISuggestion(expandedDay).bgColor} bg-opacity-20 border border-current`}>
+              <div className="flex items-center">
+                <i className="fas fa-robot mr-3 text-2xl"></i>
+                <div>
+                  <div className={`font-bold ${getAISuggestion(expandedDay).color}`}>AI Suggestion:</div>
+                  <div className={`${getAISuggestion(expandedDay).color}`}>
+                    {getAISuggestion(expandedDay).message}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Add Column Modal */}
+        {showAddColumn && (
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+            <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
+              <h3 className="text-xl font-bold mb-4 text-green-400">Add Muscle Group</h3>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  value={newColumn}
+                  onChange={(e) => setNewColumn(e.target.value)}
+                  placeholder="Muscle group name"
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"
+                />
+                <div className="flex space-x-4">
+                  <button
+                    onClick={handleAddColumn}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Add Group
+                  </button>
+                  <button
+                    onClick={() => setShowAddColumn(false)}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -782,7 +892,7 @@ const LoyaltyReferrals = ({ user, showToast }: { user: User | null; showToast: (
   );
 };
 
-const HistoryReviews = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+const Reviews = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [rating, setRating] = useState(5);
@@ -887,6 +997,320 @@ const HistoryReviews = ({ showToast }: { showToast: (message: string, type?: 'su
                 </button>
                 <button
                   onClick={() => setShowReviewModal(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TrainersTab = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const [selectedTrainer, setSelectedTrainer] = useState<any>(null);
+
+  const trainers = [
+    {
+      id: '1',
+      name: 'Sarah Johnson',
+      specialty: 'HIIT Specialist',
+      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
+      bio: 'Sarah has 8 years of experience helping clients achieve their fitness goals through high-intensity training.',
+      schedule: ['9:00 AM', '2:00 PM', '6:00 PM', '7:30 PM']
+    },
+    {
+      id: '2',
+      name: 'Mike Chen',
+      specialty: 'Strength Coach',
+      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
+      bio: 'Mike specializes in strength training and sports performance with 10 years of experience.',
+      schedule: ['10:00 AM', '3:00 PM', '7:00 PM', '8:30 PM']
+    },
+    {
+      id: '3',
+      name: 'Alex Rodriguez',
+      specialty: 'Yoga & Pilates Instructor',
+      image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
+      bio: 'Alex brings 6 years of experience in yoga and pilates, focusing on flexibility and mental wellness.',
+      schedule: ['8:00 AM', '1:00 PM', '5:00 PM', '6:30 PM']
+    }
+  ];
+
+  return (
+    <div className="animate-fade-in">
+      <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+        Our Trainers
+      </h2>
+      
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {trainers.map((trainer) => (
+          <div key={trainer.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
+            <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-blue-400">
+              <img src={trainer.image} alt={trainer.name} className="w-full h-full object-cover" />
+            </div>
+            <h3 className="text-xl font-bold text-blue-400 mb-2">{trainer.name}</h3>
+            <p className="text-green-400 mb-2">{trainer.specialty}</p>
+            <p className="text-gray-300 text-sm mb-4">{trainer.bio}</p>
+            <button
+              onClick={() => setSelectedTrainer(trainer)}
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors"
+            >
+              Book Session
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Trainer Schedule Modal */}
+      {selectedTrainer && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-blue-400">{selectedTrainer.name}'s Schedule</h3>
+              <button onClick={() => setSelectedTrainer(null)} className="text-gray-400 hover:text-white">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <p className="text-gray-300 mb-4">{selectedTrainer.bio}</p>
+              <div>
+                <h4 className="font-bold text-green-400 mb-2">Available Times:</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {selectedTrainer.schedule.map((time: string, index: number) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        showToast(`Booked session with ${selectedTrainer.name} at ${time}`, 'success');
+                        setSelectedTrainer(null);
+                      }}
+                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded text-sm transition-colors"
+                    >
+                      {time}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MemberAnnouncements = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const announcements = [
+    {
+      id: 1,
+      title: 'New Equipment Arrival',
+      message: 'We have new cardio machines arriving next week!',
+      priority: 'high',
+      date: '2024-01-20',
+      target: 'all'
+    },
+    {
+      id: 2,
+      title: 'Holiday Schedule',
+      message: 'Gym will be closed on Independence Day',
+      priority: 'high',
+      date: '2024-01-15',
+      target: 'all'
+    },
+    {
+      id: 3,
+      title: 'New Classes Available',
+      message: 'Check out our new HIIT and Yoga classes starting next month!',
+      priority: 'medium',
+      date: '2024-01-10',
+      target: 'members'
+    }
+  ];
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-400';
+      case 'medium': return 'text-yellow-400';
+      case 'low': return 'text-green-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-blue-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Announcements
+        </h2>
+        <p className="text-gray-300">Stay updated with the latest gym announcements</p>
+      </div>
+
+      <div className="space-y-6">
+        {announcements.map((announcement) => (
+          <div key={announcement.id} className="glass-card p-6 rounded-2xl">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center space-x-3 mb-2">
+                  <h3 className="text-xl font-bold text-white">{announcement.title}</h3>
+                  <span className={`text-sm font-semibold ${getPriorityColor(announcement.priority)}`}>
+                    {announcement.priority.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-gray-300 mb-2">{announcement.message}</p>
+                <p className="text-sm text-gray-400">Posted: {announcement.date}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const NutritionistsTab = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const [selectedNutritionist, setSelectedNutritionist] = useState<any>(null);
+  const [showDietForm, setShowDietForm] = useState(false);
+  const [dietForm, setDietForm] = useState({
+    fitnessGoal: '',
+    currentWeight: '',
+    targetWeight: '',
+    budget: '',
+    dietaryRestrictions: ''
+  });
+
+  const nutritionists = [
+    {
+      id: '1',
+      name: 'Dr. Emily Wilson',
+      specialty: 'Sports Nutrition',
+      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
+      bio: 'Dr. Wilson specializes in sports nutrition and performance optimization.',
+      schedule: ['11:00 AM', '4:00 PM', '6:00 PM']
+    },
+    {
+      id: '2',
+      name: 'Dr. Maria Garcia',
+      specialty: 'Weight Management',
+      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
+      bio: 'Dr. Garcia focuses on sustainable weight management and healthy eating habits.',
+      schedule: ['10:00 AM', '3:00 PM', '5:30 PM']
+    }
+  ];
+
+  const handleDietRequest = () => {
+    showToast('Diet plan request submitted successfully!', 'success');
+    setShowDietForm(false);
+    setDietForm({
+      fitnessGoal: '',
+      currentWeight: '',
+      targetWeight: '',
+      budget: '',
+      dietaryRestrictions: ''
+    });
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+        Our Nutritionists
+      </h2>
+      
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {nutritionists.map((nutritionist) => (
+          <div key={nutritionist.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
+            <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-purple-400">
+              <img src={nutritionist.image} alt={nutritionist.name} className="w-full h-full object-cover" />
+            </div>
+            <h3 className="text-xl font-bold text-purple-400 mb-2">{nutritionist.name}</h3>
+            <p className="text-green-400 mb-2">{nutritionist.specialty}</p>
+            <p className="text-gray-300 text-sm mb-4">{nutritionist.bio}</p>
+            <button
+              onClick={() => setShowDietForm(true)}
+              className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition-colors"
+            >
+              Request Diet Plan
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Diet Plan Request Modal */}
+      {showDietForm && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-purple-400">Request Diet Plan</h3>
+              <button onClick={() => setShowDietForm(false)} className="text-gray-400 hover:text-white">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Fitness Goal</label>
+                <select
+                  value={dietForm.fitnessGoal}
+                  onChange={(e) => setDietForm({...dietForm, fitnessGoal: e.target.value})}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                >
+                  <option value="">Select Goal</option>
+                  <option value="weight-loss">Weight Loss</option>
+                  <option value="muscle-gain">Muscle Gain</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="performance">Performance</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Current Weight (kg)</label>
+                <input
+                  type="number"
+                  value={dietForm.currentWeight}
+                  onChange={(e) => setDietForm({...dietForm, currentWeight: e.target.value})}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="70"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Target Weight (kg)</label>
+                <input
+                  type="number"
+                  value={dietForm.targetWeight}
+                  onChange={(e) => setDietForm({...dietForm, targetWeight: e.target.value})}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="65"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Monthly Budget (PKR)</label>
+                <input
+                  type="number"
+                  value={dietForm.budget}
+                  onChange={(e) => setDietForm({...dietForm, budget: e.target.value})}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="15000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Dietary Restrictions</label>
+                <textarea
+                  value={dietForm.dietaryRestrictions}
+                  onChange={(e) => setDietForm({...dietForm, dietaryRestrictions: e.target.value})}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="Any allergies or dietary preferences..."
+                  rows={3}
+                ></textarea>
+              </div>
+              <div className="flex space-x-4">
+                <button
+                  onClick={handleDietRequest}
+                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Submit Request
+                </button>
+                <button
+                  onClick={() => setShowDietForm(false)}
                   className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
                 >
                   Cancel

@@ -2,10 +2,10 @@ import { Trainer, Class, MembershipPlan, Product, Portal } from '../types';
 
 export const portals: Portal[] = [
   {
-    id: 'public',
-    name: 'Public Portal',
+    id: 'website',
+    name: 'Website',
     color: 'text-blue-400',
-    icon: 'fas fa-users',
+    icon: 'fas fa-globe',
     description: 'Browse our facilities, classes, and membership options',
     requiresLogin: false
   },
@@ -142,7 +142,7 @@ export const membershipPlans: MembershipPlan[] = [
   {
     id: '1',
     name: 'Drop-In',
-    price: 25,
+    price: 7000,
     duration: 'per visit',
     features: ['Single day access', 'All equipment', 'Locker room access'],
     discount: ''
@@ -150,7 +150,7 @@ export const membershipPlans: MembershipPlan[] = [
   {
     id: '2',
     name: 'Monthly',
-    price: 79,
+    price: 22000,
     duration: 'per month',
     features: ['24/7 gym access', 'All group classes', 'Locker room access', '2 guest passes/month', 'Sauna/Steam access'],
     discount: ''
@@ -158,7 +158,7 @@ export const membershipPlans: MembershipPlan[] = [
   {
     id: '3',
     name: 'Quarterly',
-    price: 199,
+    price: 55000,
     duration: 'per quarter',
     features: ['24/7 gym access', 'All group classes', 'Locker room access', '3 guest passes/month', 'Sauna/Steam access', '2 PT sessions included'],
     popular: true,
@@ -167,7 +167,7 @@ export const membershipPlans: MembershipPlan[] = [
   {
     id: '4',
     name: 'Yearly',
-    price: 599,
+    price: 165000,
     duration: 'per year',
     features: ['24/7 gym access', 'All group classes', 'Locker room access', '5 guest passes/month', 'Sauna/Steam access', '2 PT sessions/month', 'Nutrition consultation'],
     discount: 'Family'
@@ -178,8 +178,8 @@ export const products: Product[] = [
   {
     id: '1',
     name: 'Whey Protein Powder',
-    price: 49.99,
-    memberPrice: 44.99,
+    price: 14000,
+    memberPrice: 12600,
     category: 'Supplements',
     image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
     description: 'Premium whey protein for muscle building and recovery'
@@ -187,8 +187,8 @@ export const products: Product[] = [
   {
     id: '2',
     name: 'Resistance Bands Set',
-    price: 29.99,
-    memberPrice: 26.99,
+    price: 8400,
+    memberPrice: 7560,
     category: 'Equipment',
     image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
     description: 'Complete resistance bands set for home workouts'
@@ -196,8 +196,8 @@ export const products: Product[] = [
   {
     id: '3',
     name: 'Finova Fitness T-Shirt',
-    price: 24.99,
-    memberPrice: 22.49,
+    price: 7000,
+    memberPrice: 6300,
     category: 'Apparel',
     image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
     description: 'Official Finova Fitness branded t-shirt'
@@ -205,8 +205,8 @@ export const products: Product[] = [
   {
     id: '4',
     name: 'Pre-Workout Supplement',
-    price: 39.99,
-    memberPrice: 35.99,
+    price: 11200,
+    memberPrice: 10080,
     category: 'Supplements',
     image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
     description: 'Energy boost for intense training sessions'
@@ -214,8 +214,8 @@ export const products: Product[] = [
   {
     id: '5',
     name: 'Yoga Mat',
-    price: 34.99,
-    memberPrice: 31.49,
+    price: 9800,
+    memberPrice: 8820,
     category: 'Equipment',
     image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
     description: 'Premium non-slip yoga mat for all practices'
@@ -223,8 +223,8 @@ export const products: Product[] = [
   {
     id: '6',
     name: 'Gym Hoodie',
-    price: 49.99,
-    memberPrice: 44.99,
+    price: 14000,
+    memberPrice: 12600,
     category: 'Apparel',
     image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
     description: 'Comfortable hoodie for pre and post workout'
@@ -232,8 +232,15 @@ export const products: Product[] = [
 ];
 
 export const chatResponses = {
+  website: {
+    'Which membership is best for me?': 'For beginners, I recommend starting with our Monthly plan at PKR 22,000/month. It gives you full access to all facilities and includes 2 guest passes. If you\'re committed to long-term fitness, our Quarterly plan offers great value with 2 personal training sessions included!',
+    'What are your gym hours?': 'We\'re open 24/7! Our staff is available Monday-Friday 6AM-10PM, Saturday-Sunday 8AM-8PM. You can access the gym anytime with your membership card.',
+    'Do you offer personal training?': 'Yes! We have certified personal trainers available. Monthly members get discounted rates, Quarterly members get 2 sessions included, and Yearly members get 2 sessions per month. You can book through our member portal.',
+    'What classes do you offer?': 'We offer a wide variety of classes including HIIT, Yoga, CrossFit, Boxing, Pilates, Strength Training, and more. Check our class schedule for specific times and trainers.',
+    'Do you have a pool and sauna?': 'Yes! We have an Olympic-sized swimming pool and luxury sauna facilities. These are included with Monthly memberships and above.'
+  },
   public: {
-    'Which membership is best for me?': 'For beginners, I recommend starting with our Monthly plan at $79/month. It gives you full access to all facilities and includes 2 guest passes. If you\'re committed to long-term fitness, our Quarterly plan offers great value with 2 personal training sessions included!',
+    'Which membership is best for me?': 'For beginners, I recommend starting with our Monthly plan at PKR 22,000/month. It gives you full access to all facilities and includes 2 guest passes. If you\'re committed to long-term fitness, our Quarterly plan offers great value with 2 personal training sessions included!',
     'What are your gym hours?': 'We\'re open 24/7! Our staff is available Monday-Friday 6AM-10PM, Saturday-Sunday 8AM-8PM. You can access the gym anytime with your membership card.',
     'Do you offer personal training?': 'Yes! We have certified personal trainers available. Monthly members get discounted rates, Quarterly members get 2 sessions included, and Yearly members get 2 sessions per month. You can book through our member portal.',
     'What classes do you offer?': 'We offer a wide variety of classes including HIIT, Yoga, CrossFit, Boxing, Pilates, Strength Training, and more. Check our class schedule for specific times and trainers.',
@@ -244,7 +251,7 @@ export const chatResponses = {
     'What should my macros be for 70kg?': 'Based on your profile (70kg, muscle building goal), I recommend: Protein: 140g (2g per kg), Carbs: 175g (2.5g per kg), Fats: 70g (1g per kg). Total: ~1,950 calories. Adjust based on your activity level and progress!',
     'How can I improve my consistency?': 'Here are proven strategies: 1) Set specific workout times and treat them as appointments, 2) Start with 3 days/week, 3) Track your workouts in the app, 4) Find a workout buddy, 5) Focus on small wins. Your 90-day streak shows you\'re already doing great!',
     'How do I book a personal training session?': 'Go to "Book Sessions" in your dashboard, select "Trainers" tab, choose your preferred trainer and available time slot, then click "Book". You\'ll receive a confirmation email.',
-    'What are my loyalty points worth?': 'You have 1,247 loyalty points! Each 100 points = $5 discount. You can redeem them for: merchandise (200 points), guest passes (150 points), or personal training sessions (500 points).'
+    'What are my loyalty points worth?': 'You have 1,247 loyalty points! Each 100 points = PKR 1,400 discount. You can redeem them for: merchandise (200 points), guest passes (150 points), or personal training sessions (500 points).'
   },
   trainer: {
     'Suggest warm-up drills for a HIIT session': 'Perfect HIIT warm-up sequence: 1) 2 minutes light jogging, 2) Arm circles 30 seconds each direction, 3) High knees 30 seconds, 4) Butt kicks 30 seconds, 5) Jumping jacks 30 seconds, 6) Dynamic stretches (leg swings, hip circles) 1 minute. This prepares muscles and prevents injury!',
@@ -259,14 +266,14 @@ export const chatResponses = {
     'Best foods for muscle building?': 'Top muscle-building foods: 1) Lean proteins: chicken, fish, eggs, Greek yogurt, 2) Complex carbs: oats, quinoa, sweet potato, 3) Healthy fats: nuts, avocado, olive oil, 4) Leucine-rich foods: cottage cheese, whey protein, 5) Creatine-rich foods: red meat, fish. Timing matters - protein within 2 hours post-workout.'
   },
   admin: {
-    'Which location lost the most members last month?': 'Based on our analytics, the Downtown location had a 5.2% membership decline last month (67 members). Main reasons: 1) Equipment maintenance issues, 2) Staffing shortage during peak hours, 3) Competitor opening nearby. We\'ve implemented improvement plans.',
-    'Generate a CSV of last week\'s revenue by trainer': 'I can help you access that data. Go to Analytics > Revenue Reports > Filter by "Last Week" and "By Trainer". You can then export to CSV. Last week\'s top performers: Sarah Johnson ($2,340), Mike Chen ($1,890), Alex Rodriguez ($1,650).',
+    'Which location lost the most members last month?': 'Based on our analytics, the Islamabad Central location had a 5.2% membership decline last month (67 members). Main reasons: 1) Equipment maintenance issues, 2) Staffing shortage during peak hours, 3) Competitor opening nearby. We\'ve implemented improvement plans.',
+    'Generate a CSV of last week\'s revenue by trainer': 'I can help you access that data. Go to Analytics > Revenue Reports > Filter by "Last Week" and "By Trainer". You can then export to CSV. Last week\'s top performers: Sarah Johnson (PKR 655,200), Mike Chen (PKR 529,200), Alex Rodriguez (PKR 462,000).',
     'What\'s our member retention rate?': 'Current member retention rates: Monthly: 78%, Quarterly: 85%, Yearly: 92%. Overall gym retention: 83% (industry average: 75%). Top retention factors: 1) Personal training usage, 2) Class participation, 3) Facility utilization, 4) Loyalty program engagement.',
     'How can we improve member engagement?': 'Recommendations to boost engagement: 1) Launch fitness challenges with prizes, 2) Create member referral rewards, 3) Offer free nutrition consultations, 4) Host social events, 5) Implement gamification in the app, 6) Send personalized workout recommendations, 7) Create member spotlights.'
   },
   frontdesk: {
     'How to refund a membership?': 'Membership refund process: 1) Verify member identity and account, 2) Check refund policy (within 30 days for new members), 3) Access Admin Panel > Members > Select member > Refund option, 4) Select refund amount and reason, 5) Process refund (takes 3-5 business days), 6) Update member status, 7) Send confirmation email.',
-    'What\'s the walk-in day pass price?': 'Current walk-in day pass pricing: Standard day pass: $25, Student (with ID): $20, Senior (65+): $18, Group (3+ people): $22 each. Day pass includes: gym access, group classes, locker room. Excludes: personal training, sauna/steam rooms, guest privileges.',
+    'What\'s the walk-in day pass price?': 'Current walk-in day pass pricing: Standard day pass: PKR 7,000, Student (with ID): PKR 5,600, Senior (65+): PKR 5,040, Group (3+ people): PKR 6,160 each. Day pass includes: gym access, group classes, locker room. Excludes: personal training, sauna/steam rooms, guest privileges.',
     'How to handle a member complaint?': 'Complaint handling steps: 1) Listen actively and empathetically, 2) Document the issue in detail, 3) Apologize and acknowledge concern, 4) Investigate if needed, 5) Offer solution/compensation, 6) Follow up within 24 hours, 7) Log in system for tracking. Common resolutions: free day passes, service credits, facility improvements.',
     'What are today\'s check-in numbers?': 'Today\'s stats (as of current time): Total check-ins: 347, Peak hours: 6-8 AM (89 check-ins), 6-8 PM (112 check-ins). Current occupancy: 67 members. Busiest areas: cardio (23 people), weights (19 people), classes (25 people). Pool: 8 people.'
   }
@@ -339,3 +346,124 @@ export const staffMembers = [
   { id: '4', name: 'Dr. Emily Wilson', role: 'Nutritionist', contact: 'emily@finovafitness.com' },
   { id: '5', name: 'David Kim', role: 'Swimming Coach', contact: 'david@finovafitness.com' }
 ];
+
+export const announcements = [
+  {
+    id: '1',
+    title: 'New Equipment Arrival',
+    message: 'We\'ve just installed brand new cardio machines in the main gym area. Come check them out!',
+    targetAudience: 'All',
+    date: '2024-01-15',
+    author: 'Admin'
+  },
+  {
+    id: '2',
+    title: 'Holiday Schedule Update',
+    message: 'The gym will have modified hours during the upcoming holidays. Check the schedule at the front desk.',
+    targetAudience: 'All',
+    date: '2024-01-10',
+    author: 'Admin'
+  },
+  {
+    id: '3',
+    title: 'Trainer Certification Workshop',
+    message: 'All trainers are required to attend the certification workshop this Friday at 2 PM.',
+    targetAudience: 'Trainers',
+    date: '2024-01-08',
+    author: 'Admin'
+  },
+  {
+    id: '4',
+    title: 'Nutrition Consultation Special',
+    message: 'Get 20% off your first nutrition consultation this month. Book with any of our certified nutritionists.',
+    targetAudience: 'Clients',
+    date: '2024-01-05',
+    author: 'Admin'
+  }
+];
+
+export const nutritionists = [
+  {
+    id: '1',
+    name: 'Dr. Emily Wilson',
+    specialization: 'Sports Nutrition',
+    certifications: ['Registered Dietitian', 'Sports Nutrition Specialist', 'Weight Management Expert'],
+    bio: 'Dr. Emily has 10 years of experience helping athletes and fitness enthusiasts optimize their nutrition for peak performance.',
+    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
+    contact: 'emily@finovafitness.com'
+  },
+  {
+    id: '2',
+    name: 'Dr. Ahmed Khan',
+    specialization: 'Clinical Nutrition',
+    certifications: ['Clinical Dietitian', 'Diabetes Educator', 'Functional Nutrition'],
+    bio: 'Dr. Ahmed specializes in medical nutrition therapy and helps clients with chronic conditions achieve their health goals.',
+    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
+    contact: 'ahmed@finovafitness.com'
+  },
+  {
+    id: '3',
+    name: 'Fatima Ali',
+    specialization: 'Weight Management',
+    certifications: ['Nutritionist', 'Weight Loss Specialist', 'Behavioral Change Coach'],
+    bio: 'Fatima focuses on sustainable weight loss through personalized meal plans and behavioral coaching.',
+    image: 'https://images.unsplash.com/photo-1594824475545-9d0c7c495d05?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
+    contact: 'fatima@finovafitness.com'
+  }
+];
+
+export const clientSubscriptions = [
+  {
+    id: '1',
+    clientName: 'Ahmed Hassan',
+    plan: 'Monthly',
+    nextRenewal: '2024-02-15',
+    status: 'active'
+  },
+  {
+    id: '2',
+    clientName: 'Sara Khan',
+    plan: 'Quarterly',
+    nextRenewal: '2024-03-20',
+    status: 'active'
+  },
+  {
+    id: '3',
+    clientName: 'Usman Ali',
+    plan: 'Yearly',
+    nextRenewal: '2024-11-10',
+    status: 'active'
+  },
+  {
+    id: '4',
+    clientName: 'Ayesha Malik',
+    plan: 'Monthly',
+    nextRenewal: '2024-02-01',
+    status: 'paused'
+  }
+];
+
+export const workoutSchedule = {
+  monday: {
+    shoulders: ['Military Press', 'Lateral Raises', 'Front Raises'],
+    chest: ['Bench Press', 'Incline Press', 'Dumbbell Flyes'],
+    biceps: ['Barbell Curls', 'Hammer Curls']
+  },
+  tuesday: {
+    back: ['Pull-ups', 'Bent-over Rows', 'Lat Pulldowns'],
+    triceps: ['Dips', 'Tricep Extensions', 'Close-grip Bench'],
+    abs: ['Crunches', 'Planks', 'Russian Twists']
+  },
+  wednesday: {
+    legs: ['Squats', 'Deadlifts', 'Leg Press', 'Lunges', 'Calf Raises'],
+    glutes: ['Hip Thrusts', 'Glute Bridges', 'Step-ups'],
+    core: ['Planks', 'Side Planks', 'Dead Bugs', 'Bird Dogs'],
+    cardio: ['Running', 'Cycling', 'Rowing']
+  }
+};
+
+export const memberProgress = {
+  weightChange: -3,
+  bmi: 24.1,
+  workoutCompletion: { completed: 12, total: 15 }
+};

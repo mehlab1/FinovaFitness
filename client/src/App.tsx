@@ -9,7 +9,7 @@ import { PortalSelection } from './components/PortalSelection';
 import { LoginModal } from './components/LoginModal';
 import { BookingModal } from './components/BookingModal';
 import { AIChat } from './components/AIChat';
-import { PublicPortal } from './components/PublicPortal';
+import { WebsitePortal } from './components/PublicPortal';
 import { MemberPortal } from './components/MemberPortal';
 import { TrainerPortal } from './components/TrainerPortal';
 import { NutritionistPortal } from './components/NutritionistPortal';
@@ -25,8 +25,8 @@ function App() {
   const [selectedPortal, setSelectedPortal] = useState<string>('');
 
   const handlePortalSelect = (portalId: string) => {
-    if (portalId === 'public') {
-      switchPortal('public');
+    if (portalId === 'website') {
+      switchPortal('website');
     } else {
       setSelectedPortal(portalId);
       setShowLoginModal(true);
@@ -59,9 +59,9 @@ function App() {
     }
 
     switch (currentPortal) {
-      case 'public':
+      case 'website':
         return (
-          <PublicPortal 
+          <WebsitePortal 
             onLogin={() => handlePortalSelect('member')} 
             onBookClass={() => setShowBookingModal(true)}
           />
@@ -102,7 +102,7 @@ function App() {
           />
           
           {/* AI Chat */}
-          <AIChat portal={currentPortal || 'public'} />
+          <AIChat portal={currentPortal || 'website'} />
           
           {/* Toast Notifications */}
           {toast && (

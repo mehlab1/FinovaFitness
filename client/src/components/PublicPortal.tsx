@@ -1,26 +1,30 @@
 import { useState } from 'react';
 import { trainers, classes, membershipPlans, products, blogPosts } from '../data/mockData';
 
-interface PublicPortalProps {
+interface WebsitePortalProps {
   onLogin: () => void;
   onBookClass: () => void;
 }
 
-export const PublicPortal = ({ onLogin, onBookClass }: PublicPortalProps) => {
+export const WebsitePortal = ({ onLogin, onBookClass }: WebsitePortalProps) => {
   const [currentPage, setCurrentPage] = useState('home');
+  const [showMembershipWizard, setShowMembershipWizard] = useState(false);
+  const [showTrialWizard, setShowTrialWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [wizardData, setWizardData] = useState<any>({});
 
   const renderPage = () => {
     switch (currentPage) {
       case 'home':
-        return <HomePage onLogin={onLogin} onBookClass={onBookClass} />;
+        return <HomePage onLogin={onLogin} onBookClass={onBookClass} onJoinNow={() => setShowMembershipWizard(true)} onFreeTrial={() => setShowTrialWizard(true)} />;
       case 'about':
         return <AboutPage />;
       case 'services':
         return <ServicesPage />;
       case 'schedule':
         return <SchedulePage />;
-      case 'membership':
-        return <MembershipPage />;
+              case 'membership':
+          return <MembershipPage />;
       case 'gallery':
         return <GalleryPage />;
       case 'trainers':
@@ -32,7 +36,27 @@ export const PublicPortal = ({ onLogin, onBookClass }: PublicPortalProps) => {
       case 'store':
         return <StorePage />;
       default:
-        return <HomePage onLogin={onLogin} onBookClass={onBookClass} />;
+        return <HomePage onLogin={onLogin} onBookClass={onBookClass} onJoinNow={() => setShowMembershipWizard(true)} onFreeTrial={() => setShowTrialWizard(true)} />;
+    }
+  };
+
+  const handleMembershipWizardNext = () => {
+    if (wizardStep < 3) {
+      setWizardStep(wizardStep + 1);
+    } else {
+      setShowMembershipWizard(false);
+      setWizardStep(1);
+      setWizardData({});
+    }
+  };
+
+  const handleTrialWizardNext = () => {
+    if (wizardStep < 3) {
+      setWizardStep(wizardStep + 1);
+    } else {
+      setShowTrialWizard(false);
+      setWizardStep(1);
+      setWizardData({});
     }
   };
 
@@ -62,7 +86,7 @@ export const PublicPortal = ({ onLogin, onBookClass }: PublicPortalProps) => {
           </div>
           <div className="flex items-center space-x-4">
             <button
-              onClick={onLogin}
+              onClick={() => setShowMembershipWizard(true)}
               className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg hover-glow transition-all duration-300"
             >
               Join Now
@@ -73,70 +97,354 @@ export const PublicPortal = ({ onLogin, onBookClass }: PublicPortalProps) => {
 
       {/* Page Content */}
       <main>{renderPage()}</main>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 border-t border-gray-700 py-12">
+        <div className="container mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <h3 className="text-xl font-bold text-blue-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>Contact Info</h3>
+              <div className="space-y-2 text-gray-300">
+                <p><i className="fas fa-map-marker-alt text-blue-400 mr-2"></i>Islamabad, Pakistan</p>
+                <p><i className="fas fa-phone text-blue-400 mr-2"></i>+92 51 123 4567</p>
+                <p><i className="fas fa-envelope text-blue-400 mr-2"></i>info@finovafitness.com</p>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-green-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>Quick Links</h3>
+              <div className="space-y-2">
+                <button onClick={() => setCurrentPage('membership')} className="block text-gray-300 hover:text-green-400 transition-colors">Membership Plans</button>
+                <button onClick={() => setCurrentPage('schedule')} className="block text-gray-300 hover:text-green-400 transition-colors">Class Schedule</button>
+                <button onClick={() => setCurrentPage('trainers')} className="block text-gray-300 hover:text-green-400 transition-colors">Our Trainers</button>
+                <button onClick={() => setCurrentPage('contact')} className="block text-gray-300 hover:text-green-400 transition-colors">Contact Us</button>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-pink-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>Follow Us</h3>
+              <div className="flex space-x-4">
+                <a href="#" className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center hover-glow transition-all duration-300">
+                  <i className="fab fa-instagram text-white"></i>
+                </a>
+                <a href="#" className="w-10 h-10 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center hover-glow transition-all duration-300">
+                  <i className="fab fa-facebook-f text-white"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+            <p>&copy; 2024 Finova Fitness. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
+
+      {/* Membership Signup Wizard Modal */}
+      {showMembershipWizard && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="glass-card p-8 rounded-2xl max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Membership Signup</h2>
+              <button onClick={() => setShowMembershipWizard(false)} className="text-gray-400 hover:text-white">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            {wizardStep === 1 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4">Step 1: Your Information</h3>
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-400 focus:outline-none"
+                  value={wizardData.name || ''}
+                  onChange={(e) => setWizardData({...wizardData, name: e.target.value})}
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-400 focus:outline-none"
+                  value={wizardData.email || ''}
+                  onChange={(e) => setWizardData({...wizardData, email: e.target.value})}
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-400 focus:outline-none"
+                  value={wizardData.phone || ''}
+                  onChange={(e) => setWizardData({...wizardData, phone: e.target.value})}
+                />
+                <input
+                  type="number"
+                  placeholder="Age"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-blue-400 focus:outline-none"
+                  value={wizardData.age || ''}
+                  onChange={(e) => setWizardData({...wizardData, age: e.target.value})}
+                />
+                <button
+                  onClick={handleMembershipWizardNext}
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg hover-glow transition-all duration-300"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+            
+            {wizardStep === 2 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4">Step 2: Choose Your Plan</h3>
+                <div className="space-y-3">
+                  {membershipPlans.map((plan) => (
+                    <div
+                      key={plan.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all duration-300 ${
+                        wizardData.selectedPlan === plan.id
+                          ? 'border-blue-400 bg-blue-500 bg-opacity-20'
+                          : 'border-gray-600 hover:border-blue-400'
+                      }`}
+                      onClick={() => setWizardData({...wizardData, selectedPlan: plan.id})}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold text-white">{plan.name}</h4>
+                          <p className="text-gray-300 text-sm">{plan.duration}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-blue-400">PKR {plan.price.toLocaleString()}</p>
+                          {plan.popular && <span className="text-xs text-green-400">Popular</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={handleMembershipWizardNext}
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg hover-glow transition-all duration-300"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+            
+            {wizardStep === 3 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4">Step 3: Payment Method</h3>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="p-4 border border-gray-600 rounded-lg text-center hover:border-blue-400 cursor-pointer">
+                    <i className="fas fa-mobile-alt text-2xl text-green-400 mb-2"></i>
+                    <p className="text-sm text-gray-300">JazzCash</p>
+                  </div>
+                  <div className="p-4 border border-gray-600 rounded-lg text-center hover:border-blue-400 cursor-pointer">
+                    <i className="fas fa-wallet text-2xl text-blue-400 mb-2"></i>
+                    <p className="text-sm text-gray-300">EasyPaisa</p>
+                  </div>
+                  <div className="p-4 border border-gray-600 rounded-lg text-center hover:border-blue-400 cursor-pointer">
+                    <i className="fab fa-stripe text-2xl text-purple-400 mb-2"></i>
+                    <p className="text-sm text-gray-300">Stripe</p>
+                  </div>
+                </div>
+                <div className="bg-gray-800 p-4 rounded-lg">
+                  <h4 className="font-bold text-white mb-2">Order Summary</h4>
+                  <div className="space-y-1 text-sm text-gray-300">
+                    <p>Name: {wizardData.name}</p>
+                    <p>Email: {wizardData.email}</p>
+                    <p>Plan: {membershipPlans.find(p => p.id === wizardData.selectedPlan)?.name}</p>
+                    <p className="text-blue-400 font-bold">Total: PKR {membershipPlans.find(p => p.id === wizardData.selectedPlan)?.price.toLocaleString()}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleMembershipWizardNext}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg hover-glow transition-all duration-300"
+                >
+                  Complete Signup
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Free Trial Wizard Modal */}
+      {showTrialWizard && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="glass-card p-8 rounded-2xl max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Free 3-Day Trial</h2>
+              <button onClick={() => setShowTrialWizard(false)} className="text-gray-400 hover:text-white">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            {wizardStep === 1 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4">Step 1: Your Information</h3>
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-green-400 focus:outline-none"
+                  value={wizardData.name || ''}
+                  onChange={(e) => setWizardData({...wizardData, name: e.target.value})}
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-green-400 focus:outline-none"
+                  value={wizardData.email || ''}
+                  onChange={(e) => setWizardData({...wizardData, email: e.target.value})}
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-green-400 focus:outline-none"
+                  value={wizardData.phone || ''}
+                  onChange={(e) => setWizardData({...wizardData, phone: e.target.value})}
+                />
+                <button
+                  onClick={handleTrialWizardNext}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg hover-glow transition-all duration-300"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+            
+            {wizardStep === 2 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-4">Step 2: Confirm Trial</h3>
+                <div className="bg-gray-800 p-4 rounded-lg">
+                  <h4 className="font-bold text-white mb-2">Trial Details</h4>
+                  <div className="space-y-1 text-sm text-gray-300">
+                    <p>Name: {wizardData.name}</p>
+                    <p>Email: {wizardData.email}</p>
+                    <p>Phone: {wizardData.phone}</p>
+                    <p className="text-green-400 font-bold">Duration: 3 Days</p>
+                    <p className="text-green-400 font-bold">Cost: FREE</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleTrialWizardNext}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg hover-glow transition-all duration-300"
+                >
+                  Activate Trial
+                </button>
+              </div>
+            )}
+            
+            {wizardStep === 3 && (
+              <div className="space-y-4 text-center">
+                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <i className="fas fa-check text-white text-2xl"></i>
+                </div>
+                <h3 className="text-xl font-bold text-white">Your 3-Day Trial Is Active!</h3>
+                <p className="text-gray-300">Welcome to Finova Fitness! Your trial starts now. You can access all facilities and classes for the next 3 days.</p>
+                <button
+                  onClick={handleTrialWizardNext}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg hover-glow transition-all duration-300"
+                >
+                  Get Started
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const HomePage = ({ onLogin, onBookClass }: { onLogin: () => void; onBookClass: () => void }) => (
+const HomePage = ({ onLogin, onBookClass, onJoinNow, onFreeTrial }: { onLogin: () => void; onBookClass: () => void; onJoinNow: () => void; onFreeTrial: () => void }) => (
   <div className="animate-fade-in">
     {/* Hero Section */}
-    <section className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-gray-800">
-      <div className="absolute inset-0 bg-black bg-opacity-60"></div>
+    <section className="relative min-h-screen flex items-center justify-center" style={{
+      backgroundImage: 'url(https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&h=1080)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center'
+    }}>
+      <div className="absolute inset-0 bg-black bg-opacity-70"></div>
       <div className="relative z-10 text-center max-w-4xl px-4">
-        <h1 className="text-5xl md:text-7xl font-bold text-blue-400 neon-glow mb-6 animate-pulse" style={{ fontFamily: 'Orbitron, monospace' }}>
-          FUNCTIONAL TRAINING
-        </h1>
-        <h2 className="text-3xl md:text-4xl font-bold text-white mb-8" style={{ fontFamily: 'Orbitron, monospace' }}>
+        <h1 className="text-6xl md:text-8xl font-bold text-blue-400 neon-glow mb-6 animate-pulse tracking-wider" style={{ fontFamily: 'Orbitron, monospace' }}>
           FOR EVERYONE
-        </h2>
-        <p className="text-xl text-gray-300 mb-12 max-w-2xl mx-auto">
+        </h1>
+        <p className="text-2xl md:text-3xl font-bold text-white mb-12 max-w-3xl mx-auto leading-relaxed tracking-wide">
           Transform your body and mind with cutting-edge training methods and world-class facilities
         </p>
         <div className="flex flex-col sm:flex-row gap-6 justify-center">
           <button
-            onClick={onLogin}
-            className="px-8 py-4 bg-green-500 hover:bg-green-600 text-white font-bold text-lg rounded-lg hover-glow transition-all duration-300 transform hover:scale-105"
+            onClick={onJoinNow}
+            className="group relative px-10 py-5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white font-bold text-xl rounded-xl hover-glow transition-all duration-500 transform hover:scale-110 shadow-2xl hover:shadow-blue-500/50"
+            style={{
+              backgroundSize: '200% 200%',
+              animation: 'gradient-shift 3s ease infinite'
+            }}
           >
-            <i className="fas fa-rocket mr-2"></i>
-            JOIN NOW
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-500 opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-500"></div>
+            <div className="relative z-10 flex items-center">
+              <i className="fas fa-rocket mr-3 text-2xl animate-pulse"></i>
+              <span className="tracking-wider" style={{ fontFamily: 'Orbitron, monospace' }}>JOIN NOW</span>
+            </div>
           </button>
           <button
             onClick={onBookClass}
-            className="px-8 py-4 bg-transparent border-2 border-blue-400 text-blue-400 font-bold text-lg rounded-lg hover-glow transition-all duration-300 transform hover:scale-105"
+            className="group relative px-10 py-5 bg-gradient-to-r from-green-500 via-teal-500 to-cyan-500 hover:from-green-600 hover:via-teal-600 hover:to-cyan-600 text-white font-bold text-xl rounded-xl hover-glow transition-all duration-500 transform hover:scale-110 shadow-2xl hover:shadow-green-500/50"
+            style={{
+              backgroundSize: '200% 200%',
+              animation: 'gradient-shift 3s ease infinite'
+            }}
           >
-            <i className="fas fa-calendar-plus mr-2"></i>
-            BOOK FREE CLASS
+            <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-teal-500 opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-500"></div>
+            <div className="relative z-10 flex items-center">
+              <i className="fas fa-calendar-plus mr-3 text-2xl animate-pulse"></i>
+              <span className="tracking-wider" style={{ fontFamily: 'Orbitron, monospace' }}>BOOK FREE CLASS</span>
+            </div>
+          </button>
+          <button
+            onClick={onFreeTrial}
+            className="group relative px-10 py-5 bg-gradient-to-r from-pink-500 via-red-500 to-orange-500 hover:from-pink-600 hover:via-red-600 hover:to-orange-600 text-white font-bold text-xl rounded-xl hover-glow transition-all duration-500 transform hover:scale-110 shadow-2xl hover:shadow-pink-500/50"
+            style={{
+              backgroundSize: '200% 200%',
+              animation: 'gradient-shift 3s ease infinite'
+            }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-pink-400 to-red-500 opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-500"></div>
+            <div className="relative z-10 flex items-center">
+              <i className="fas fa-gift mr-3 text-2xl animate-pulse"></i>
+              <span className="tracking-wider" style={{ fontFamily: 'Orbitron, monospace' }}>FREE 3-DAY TRIAL</span>
+            </div>
           </button>
         </div>
       </div>
     </section>
 
-    {/* Features Strip */}
+    {/* Feature Circles */}
     <section className="py-20 bg-gray-900">
       <div className="container mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="text-center group">
-            <div className="w-20 h-20 bg-blue-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-opacity-30 transition-all duration-300">
-              <i className="fas fa-clock text-3xl text-blue-400 neon-glow"></i>
+            <div className="w-32 h-32 bg-gradient-to-r from-blue-500 to-cyan-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-opacity-40 transition-all duration-500 animate-pulse-glow shadow-2xl hover:shadow-blue-500/50">
+              <i className="fas fa-clock text-5xl text-blue-400 neon-glow group-hover:scale-110 transition-transform duration-300"></i>
             </div>
-            <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>24/7 Access</h3>
-            <p className="text-gray-300">Train whenever you want with round-the-clock facility access</p>
+            <h3 className="text-2xl font-bold mb-4 text-blue-400 neon-glow" style={{ fontFamily: 'Orbitron, monospace' }}>24/7 Access</h3>
+            <p className="text-lg text-gray-300 leading-relaxed max-w-sm mx-auto">
+              Train whenever you want with round-the-clock facility access. No more excuses - your fitness journey never sleeps!
+            </p>
           </div>
           
           <div className="text-center group">
-            <div className="w-20 h-20 bg-green-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-opacity-30 transition-all duration-300">
-              <i className="fas fa-user-graduate text-3xl text-green-400 neon-glow"></i>
+            <div className="w-32 h-32 bg-gradient-to-r from-green-500 to-emerald-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-opacity-40 transition-all duration-500 animate-pulse-glow shadow-2xl hover:shadow-green-500/50">
+              <i className="fas fa-user-graduate text-5xl text-green-400 neon-glow group-hover:scale-110 transition-transform duration-300"></i>
             </div>
-            <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>Certified Trainers</h3>
-            <p className="text-gray-300">Expert guidance from internationally certified fitness professionals</p>
+            <h3 className="text-2xl font-bold mb-4 text-green-400 neon-glow" style={{ fontFamily: 'Orbitron, monospace' }}>Certified Trainers</h3>
+            <p className="text-lg text-gray-300 leading-relaxed max-w-sm mx-auto">
+              Expert guidance from internationally certified fitness professionals. Get personalized training plans and motivation!
+            </p>
           </div>
           
           <div className="text-center group">
-            <div className="w-20 h-20 bg-pink-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-opacity-30 transition-all duration-300">
-              <i className="fas fa-swimming-pool text-3xl text-pink-400 neon-glow"></i>
+            <div className="w-32 h-32 bg-gradient-to-r from-pink-500 to-purple-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-opacity-40 transition-all duration-500 animate-pulse-glow shadow-2xl hover:shadow-pink-500/50">
+              <i className="fas fa-swimming-pool text-5xl text-pink-400 neon-glow group-hover:scale-110 transition-transform duration-300"></i>
             </div>
-            <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>Pool & Sauna</h3>
-            <p className="text-gray-300">Relax and recover in our premium wellness facilities</p>
+            <h3 className="text-2xl font-bold mb-4 text-pink-400 neon-glow" style={{ fontFamily: 'Orbitron, monospace' }}>Pool & Sauna</h3>
+            <p className="text-lg text-gray-300 leading-relaxed max-w-sm mx-auto">
+              Relax and recover in our premium wellness facilities. Complete your fitness experience with luxury amenities!
+            </p>
           </div>
         </div>
       </div>
@@ -196,20 +504,50 @@ const AboutPage = () => (
         <div className="glass-card p-8 rounded-2xl mb-16">
           <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Our Locations</h2>
           <div className="mb-6">
-            <div className="bg-gray-800 rounded-lg p-8 text-center">
-              <i className="fas fa-map-marker-alt text-4xl text-blue-400 mb-4"></i>
-              <h3 className="text-xl font-bold mb-4">Interactive Map</h3>
-              <p className="text-gray-300">Find the nearest Finova Fitness location</p>
+            <div className="bg-gray-800 rounded-lg p-6 text-center">
+              <img 
+                src="https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=600&q=80" 
+                alt="Google Map of Islamabad"
+                className="w-full h-80 object-cover rounded-lg shadow-2xl hover:scale-105 transition-transform duration-500"
+                onError={(e) => {
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.style.display = 'none';
+                  const nextElement = target.nextElementSibling as HTMLElement;
+                  if (nextElement) {
+                    nextElement.style.display = 'block';
+                  }
+                }}
+              />
+              <div className="hidden w-full h-80 bg-gradient-to-br from-gray-700 to-gray-900 rounded-lg flex items-center justify-center shadow-2xl">
+                <div className="text-center p-8">
+                  <i className="fas fa-map-marker-alt text-6xl text-blue-400 mb-6 neon-glow"></i>
+                  <h3 className="text-2xl font-bold mb-4 text-white" style={{ fontFamily: 'Orbitron, monospace' }}>Islamabad, Pakistan</h3>
+                  <p className="text-gray-300 text-lg">Our main location in the capital city</p>
+                  <div className="mt-4 flex justify-center space-x-4">
+                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
+                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="font-bold text-green-400 mb-2">Downtown Location</h3>
-              <p className="text-gray-300">123 Main Street, Downtown, NY 10001</p>
+            <div className="glass-card p-6 rounded-xl hover-glow transition-all duration-300">
+              <div className="flex items-center mb-3">
+                <i className="fas fa-map-marker-alt text-2xl text-green-400 mr-3"></i>
+                <h3 className="font-bold text-green-400 text-lg">Islamabad Central</h3>
+              </div>
+              <p className="text-gray-300">Blue Area, Islamabad, Pakistan</p>
+              <p className="text-sm text-gray-400 mt-2">Main facility with all amenities</p>
             </div>
-            <div>
-              <h3 className="font-bold text-green-400 mb-2">Uptown Location</h3>
-              <p className="text-gray-300">456 Broadway Ave, Uptown, NY 10002</p>
+            <div className="glass-card p-6 rounded-xl hover-glow transition-all duration-300">
+              <div className="flex items-center mb-3">
+                <i className="fas fa-map-marker-alt text-2xl text-blue-400 mr-3"></i>
+                <h3 className="font-bold text-blue-400 text-lg">Islamabad North</h3>
+              </div>
+              <p className="text-gray-300">F-7 Markaz, Islamabad, Pakistan</p>
+              <p className="text-sm text-gray-400 mt-2">Premium location with luxury facilities</p>
             </div>
           </div>
         </div>
@@ -385,7 +723,7 @@ const MembershipPage = () => (
               </div>
             )}
             <h3 className="text-2xl font-bold mb-4 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>{plan.name}</h3>
-            <div className="text-4xl font-bold mb-2">${plan.price}</div>
+            <div className="text-4xl font-bold mb-2">PKR {plan.price.toLocaleString()}</div>
             <div className="text-gray-400 mb-6">{plan.duration}</div>
             <ul className="space-y-3 mb-8">
               {plan.features.map((feature, idx) => (
@@ -616,19 +954,19 @@ const ContactPage = () => (
           </h2>
           <div className="space-y-6">
             <div>
-              <h3 className="font-bold text-blue-400 mb-2">Downtown Location</h3>
-              <p className="text-gray-300">123 Main Street<br />Downtown, NY 10001</p>
+              <h3 className="font-bold text-blue-400 mb-2">Islamabad Central</h3>
+              <p className="text-gray-300">Blue Area<br />Islamabad, Pakistan</p>
             </div>
             <div>
-              <h3 className="font-bold text-blue-400 mb-2">Uptown Location</h3>
-              <p className="text-gray-300">456 Broadway Ave<br />Uptown, NY 10002</p>
+              <h3 className="font-bold text-blue-400 mb-2">Islamabad North</h3>
+              <p className="text-gray-300">F-7 Markaz<br />Islamabad, Pakistan</p>
             </div>
             <div>
               <h3 className="font-bold text-blue-400 mb-2">Quick Contact</h3>
               <div className="space-y-2">
-                <a href="tel:+1234567890" className="flex items-center text-gray-300 hover:text-blue-400 transition-colors">
+                <a href="tel:+92511234567" className="flex items-center text-gray-300 hover:text-blue-400 transition-colors">
                   <i className="fas fa-phone mr-3"></i>
-                  (123) 456-7890
+                  +92 51 123 4567
                 </a>
                 <a href="mailto:info@finovafitness.com" className="flex items-center text-gray-300 hover:text-blue-400 transition-colors">
                   <i className="fas fa-envelope mr-3"></i>
@@ -662,7 +1000,7 @@ const StorePage = () => (
             <p className="text-gray-300 text-sm mb-4">{product.description}</p>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <span className="text-xl font-bold">${product.price}</span>
+                <span className="text-xl font-bold">PKR {product.price.toLocaleString()}</span>
                 <div className="text-sm text-green-400">Members save 10%</div>
               </div>
               <span className="text-sm text-gray-400">{product.category}</span>
