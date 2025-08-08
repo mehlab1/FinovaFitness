@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from './components/ui/tooltip';
+import { Toaster } from './components/ui/toaster';
 import { usePortal } from './hooks/usePortal';
 import { useToast } from './components/Toast';
 import { PortalSelection } from './components/PortalSelection';
-import { LoginModal } from './components/LoginModal';
+import { SignInModal } from './components/SignInModal';
 import { BookingModal } from './components/BookingModal';
 import { AIChat } from './components/AIChat';
 import { WebsitePortal } from './components/PublicPortal';
@@ -20,27 +20,39 @@ import { Toast } from './components/Toast';
 function App() {
   const { currentPortal, currentUser, isAuthenticated, login, logout, switchPortal } = usePortal();
   const { toast, showToast, hideToast } = useToast();
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [selectedPortal, setSelectedPortal] = useState<string>('');
 
-  const handlePortalSelect = (portalId: string) => {
-    if (portalId === 'website') {
-      switchPortal('website');
-    } else {
-      setSelectedPortal(portalId);
-      setShowLoginModal(true);
+  const handleSignIn = (userData: { user: any; token: string }) => {
+    // Switch to the appropriate portal based on user role
+    const role = userData.user.role;
+    let portalId = 'website';
+    
+    switch (role) {
+      case 'member':
+        portalId = 'member';
+        break;
+      case 'trainer':
+        portalId = 'trainer';
+        break;
+      case 'nutritionist':
+        portalId = 'nutritionist';
+        break;
+      case 'admin':
+        portalId = 'admin';
+        break;
+      case 'front_desk':
+        portalId = 'frontdesk';
+        break;
+      default:
+        portalId = 'website';
     }
-  };
-
-  const handleLogin = (portal: string, credentials: { username: string; password: string }) => {
-    const success = login(portal, credentials);
-    if (success) {
-      showToast('Login successful!', 'success');
-      setShowLoginModal(false);
-    } else {
-      showToast('Login failed. Please try again.', 'error');
-    }
+    
+    // Update the portal state
+    switchPortal(portalId);
+    
+    // Show success message
+    showToast(`Welcome back, ${userData.user.first_name}!`, 'success');
   };
 
   const handleLogout = () => {
@@ -54,15 +66,21 @@ function App() {
   };
 
   const renderPortal = () => {
+    // If no portal is selected, default to website portal
     if (!currentPortal) {
-      return <PortalSelection onSelectPortal={handlePortalSelect} />;
+      return (
+        <WebsitePortal 
+          onSignIn={() => setShowSignInModal(true)} 
+          onBookClass={() => setShowBookingModal(true)}
+        />
+      );
     }
 
     switch (currentPortal) {
       case 'website':
         return (
           <WebsitePortal 
-            onLogin={() => handlePortalSelect('member')} 
+            onSignIn={() => setShowSignInModal(true)} 
             onBookClass={() => setShowBookingModal(true)}
           />
         );
@@ -77,7 +95,12 @@ function App() {
       case 'frontdesk':
         return <FrontDeskPortal user={currentUser} onLogout={handleLogout} />;
       default:
-        return <PortalSelection onSelectPortal={handlePortalSelect} />;
+        return (
+          <WebsitePortal 
+            onLogin={() => handlePortalSelect('member')} 
+            onBookClass={() => setShowBookingModal(true)}
+          />
+        );
     }
   };
 
@@ -88,11 +111,10 @@ function App() {
           {renderPortal()}
           
           {/* Modals */}
-          <LoginModal
-            isOpen={showLoginModal}
-            portalId={selectedPortal}
-            onClose={() => setShowLoginModal(false)}
-            onLogin={handleLogin}
+          <SignInModal
+            isOpen={showSignInModal}
+            onClose={() => setShowSignInModal(false)}
+            onSignIn={handleSignIn}
           />
           
           <BookingModal

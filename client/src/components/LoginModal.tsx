@@ -30,14 +30,23 @@ export const LoginModal = ({ isOpen, portalId, onClose, onLogin }: LoginModalPro
   };
 
   return (
-    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-      <div className="glass-card p-8 rounded-2xl max-w-md w-full mx-4 animate-bounce-in">
-        <div className="text-center mb-6">
-          <i className={`${portal.icon} text-4xl mb-4 neon-glow ${portal.color}`}></i>
-          <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>
-            {portal.name} Login
-          </h2>
-          <p className="text-gray-300">Enter your credentials to continue</p>
+    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50" onClick={onClose}>
+      <div className="glass-card p-8 rounded-2xl max-w-md w-full mx-4 animate-bounce-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-6">
+          <div className="text-center flex-1">
+            <i className={`${portal.icon} text-4xl mb-4 neon-glow ${portal.color}`}></i>
+            <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>
+              {portal.name} Login
+            </h2>
+            <p className="text-gray-300">Enter your credentials to continue</p>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700 ml-4"
+            title="Close"
+          >
+            <i className="fas fa-times text-xl"></i>
+          </button>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">

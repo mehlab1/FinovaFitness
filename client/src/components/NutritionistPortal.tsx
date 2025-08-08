@@ -379,9 +379,18 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-purple-400 mb-4">Upload New Template</h3>
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50" onClick={() => setShowUploadModal(false)}>
+          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-purple-400">Upload New Template</h3>
+              <button 
+                onClick={() => setShowUploadModal(false)} 
+                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                title="Close"
+              >
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
             <div className="space-y-4">
               <input
                 type="text"

@@ -25,15 +25,68 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
     date: '',
     time: ''
   });
+  const [validationErrors, setValidationErrors] = useState<any>({});
 
   if (!isOpen) return null;
 
+  const validateStep1 = () => {
+    const errors: any = {};
+    if (!bookingData.name || bookingData.name.trim() === '') {
+      errors.name = 'Full name is required';
+    }
+    if (!bookingData.email || bookingData.email.trim() === '') {
+      errors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(bookingData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    if (!bookingData.phone || bookingData.phone.trim() === '') {
+      errors.phone = 'Phone number is required';
+    }
+    return errors;
+  };
+
+  const validateStep2 = () => {
+    const errors: any = {};
+    if (!bookingData.classType) {
+      errors.classType = 'Please select a class type';
+    }
+    if (!bookingData.date) {
+      errors.date = 'Please select a preferred date';
+    } else {
+      const selectedDate = new Date(bookingData.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        errors.date = 'Please select a future date';
+      }
+    }
+    if (!bookingData.time) {
+      errors.time = 'Please select a preferred time';
+    }
+    return errors;
+  };
+
   const handleNextStep = () => {
+    let errors = {};
+    
+    if (step === 1) {
+      errors = validateStep1();
+    } else if (step === 2) {
+      errors = validateStep2();
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    setValidationErrors({});
     setStep(step + 1);
   };
 
   const handlePrevStep = () => {
     setStep(step - 1);
+    setValidationErrors({});
   };
 
   const handleSubmit = () => {
@@ -48,20 +101,25 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
       date: '',
       time: ''
     });
+    setValidationErrors({});
   };
 
   const updateBookingData = (field: keyof BookingData, value: string) => {
     setBookingData(prev => ({ ...prev, [field]: value }));
+    // Clear validation error for this field when user starts typing
+    if (validationErrors[field]) {
+      setValidationErrors(prev => ({ ...prev, [field]: '' }));
+    }
   };
 
   return (
-    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-      <div className="glass-card p-8 rounded-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50" onClick={onClose}>
+      <div className="glass-card p-8 rounded-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
             Book Free Class
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
+          <button onClick={onClose} className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-700">
             <i className="fas fa-times text-2xl"></i>
           </button>
         </div>
@@ -105,37 +163,52 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
           <div className="animate-fade-in">
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-300 mb-2">Full Name</label>
+                <label className="block text-gray-300 mb-2">Full Name *</label>
                 <input
                   type="text"
                   value={bookingData.name}
                   onChange={(e) => updateBookingData('name', e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
+                  className={`w-full px-4 py-3 bg-gray-900 border rounded-lg focus:outline-none transition-colors ${
+                    validationErrors.name ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
+                  }`}
                   placeholder="Enter your full name"
                   required
                 />
+                {validationErrors.name && (
+                  <p className="text-red-400 text-sm mt-1">{validationErrors.name}</p>
+                )}
               </div>
               <div>
-                <label className="block text-gray-300 mb-2">Email Address</label>
+                <label className="block text-gray-300 mb-2">Email Address *</label>
                 <input
                   type="email"
                   value={bookingData.email}
                   onChange={(e) => updateBookingData('email', e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
+                  className={`w-full px-4 py-3 bg-gray-900 border rounded-lg focus:outline-none transition-colors ${
+                    validationErrors.email ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
+                  }`}
                   placeholder="Enter your email"
                   required
                 />
+                {validationErrors.email && (
+                  <p className="text-red-400 text-sm mt-1">{validationErrors.email}</p>
+                )}
               </div>
               <div>
-                <label className="block text-gray-300 mb-2">Phone Number</label>
+                <label className="block text-gray-300 mb-2">Phone Number *</label>
                 <input
                   type="tel"
                   value={bookingData.phone}
                   onChange={(e) => updateBookingData('phone', e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
+                  className={`w-full px-4 py-3 bg-gray-900 border rounded-lg focus:outline-none transition-colors ${
+                    validationErrors.phone ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
+                  }`}
                   placeholder="Enter your phone number"
                   required
                 />
+                {validationErrors.phone && (
+                  <p className="text-red-400 text-sm mt-1">{validationErrors.phone}</p>
+                )}
               </div>
             </div>
             <div className="flex justify-end mt-6">
@@ -154,11 +227,13 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
           <div className="animate-fade-in">
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-300 mb-2">Class Type</label>
+                <label className="block text-gray-300 mb-2">Class Type *</label>
                 <select
                   value={bookingData.classType}
                   onChange={(e) => updateBookingData('classType', e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
+                  className={`w-full px-4 py-3 bg-gray-900 border rounded-lg focus:outline-none transition-colors ${
+                    validationErrors.classType ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
+                  }`}
                   required
                 >
                   <option value="">Select a class type</option>
@@ -169,23 +244,33 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
                   <option value="Strength Training">Strength Training</option>
                   <option value="Pilates">Pilates</option>
                 </select>
+                {validationErrors.classType && (
+                  <p className="text-red-400 text-sm mt-1">{validationErrors.classType}</p>
+                )}
               </div>
               <div>
-                <label className="block text-gray-300 mb-2">Preferred Date</label>
+                <label className="block text-gray-300 mb-2">Preferred Date *</label>
                 <input
                   type="date"
                   value={bookingData.date}
                   onChange={(e) => updateBookingData('date', e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
+                  className={`w-full px-4 py-3 bg-gray-900 border rounded-lg focus:outline-none transition-colors ${
+                    validationErrors.date ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
+                  }`}
                   required
                 />
+                {validationErrors.date && (
+                  <p className="text-red-400 text-sm mt-1">{validationErrors.date}</p>
+                )}
               </div>
               <div>
-                <label className="block text-gray-300 mb-2">Preferred Time</label>
+                <label className="block text-gray-300 mb-2">Preferred Time *</label>
                 <select
                   value={bookingData.time}
                   onChange={(e) => updateBookingData('time', e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
+                  className={`w-full px-4 py-3 bg-gray-900 border rounded-lg focus:outline-none transition-colors ${
+                    validationErrors.time ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
+                  }`}
                   required
                 >
                   <option value="">Select preferred time</option>
@@ -193,6 +278,9 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
                   <option value="Afternoon (12:00 PM - 6:00 PM)">Afternoon (12:00 PM - 6:00 PM)</option>
                   <option value="Evening (6:00 PM - 10:00 PM)">Evening (6:00 PM - 10:00 PM)</option>
                 </select>
+                {validationErrors.time && (
+                  <p className="text-red-400 text-sm mt-1">{validationErrors.time}</p>
+                )}
               </div>
             </div>
             <div className="flex justify-between mt-6">

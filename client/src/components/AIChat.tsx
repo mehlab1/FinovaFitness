@@ -110,25 +110,37 @@ export const AIChat = ({ portal }: AIChatProps) => {
       {/* Chat Toggle Button - AI Badge */}
       <button
         onClick={toggleChat}
-        className="group relative w-20 h-20 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 hover:from-blue-500 hover:via-purple-600 hover:to-pink-600 text-white rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-500 animate-pulse-glow flex items-center justify-center overflow-hidden"
+        className="group relative w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-600 to-cyan-500 hover:from-blue-600 hover:via-purple-700 hover:to-cyan-600 text-white rounded-2xl shadow-2xl hover:shadow-blue-500/40 transition-all duration-300 transform hover:scale-110 flex items-center justify-center overflow-hidden border border-blue-400/20"
         style={{
           backgroundSize: '200% 200%',
-          animation: 'gradient-shift 3s ease infinite, pulse-glow 2s ease-in-out infinite'
+          animation: 'gradient-shift 4s ease infinite'
         }}
       >
-        {/* Animated background */}
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 opacity-75 animate-spin-slow"></div>
+        {/* Animated gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 via-purple-500/20 to-cyan-400/20 animate-pulse"></div>
         
-        {/* AI Text */}
-        <div className="relative z-10 flex flex-col items-center">
-          <span className="text-xs font-bold tracking-wider" style={{ fontFamily: 'Orbitron, monospace' }}>
+        {/* Main icon */}
+        <div className="relative z-10 flex flex-col items-center justify-center">
+          <div className="w-6 h-6 bg-white/10 backdrop-blur-sm rounded-md flex items-center justify-center border border-white/20 mb-1">
+            <i className="fas fa-robot text-white text-sm"></i>
+          </div>
+          <span className="text-xs font-bold tracking-wider text-white" style={{ fontFamily: 'Orbitron, monospace' }}>
             AI
           </span>
-          <span className="text-xs opacity-75">CHAT</span>
         </div>
         
-        {/* Glow effect */}
-        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-500"></div>
+        {/* Glow effect on hover */}
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-500 opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-300"></div>
+        
+        {/* Pulse ring effect */}
+        <div className="absolute inset-0 rounded-2xl border-2 border-blue-400/30 animate-ping"></div>
+        
+        {/* Notification dot */}
+        {!isOpen && (
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-gray-900 animate-pulse">
+            <div className="w-2 h-2 bg-white rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
+          </div>
+        )}
       </button>
     </div>
   );
