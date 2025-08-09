@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User } from '../types';
 import { useToast } from './Toast';
-import { trainerApi } from '../services/api';
+import { trainerApi } from '../services/api/trainerApi';
 
 interface TrainerPortalProps {
   user: User | null;

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { User } from '../types';
 import { facilities, exercises } from '../data/mockData';
 import { useToast } from './Toast';
-import { memberApi } from '../services/api';
+import { memberApi } from '../services/api/memberApi';
 
 interface MemberPortalProps {
   user: User | null;
