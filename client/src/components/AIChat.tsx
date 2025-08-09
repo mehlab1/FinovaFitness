@@ -54,7 +54,7 @@ export const AIChat = ({ portal }: AIChatProps) => {
             </button>
           </div>
           
-          <div className="flex-1 p-4 overflow-y-auto space-y-3">
+          <div className="flex-1 p-4 overflow-y-auto space-y-3 enhanced-scroll">
             {messages.map((message) => (
               <div
                 key={message.id}

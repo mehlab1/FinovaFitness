@@ -363,7 +363,7 @@ const POSSummary = ({ showToast }: { showToast: (message: string, type?: 'succes
           </button>
         </div>
         
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto minimal-scroll">
           <table className="w-full">
             <thead>
               <tr className="table-header">

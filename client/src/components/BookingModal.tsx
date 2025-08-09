@@ -114,7 +114,7 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
 
   return (
     <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50" onClick={onClose}>
-      <div className="glass-card p-8 rounded-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-card p-8 rounded-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto enhanced-scroll" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
             Book Free Class

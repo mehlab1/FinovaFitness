@@ -51,7 +51,7 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
         </div>
         {/* Scrollable Navigation */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-orange-400 scrollbar-track-gray-800 pr-2">
+          <div className="h-full overflow-y-auto enhanced-scroll pr-2">
             <nav className="space-y-2 pb-4">
               {[
                 { id: 'dashboard', icon: 'fas fa-tachometer-alt', label: 'Dashboard', color: 'text-orange-400' },
@@ -354,7 +354,7 @@ const MemberDirectory = ({ showToast }: { showToast: (message: string, type?: 's
       {/* Members Table */}
       <div className="glass-card p-6 rounded-2xl">
         <h3 className="text-xl font-bold text-orange-400 mb-4">Member Directory</h3>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto minimal-scroll">
           <table className="w-full">
             <thead>
               <tr className="table-header">
@@ -427,7 +427,7 @@ const StaffManagement = ({ showToast }: { showToast: (message: string, type?: 's
       </div>
 
       <div className="glass-card p-6 rounded-2xl">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto minimal-scroll">
           <table className="w-full">
             <thead>
               <tr className="table-header">
@@ -556,7 +556,7 @@ const BookingsManagement = ({ showToast }: { showToast: (message: string, type?:
 
       <div className="glass-card p-6 rounded-2xl">
         <h3 className="text-xl font-bold text-orange-400 mb-4">Master Booking Calendar - {selectedDate}</h3>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto minimal-scroll">
           <div className="min-w-full">
             <div className="grid grid-cols-9 gap-2 mb-4">
               <div className="font-bold text-center p-2">Facility</div>

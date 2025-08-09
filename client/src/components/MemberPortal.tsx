@@ -55,7 +55,7 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
         
         {/* Scrollable Navigation */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-blue-400 scrollbar-track-gray-800 pr-2">
+          <div className="h-full overflow-y-auto enhanced-scroll pr-2">
             <nav className="space-y-2 pb-4">
               {[
                 { id: 'dashboard', icon: 'fas fa-tachometer-alt', label: 'Dashboard', color: 'text-blue-400' },
@@ -479,7 +479,7 @@ const WorkoutSchedule = ({ showToast }: { showToast: (message: string, type?: 's
             </div>
 
             {/* Workout Table */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto minimal-scroll">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-600">
