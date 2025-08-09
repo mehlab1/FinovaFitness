@@ -45,7 +45,7 @@ export const LoginModal = ({ isOpen, portalId, onClose, onLogin }: LoginModalPro
             className="close-button text-gray-300 hover:text-white p-2 rounded-lg ml-4"
             title="Close"
           >
-            <i className="fas fa-times text-xl"></i>
+            <span className="text-xl font-bold leading-none" aria-hidden="true">×</span>
           </button>
         </div>
         

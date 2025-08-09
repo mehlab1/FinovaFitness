@@ -120,7 +120,7 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
             Book Free Class
           </h2>
           <button onClick={onClose} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
-            <i className="fas fa-times text-2xl"></i>
+            <span className="text-2xl font-bold leading-none" aria-hidden="true">×</span>
           </button>
         </div>
         
