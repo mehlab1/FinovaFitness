@@ -840,7 +840,7 @@ const MemberStore = ({ showToast }: { showToast: (message: string, type?: 'succe
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-green-400">Shopping Cart</h3>
               <button onClick={() => setShowCart(false)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
-                <span className="text-xl font-bold leading-none" aria-hidden="true">×</span>
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
               </button>
             </div>
             
@@ -1150,7 +1150,7 @@ const TrainersTab = ({ showToast }: { showToast: (message: string, type?: 'succe
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-blue-400">{selectedTrainer.name}'s Schedule</h3>
               <button onClick={() => setSelectedTrainer(null)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
-                <span className="text-xl font-bold leading-none" aria-hidden="true">×</span>
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
               </button>
             </div>
             <div className="space-y-4">
@@ -1322,7 +1322,7 @@ const NutritionistsTab = ({ showToast }: { showToast: (message: string, type?: '
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-purple-400">Request Diet Plan</h3>
               <button onClick={() => setShowDietForm(false)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
-                <span className="text-xl font-bold leading-none" aria-hidden="true">×</span>
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
               </button>
             </div>
             <div className="space-y-4">

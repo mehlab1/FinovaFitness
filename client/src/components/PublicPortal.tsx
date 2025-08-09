@@ -1109,7 +1109,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
                 className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
                 title="Close"
               >
-                <span className="text-xl font-bold leading-none" aria-hidden="true">×</span>
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
               </button>
             </div>
             
@@ -1327,7 +1327,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
                 className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
                 title="Close"
               >
-                <span className="text-xl font-bold leading-none" aria-hidden="true">×</span>
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
               </button>
             </div>
             
@@ -1437,7 +1437,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
                 className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
                 title="Close"
               >
-                <span className="text-xl font-bold leading-none" aria-hidden="true">×</span>
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
               </button>
             </div>
             
@@ -1630,7 +1630,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
                 className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
                 title="Close"
               >
-                <span className="text-xl font-bold leading-none" aria-hidden="true">×</span>
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
               </button>
             </div>
             
