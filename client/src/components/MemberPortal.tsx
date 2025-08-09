@@ -839,8 +839,8 @@ const MemberStore = ({ showToast }: { showToast: (message: string, type?: 'succe
           <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-green-400">Shopping Cart</h3>
-              <button onClick={() => setShowCart(false)} className="text-gray-400 hover:text-white">
-                <i className="fas fa-times"></i>
+              <button onClick={() => setShowCart(false)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
+                <i className="fas fa-times text-xl"></i>
               </button>
             </div>
             
@@ -1149,8 +1149,8 @@ const TrainersTab = ({ showToast }: { showToast: (message: string, type?: 'succe
           <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-blue-400">{selectedTrainer.name}'s Schedule</h3>
-              <button onClick={() => setSelectedTrainer(null)} className="text-gray-400 hover:text-white">
-                <i className="fas fa-times"></i>
+              <button onClick={() => setSelectedTrainer(null)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
+                <i className="fas fa-times text-xl"></i>
               </button>
             </div>
             <div className="space-y-4">
@@ -1321,8 +1321,8 @@ const NutritionistsTab = ({ showToast }: { showToast: (message: string, type?: '
           <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-purple-400">Request Diet Plan</h3>
-              <button onClick={() => setShowDietForm(false)} className="text-gray-400 hover:text-white">
-                <i className="fas fa-times"></i>
+              <button onClick={() => setShowDietForm(false)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
+                <i className="fas fa-times text-xl"></i>
               </button>
             </div>
             <div className="space-y-4">

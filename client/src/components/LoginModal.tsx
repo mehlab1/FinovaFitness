@@ -42,7 +42,7 @@ export const LoginModal = ({ isOpen, portalId, onClose, onLogin }: LoginModalPro
           </div>
           <button 
             onClick={onClose} 
-            className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700 ml-4"
+            className="close-button text-gray-300 hover:text-white p-2 rounded-lg ml-4"
             title="Close"
           >
             <i className="fas fa-times text-xl"></i>

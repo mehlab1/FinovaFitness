@@ -119,7 +119,7 @@ export const BookingModal = ({ isOpen, onClose, onSuccess }: BookingModalProps) 
           <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
             Book Free Class
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-700">
+          <button onClick={onClose} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
             <i className="fas fa-times text-2xl"></i>
           </button>
         </div>

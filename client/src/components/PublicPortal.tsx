@@ -1106,7 +1106,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
               <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Membership Signup</h2>
               <button 
                 onClick={() => setShowMembershipWizard(false)} 
-                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
                 title="Close"
               >
                 <i className="fas fa-times text-xl"></i>
@@ -1324,7 +1324,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
               <h2 className="text-2xl font-bold text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Free 3-Day Trial</h2>
               <button 
                 onClick={() => setShowTrialWizard(false)} 
-                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
                 title="Close"
               >
                 <i className="fas fa-times text-xl"></i>
@@ -1434,7 +1434,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
               <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Payment Details</h2>
               <button 
                 onClick={() => setShowPaymentDetails(false)} 
-                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
                 title="Close"
               >
                 <i className="fas fa-times text-xl"></i>
@@ -1627,7 +1627,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
               <h2 className="text-2xl font-bold text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Create Account</h2>
               <button 
                 onClick={() => setShowAccountCreation(false)} 
-                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
                 title="Close"
               >
                 <i className="fas fa-times text-xl"></i>

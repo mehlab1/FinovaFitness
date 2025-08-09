@@ -147,6 +147,20 @@
     border-color: var(--neon-green);
   }
   
+  .close-button {
+    background: rgba(75, 85, 99, 0.2);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(156, 163, 175, 0.4);
+    transition: all 0.3s ease;
+  }
+  
+  .close-button:hover {
+    background: rgba(220, 38, 38, 0.2);
+    border-color: rgba(248, 113, 113, 0.6);
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(248, 113, 113, 0.3);
+  }
+  
   .facility-slot:hover {
     transform: scale(1.02);
     box-shadow: 0 5px 20px rgba(0, 195, 255, 0.3);

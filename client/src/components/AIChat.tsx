@@ -49,8 +49,8 @@ export const AIChat = ({ portal }: AIChatProps) => {
                 AI ASSISTANT
               </span>
             </div>
-            <button onClick={toggleChat} className="text-gray-400 hover:text-white">
-              <i className="fas fa-times"></i>
+            <button onClick={toggleChat} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
+              <i className="fas fa-times text-xl"></i>
             </button>
           </div>
           
