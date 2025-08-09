@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finova Fitness - Database Schema Diagram</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            text-align: center;
+        }
+        
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #0056b3;
+        }
+        
+        .diagram-container {
+            padding: 40px;
+            background: white;
+            overflow: auto;
+            min-height: 600px;
+        }
+        
+        .legend {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .legend h3 {
+            margin-top: 0;
+            color: #1e3c72;
+        }
+        
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+        
+        .legend-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .legend-section h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+            font-size: 16px;
+        }
+        
+        .legend-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .legend-section li {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .zoom-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .table-count {
+            background: #28a745;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-block;
+            margin: 10px 0;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .diagram-container {
+                padding: 20px;
+            }
+            
+            .legend-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Mermaid diagram styling */
+        .mermaid {
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="zoom-controls">
+        <button class="btn" onclick="zoomIn()">Zoom In</button>
+        <button class="btn" onclick="zoomOut()">Zoom Out</button>
+        <button class="btn" onclick="resetZoom()">Reset</button>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🏋️ Finova Fitness Database Schema</h1>
+            <p>Complete Member Portal Database Design</p>
+            <div class="table-count">18 Tables • 150+ Columns • Full Relational Design</div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn" onclick="toggleFullscreen()">Toggle Fullscreen</button>
+            <button class="btn" onclick="downloadDiagram()">Download as PNG</button>
+            <button class="btn" onclick="printDiagram()">Print</button>
+        </div>
+        
+        <div class="diagram-container" id="diagramContainer">
+            <div class="mermaid" id="mermaidDiagram">
+erDiagram
+    USERS {
+        int id PK
+        string email
+        string password_hash
+        string first_name
+        string last_name
+        string role
+        string phone
+        date date_of_birth
+        string gender
+        text address
+        string emergency_contact
+        string membership_type
+        date membership_start_date
+        date membership_end_date
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    MEMBER_PROFILES {
+        int id PK
+        int user_id FK
+        int current_plan_id FK
+        int loyalty_points
+        int streak_days
+        date last_gym_visit
+        decimal weight
+        decimal height
+        text profile_image_url
+        text fitness_goals
+        text health_notes
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    MEMBERSHIP_PLANS {
+        int id PK
+        string name
+        text description
+        decimal price
+        int duration_months
+        text features
+        int max_classes_per_month
+        boolean includes_personal_training
+        boolean includes_nutrition_consultation
+        boolean is_active
+        timestamp created_at
+    }
+    
+    REFERRALS {
+        int id PK
+        int referrer_id FK
+        string referred_email
+        int referred_user_id FK
+        string promo_code
+        string status
+        int points_awarded
+        timestamp created_at
+        timestamp joined_at
+    }
+    
+    LOYALTY_TRANSACTIONS {
+        int id PK
+        int user_id FK
+        int points_change
+        string transaction_type
+        text description
+        int reference_id
+        timestamp created_at
+    }
+    
+    MUSCLE_GROUPS {
+        int id PK
+        string name
+        text description
+        timestamp created_at
+    }
+    
+    EXERCISES {
+        int id PK
+        string name
+        text description
+        text instructions
+        int primary_muscle_group_id FK
+        int secondary_muscle_groups
+        text equipment_needed
+        string difficulty_level
+        text video_url
+        text image_url
+        timestamp created_at
+    }
+    
+    MEMBER_WORKOUT_SCHEDULES {
+        int id PK
+        int user_id FK
+        int day_of_week
+        string schedule_name
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    SCHEDULE_MUSCLE_GROUPS {
+        int id PK
+        int schedule_id FK
+        int muscle_group_id FK
+        int order_index
+        timestamp created_at
+    }
+    
+    SCHEDULE_EXERCISES {
+        int id PK
+        int schedule_id FK
+        int exercise_id FK
+        int muscle_group_id FK
+        int sets
+        string reps
+        decimal weight
+        int rest_seconds
+        int order_index
+        text notes
+        timestamp created_at
+    }
+    
+    BOOKINGS {
+        int id PK
+        int user_id FK
+        int class_id FK
+        int trainer_id FK
+        date booking_date
+        time start_time
+        time end_time
+        string status
+        string booking_type
+        text notes
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    BOOKING_REVIEWS {
+        int id PK
+        int booking_id FK
+        int user_id FK
+        int rating
+        text review_text
+        boolean is_reviewed
+        timestamp reviewed_at
+        timestamp created_at
+    }
+    
+    MEMBER_INVITES {
+        int id PK
+        int user_id FK
+        string email_sent_to
+        string invite_code
+        string status
+        timestamp sent_at
+        timestamp opened_at
+        timestamp registered_at
+    }
+    
+    GYM_VISITS {
+        int id PK
+        int user_id FK
+        date visit_date
+        timestamp check_in_time
+        timestamp check_out_time
+        int duration_minutes
+        int points_awarded
+        timestamp created_at
+    }
+    
+    CLASSES {
+        int id PK
+        string name
+        text description
+        string category
+        int duration_minutes
+        int max_capacity
+        int current_capacity
+        int trainer_id FK
+        string room
+        text equipment_needed
+        string difficulty_level
+        boolean is_active
+        timestamp created_at
+    }
+    
+    TRAINERS {
+        int id PK
+        int user_id FK
+        text specialization
+        text certification
+        int experience_years
+        text bio
+        decimal hourly_rate
+        jsonb availability
+        decimal rating
+        int total_sessions
+        timestamp created_at
+    }
+    
+    CLASS_SCHEDULES {
+        int id PK
+        int class_id FK
+        int day_of_week
+        time start_time
+        time end_time
+        boolean is_recurring
+        date start_date
+        date end_date
+        timestamp created_at
+    }
+    
+    EQUIPMENT {
+        int id PK
+        string name
+        text description
+        string category
+        string condition
+        string location
+        date purchase_date
+        date last_maintenance_date
+        date next_maintenance_date
+        boolean is_available
+        timestamp created_at
+    }
+    
+    PAYMENTS {
+        int id PK
+        int user_id FK
+        decimal amount
+        string payment_type
+        string payment_method
+        string status
+        string transaction_id
+        text description
+        timestamp created_at
+    }
+
+    %% Core User Relationships
+    USERS ||--o| MEMBER_PROFILES : "has profile"
+    USERS ||--o| TRAINERS : "can be trainer"
+    MEMBER_PROFILES }o--|| MEMBERSHIP_PLANS : "has current plan"
+    
+    %% Referral System
+    USERS ||--o{ REFERRALS : "refers others"
+    USERS ||--o{ REFERRALS : "referred by"
+    USERS ||--o{ LOYALTY_TRANSACTIONS : "earns/spends points"
+    USERS ||--o{ MEMBER_INVITES : "sends invites"
+    
+    %% Workout System
+    USERS ||--o{ MEMBER_WORKOUT_SCHEDULES : "has workout plan"
+    MEMBER_WORKOUT_SCHEDULES ||--o{ SCHEDULE_MUSCLE_GROUPS : "targets muscle groups"
+    MEMBER_WORKOUT_SCHEDULES ||--o{ SCHEDULE_EXERCISES : "includes exercises"
+    MUSCLE_GROUPS ||--o{ SCHEDULE_MUSCLE_GROUPS : "targeted in schedule"
+    MUSCLE_GROUPS ||--o{ EXERCISES : "primary muscle"
+    MUSCLE_GROUPS ||--o{ SCHEDULE_EXERCISES : "grouped by"
+    EXERCISES ||--o{ SCHEDULE_EXERCISES : "included in schedule"
+    
+    %% Booking System
+    USERS ||--o{ BOOKINGS : "makes bookings"
+    CLASSES ||--o{ BOOKINGS : "booked for"
+    TRAINERS ||--o{ CLASSES : "teaches"
+    TRAINERS ||--o{ BOOKINGS : "personal training"
+    BOOKINGS ||--o| BOOKING_REVIEWS : "can be reviewed"
+    USERS ||--o{ BOOKING_REVIEWS : "writes reviews"
+    CLASSES ||--o{ CLASS_SCHEDULES : "has schedule"
+    
+    %% Gym Operations
+    USERS ||--o{ GYM_VISITS : "visits gym"
+    USERS ||--o{ PAYMENTS : "makes payments"
+            </div>
+        </div>
+        
+        <div class="legend">
+            <h3>📋 Database Schema Legend & Explanations</h3>
+            <div class="legend-grid">
+                <div class="legend-section">
+                    <h4>🔑 Core Member Data</h4>
+                    <ul>
+                        <li><strong>USERS:</strong> Base user information for all portal types</li>
+                        <li><strong>MEMBER_PROFILES:</strong> Extended member-specific data</li>
+                        <li><strong>MEMBERSHIP_PLANS:</strong> Available subscription plans</li>
+                        <li><strong>GYM_VISITS:</strong> Check-in/out tracking for streaks</li>
+                    </ul>
+                </div>
+                
+                <div class="legend-section">
+                    <h4>🎯 Loyalty & Referral System</h4>
+                    <ul>
+                        <li><strong>LOYALTY_TRANSACTIONS:</strong> All point earnings/spending</li>
+                        <li><strong>REFERRALS:</strong> Referral tracking with promo codes</li>
+                        <li><strong>MEMBER_INVITES:</strong> Invitation management system</li>
+                    </ul>
+                </div>
+                
+                <div class="legend-section">
+                    <h4>💪 Workout Management</h4>
+                    <ul>
+                        <li><strong>MUSCLE_GROUPS:</strong> Exercise categorization</li>
+                        <li><strong>EXERCISES:</strong> Exercise database with instructions</li>
+                        <li><strong>MEMBER_WORKOUT_SCHEDULES:</strong> Daily workout plans</li>
+                        <li><strong>SCHEDULE_EXERCISES:</strong> Specific exercises with sets/reps</li>
+                    </ul>
+                </div>
+                
+                <div class="legend-section">
+                    <h4>📅 Booking & Reviews</h4>
+                    <ul>
+                        <li><strong>BOOKINGS:</strong> Class and personal training bookings</li>
+                        <li><strong>BOOKING_REVIEWS:</strong> Member feedback system</li>
+                        <li><strong>CLASSES:</strong> Available fitness classes</li>
+                        <li><strong>CLASS_SCHEDULES:</strong> Recurring class timetables</li>
+                    </ul>
+                </div>
+                
+                <div class="legend-section">
+                    <h4>👥 Staff & Operations</h4>
+                    <ul>
+                        <li><strong>TRAINERS:</strong> Personal trainer profiles</li>
+                        <li><strong>EQUIPMENT:</strong> Gym equipment management</li>
+                        <li><strong>PAYMENTS:</strong> Financial transaction tracking</li>
+                    </ul>
+                </div>
+                
+                <div class="legend-section">
+                    <h4>🔗 Relationship Types</h4>
+                    <ul>
+                        <li><strong>||--o|:</strong> One-to-Zero-or-One</li>
+                        <li><strong>||--o{:</strong> One-to-Many</li>
+                        <li><strong>}o--||:</strong> Many-to-One</li>
+                        <li><strong>PK:</strong> Primary Key</li>
+                        <li><strong>FK:</strong> Foreign Key</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            er: {
+                fill: '#f9f9f9',
+                primaryColor: '#1e3c72',
+                primaryBorderColor: '#2a5298',
+                primaryTextColor: '#ffffff',
+                lineColor: '#495057',
+                secondaryColor: '#e9ecef',
+                tertiaryColor: '#ffffff'
+            }
+        });
+
+        let currentZoom = 1;
+        const zoomStep = 0.1;
+        const minZoom = 0.3;
+        const maxZoom = 3;
+
+        function zoomIn() {
+            if (currentZoom < maxZoom) {
+                currentZoom += zoomStep;
+                applyZoom();
+            }
+        }
+
+        function zoomOut() {
+            if (currentZoom > minZoom) {
+                currentZoom -= zoomStep;
+                applyZoom();
+            }
+        }
+
+        function resetZoom() {
+            currentZoom = 1;
+            applyZoom();
+        }
+
+        function applyZoom() {
+            const container = document.getElementById('diagramContainer');
+            container.style.transform = `scale(${currentZoom})`;
+            container.style.transformOrigin = 'top left';
+        }
+
+        function toggleFullscreen() {
+            const container = document.querySelector('.container');
+            if (!document.fullscreenElement) {
+                container.requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function downloadDiagram() {
+            // This would require additional libraries for actual download functionality
+            alert('Download functionality would require additional implementation. You can use browser print to PDF or screenshot for now.');
+        }
+
+        function printDiagram() {
+            window.print();
+        }
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case '=':
+                    case '+':
+                        e.preventDefault();
+                        zoomIn();
+                        break;
+                    case '-':
+                        e.preventDefault();
+                        zoomOut();
+                        break;
+                    case '0':
+                        e.preventDefault();
+                        resetZoom();
+                        break;
+                }
+            }
+            
+            if (e.key === 'F11') {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+        });
+
+        // Mouse wheel zoom
+        document.getElementById('diagramContainer').addEventListener('wheel', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                if (e.deltaY < 0) {
+                    zoomIn();
+                } else {
+                    zoomOut();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User } from '../types';
 import { facilities, exercises } from '../data/mockData';
 import { useToast } from './Toast';
+import { memberApi } from '../services/api';
 
 interface MemberPortalProps {
   user: User | null;
@@ -1069,33 +1070,35 @@ const Reviews = ({ showToast }: { showToast: (message: string, type?: 'success' 
 
 const TrainersTab = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const [selectedTrainer, setSelectedTrainer] = useState<any>(null);
+  const [trainers, setTrainers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const trainers = [
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      specialty: 'HIIT Specialist',
-      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
-      bio: 'Sarah has 8 years of experience helping clients achieve their fitness goals through high-intensity training.',
-      schedule: ['9:00 AM', '2:00 PM', '6:00 PM', '7:30 PM']
-    },
-    {
-      id: '2',
-      name: 'Mike Chen',
-      specialty: 'Strength Coach',
-      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
-      bio: 'Mike specializes in strength training and sports performance with 10 years of experience.',
-      schedule: ['10:00 AM', '3:00 PM', '7:00 PM', '8:30 PM']
-    },
-    {
-      id: '3',
-      name: 'Alex Rodriguez',
-      specialty: 'Yoga & Pilates Instructor',
-      image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
-      bio: 'Alex brings 6 years of experience in yoga and pilates, focusing on flexibility and mental wellness.',
-      schedule: ['8:00 AM', '1:00 PM', '5:00 PM', '6:30 PM']
-    }
-  ];
+  useEffect(() => {
+    const fetchTrainers = async () => {
+      try {
+        const data = await memberApi.getTrainers();
+        setTrainers(data);
+      } catch (error) {
+        console.error('Failed to fetch trainers:', error);
+        showToast('Failed to load trainers', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrainers();
+  }, [showToast]);
+
+  if (loading) {
+    return (
+      <div className="animate-fade-in flex items-center justify-center h-64">
+        <div className="text-center">
+          <i className="fas fa-spinner fa-spin text-4xl text-blue-400 mb-4"></i>
+          <p className="text-gray-300">Loading trainers...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -1104,22 +1107,40 @@ const TrainersTab = ({ showToast }: { showToast: (message: string, type?: 'succe
       </h2>
       
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {trainers.map((trainer) => (
-          <div key={trainer.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
-            <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-blue-400">
-              <img src={trainer.image} alt={trainer.name} className="w-full h-full object-cover" />
+        {trainers.length === 0 ? (
+          <p className="text-gray-400 text-center py-4 col-span-full">No trainers available</p>
+        ) : (
+          trainers.map((trainer) => (
+            <div key={trainer.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
+              <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-blue-400">
+                <img 
+                  src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" 
+                  alt={`${trainer.first_name} ${trainer.last_name}`} 
+                  className="w-full h-full object-cover" 
+                />
+              </div>
+              <h3 className="text-xl font-bold text-blue-400 mb-2">
+                {trainer.first_name} {trainer.last_name}
+              </h3>
+              <p className="text-green-400 mb-2">
+                {trainer.specialization?.[0] || 'Personal Trainer'}
+              </p>
+              <p className="text-gray-300 text-sm mb-2">
+                {trainer.bio || 'Experienced fitness professional'}
+              </p>
+              <p className="text-yellow-400 text-sm mb-4">
+                ⭐ {trainer.average_rating ? parseFloat(trainer.average_rating).toFixed(1) : '5.0'} 
+                ({trainer.total_ratings || 0} reviews)
+              </p>
+              <button
+                onClick={() => setSelectedTrainer(trainer)}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors"
+              >
+                Book Session
+              </button>
             </div>
-            <h3 className="text-xl font-bold text-blue-400 mb-2">{trainer.name}</h3>
-            <p className="text-green-400 mb-2">{trainer.specialty}</p>
-            <p className="text-gray-300 text-sm mb-4">{trainer.bio}</p>
-            <button
-              onClick={() => setSelectedTrainer(trainer)}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors"
-            >
-              Book Session
-            </button>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Trainer Schedule Modal */}

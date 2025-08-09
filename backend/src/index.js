@@ -5,6 +5,8 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { testConnection } from './database.js';
 import userRoutes from './routes/users.js';
+import trainerRoutes from './routes/trainers.js';
+import memberRoutes from './routes/members.js';
 
 // Load environment variables
 dotenv.config();
@@ -41,6 +43,8 @@ app.get('/api/health', async (req, res) => {
 
 // API routes
 app.use('/api/users', userRoutes);
+app.use('/api/trainers', trainerRoutes);
+app.use('/api/members', memberRoutes);
 
 // API routes will be added here
 app.get('/api', (req, res) => {

@@ -9,7 +9,8 @@
     "dev": "nodemon src/index.js",
     "test": "jest",
     "init-db": "node src/init-db.js",
-    "create-users": "node src/create-sample-users.js"
+    "create-users": "node src/create-sample-users.js",
+    "create-trainer-data": "node src/create-trainer-sample-data.js"
   },
   "dependencies": {
     "express": "^4.18.2",
