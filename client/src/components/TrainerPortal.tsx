@@ -369,29 +369,30 @@ const ClientRequests = ({ showToast }: { showToast: (message: string, type?: 'su
                       {request.is_member ? 'Member' : 'Non-member'} • {request.requester_email}
                     </p>
                   </div>
-                <div className="flex space-x-2">
-                  {request.status === 'pending' ? (
-                    <>
-                      <button
-                        onClick={() => handleRequest(request.id, 'approve')}
-                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleRequest(request.id, 'reject')}
-                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-                      >
-                        Reject
-                      </button>
-                    </>
-                  ) : (
-                    <span className={`px-4 py-2 rounded-lg font-semibold ${
-                      request.status === 'approved' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                    }`}>
-                      {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                    </span>
-                  )}
+                  <div className="flex space-x-2">
+                    {request.status === 'pending' ? (
+                      <>
+                        <button
+                          onClick={() => handleRequest(request.id, 'approve')}
+                          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleRequest(request.id, 'reject')}
+                          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    ) : (
+                      <span className={`px-4 py-2 rounded-lg font-semibold ${
+                        request.status === 'approved' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                      }`}>
+                        {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
