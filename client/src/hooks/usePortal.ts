@@ -7,37 +7,33 @@ export const usePortal = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Check for saved portal and user data
-    const savedPortal = localStorage.getItem('currentPortal');
+    // Check for saved user data and token
     const savedUser = localStorage.getItem('currentUser');
+    const savedToken = localStorage.getItem('token');
     
-    if (savedPortal && savedUser) {
-      setCurrentPortal(savedPortal);
-      setCurrentUser(JSON.parse(savedUser));
+    if (savedUser && savedToken) {
+      const user = JSON.parse(savedUser);
+      setCurrentUser(user);
+      setCurrentPortal(user.role);
       setIsAuthenticated(true);
     }
   }, []);
 
-  const login = (portal: string, credentials: { username: string; password: string }) => {
-    // Mock login - in real app, this would make an API call
-    const mockUser: User = {
-      id: '1',
-      name: credentials.username || 'John Doe',
-      email: 'john@example.com',
-      role: portal as any,
-      membershipPlan: portal === 'member' ? 'Quarterly' : undefined,
-      loyaltyPoints: portal === 'member' ? 1247 : undefined,
-      consistencyStreak: portal === 'member' ? 90 : undefined,
-      referralCount: portal === 'member' ? 5 : undefined
-    };
-
-    setCurrentUser(mockUser);
+  const login = (userData: { user: User; token: string }) => {
+    // Use the actual user data from the database
+    const user = userData.user;
+    
+    // Set the portal based on user role
+    const portal = user.role;
+    
+    setCurrentUser(user);
     setCurrentPortal(portal);
     setIsAuthenticated(true);
 
     // Save to localStorage
     localStorage.setItem('currentPortal', portal);
-    localStorage.setItem('currentUser', JSON.stringify(mockUser));
+    localStorage.setItem('currentUser', JSON.stringify(user));
+    localStorage.setItem('token', userData.token);
 
     return true;
   };
@@ -50,6 +46,7 @@ export const usePortal = () => {
     // Clear localStorage
     localStorage.removeItem('currentPortal');
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('token');
   };
 
   const switchPortal = (portal: string) => {

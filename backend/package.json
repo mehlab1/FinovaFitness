@@ -12,6 +12,7 @@
     "init-db-new": "node src/database/init-db-new.js",
     "create-users": "node src/create-sample-users.js",
     "create-trainer-data": "node src/create-trainer-sample-data.js",
+    "create-mehlab": "node src/create-mehlab-user.js",
     "setup": "npm run init-db-new && npm run create-users && npm run create-trainer-data"
   },
   "dependencies": {

@@ -1,4 +1,4 @@
-import { query } from '../config/database.js';
+import { query } from '../database.js';
 
 // Get trainer dashboard data
 export const getDashboard = async (req, res) => {

@@ -603,11 +603,10 @@ const PlansManagement = ({ showToast }: { showToast: (message: string, type?: 's
   const [newDiscount, setNewDiscount] = useState({ name: '', code: '', percentage: '', validUntil: '', conditions: '' });
 
   const plans = [
-    { id: 1, name: 'Basic Monthly', duration: '1 month', price: 'PKR 22,000', originalPrice: 'PKR 25,000', perks: '24/7 access, All classes, 2 guest passes', status: 'active' },
-    { id: 2, name: 'Premium Quarterly', duration: '3 months', price: 'PKR 55,000', originalPrice: 'PKR 66,000', perks: '24/7 access, All classes, 3 guest passes, 2 PT sessions', status: 'active' },
-    { id: 3, name: 'Elite Yearly', duration: '12 months', price: 'PKR 165,000', originalPrice: 'PKR 198,000', perks: '24/7 access, All classes, 5 guest passes, 2 PT sessions/month', status: 'active' },
-    { id: 4, name: 'Student Plan', duration: '6 months', price: 'PKR 45,000', originalPrice: 'PKR 60,000', perks: '24/7 access, All classes, Student ID required', status: 'active' },
-    { id: 5, name: 'Family Plan', duration: '12 months', price: 'PKR 220,000', originalPrice: 'PKR 264,000', perks: 'Up to 4 family members, All classes, 10 guest passes', status: 'active' }
+    { id: 1, name: 'Drop-In', duration: 'per visit', price: 'PKR 7,000', originalPrice: 'PKR 7,000', perks: 'Single day access, All equipment, Locker room access', status: 'active' },
+    { id: 2, name: 'Monthly', duration: '1 month', price: 'PKR 22,000', originalPrice: 'PKR 22,000', perks: '24/7 access, All classes, 2 guest passes, Sauna/Steam access', status: 'active' },
+    { id: 3, name: 'Quarterly', duration: '3 months', price: 'PKR 55,000', originalPrice: 'PKR 55,000', perks: '24/7 access, All classes, 3 guest passes, 2 PT sessions, Sauna/Steam access', status: 'active' },
+    { id: 4, name: 'Yearly', duration: '12 months', price: 'PKR 165,000', originalPrice: 'PKR 165,000', perks: '24/7 access, All classes, 5 guest passes, 2 PT sessions/month, Nutrition consultation', status: 'active' }
   ];
 
   const discounts = [

@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../database.js';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 const router = express.Router();
 
@@ -38,15 +39,29 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
   try {
     const userId = req.userId;
     
-    // Get member profile
+    // Get member profile with current plan details
     const profileResult = await query(
-      'SELECT * FROM member_profiles WHERE user_id = $1',
+      `SELECT mp.*, mp.weight, mp.height, mp.loyalty_points, mp.streak_days, mp.last_gym_visit,
+              mp.current_plan_id
+       FROM member_profiles mp
+       WHERE mp.user_id = $1`,
+      [userId]
+    );
+
+    // Get current membership plan details
+    const planResult = await query(
+      `SELECT mp.current_plan_id, mpl.name as plan_name, mpl.price, mpl.duration_months,
+              u.membership_start_date, u.membership_end_date
+       FROM member_profiles mp
+       LEFT JOIN membership_plans mpl ON mp.current_plan_id = mpl.id
+       LEFT JOIN users u ON mp.user_id = u.id
+       WHERE mp.user_id = $1`,
       [userId]
     );
 
     // Get upcoming bookings
     const bookingsResult = await query(
-      `SELECT b.*, ts.trainer_id, u.first_name as trainer_first_name, u.last_name as trainer_last_name
+      `SELECT b.*, t.id as trainer_id, u.first_name as trainer_first_name, u.last_name as trainer_last_name
        FROM bookings b 
        LEFT JOIN trainers t ON b.trainer_id = t.id
        LEFT JOIN users u ON t.user_id = u.id
@@ -73,18 +88,134 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
       [userId]
     );
 
+    // Get referral count
+    const referralResult = await query(
+      `SELECT COUNT(*) as referral_count
+       FROM referrals 
+       WHERE referrer_id = $1 AND status = 'joined'`,
+      [userId]
+    );
+
+    // Get most recent weight and height from weight_tracking table
+    const latestWeightResult = await query(
+      `SELECT weight, height, recorded_date
+       FROM weight_tracking 
+       WHERE user_id = $1 
+       ORDER BY recorded_date DESC 
+       LIMIT 1`,
+      [userId]
+    );
+
+    // Get weight change (current - previous weight)
+    const weightResult = await query(
+      `SELECT 
+         w1.weight as current_weight,
+         w2.weight as previous_weight
+       FROM weight_tracking w1
+       LEFT JOIN weight_tracking w2 ON w2.user_id = w1.user_id 
+         AND w2.recorded_date < w1.recorded_date
+         AND w2.recorded_date = (
+           SELECT MAX(recorded_date) 
+           FROM weight_tracking w3 
+           WHERE w3.user_id = w1.user_id 
+           AND w3.recorded_date < w1.recorded_date
+         )
+       WHERE w1.user_id = $1 
+       AND w1.recorded_date = (
+         SELECT MAX(recorded_date) 
+         FROM weight_tracking 
+         WHERE user_id = $1
+       )`,
+      [userId]
+    );
+
+    // Get workout completion count (all time)
+    const workoutResult = await query(
+      `SELECT 
+         COUNT(*) as completed_workouts,
+         (SELECT COUNT(*) FROM member_workout_schedules WHERE user_id = $1 AND is_active = true) as total_scheduled_workouts
+       FROM workout_logs 
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    // Get member balance
+    const balanceResult = await query(
+      'SELECT current_balance, total_earned, total_spent FROM member_balance WHERE user_id = $1',
+      [userId]
+    );
+
+    // Get recent balance transactions
+    const transactionsResult = await query(
+      `SELECT * FROM member_balance_transactions 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [userId]
+    );
+
+    // Calculate BMI if height and weight are available
+    let bmi = null;
+    let weightChange = null;
+    const profile = profileResult.rows[0] || {};
+    
+    // Use height from member_profiles and latest weight from weight_tracking
+    if (profile.height && latestWeightResult.rows[0]?.weight) {
+      // BMI = weight(kg) / (height(m))^2
+      const heightInMeters = profile.height / 100;
+      const latestWeight = latestWeightResult.rows[0].weight;
+      bmi = (latestWeight / (heightInMeters * heightInMeters)).toFixed(1);
+    }
+
+    if (weightResult.rows[0]?.current_weight && weightResult.rows[0]?.previous_weight) {
+      weightChange = (weightResult.rows[0].current_weight - weightResult.rows[0].previous_weight).toFixed(1);
+    }
+
+    // Calculate days remaining in membership
+    let daysRemaining = null;
+    if (planResult.rows[0]?.membership_end_date) {
+      const endDate = new Date(planResult.rows[0].membership_end_date);
+      const today = new Date();
+      const diffTime = endDate - today;
+      daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
     res.json({
-      profile: profileResult.rows[0] || {
-        loyalty_points: 0,
-        streak_days: 0,
-        last_gym_visit: null
+      profile: {
+        ...profile,
+        loyalty_points: profile.loyalty_points || 0,
+        streak_days: profile.streak_days || 0,
+        last_gym_visit: profile.last_gym_visit,
+        weight: profile.weight,
+        height: profile.height,
+        bmi: bmi,
+        weight_change: weightChange
+      },
+      currentPlan: {
+        name: planResult.rows[0]?.plan_name || 'No Plan',
+        price: planResult.rows[0]?.price || 0,
+        duration_months: planResult.rows[0]?.duration_months || 0,
+        start_date: planResult.rows[0]?.membership_start_date,
+        end_date: planResult.rows[0]?.membership_end_date,
+        days_remaining: daysRemaining
       },
       upcomingBookings: bookingsResult.rows,
       recentVisits: visitsResult.rows,
       loyaltyStats: loyaltyResult.rows[0] || {
         total_points: 0,
         total_transactions: 0
-      }
+      },
+      referralCount: referralResult.rows[0]?.referral_count || 0,
+      workoutStats: {
+        completed: workoutResult.rows[0]?.completed_workouts || 0,
+        total: workoutResult.rows[0]?.total_scheduled_workouts || 0
+      },
+      balance: balanceResult.rows[0] || {
+        current_balance: 0,
+        total_earned: 0,
+        total_spent: 0
+      },
+      recentTransactions: transactionsResult.rows
     });
 
   } catch (error) {
@@ -92,6 +223,8 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to get dashboard data' });
   }
 });
+
+
 
 // Get member bookings
 router.get('/bookings', verifyMemberToken, async (req, res) => {
@@ -378,6 +511,723 @@ router.post('/book-facility', verifyMemberToken, async (req, res) => {
   } catch (error) {
     console.error('Facility booking error:', error);
     res.status(500).json({ error: 'Failed to book facility' });
+  }
+});
+
+// Get all membership plans
+router.get('/plans', async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT * FROM membership_plans WHERE is_active = true ORDER BY price ASC'
+    );
+    
+    res.json({ 
+      success: true,
+      plans: result.rows 
+    });
+  } catch (error) {
+    console.error('Error fetching membership plans:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch membership plans' 
+    });
+  }
+});
+
+// Get membership plan by ID
+router.get('/plans/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await query(
+      'SELECT * FROM membership_plans WHERE id = $1 AND is_active = true',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Membership plan not found' 
+      });
+    }
+    
+    res.json({ 
+      success: true,
+      plan: result.rows[0] 
+    });
+  } catch (error) {
+    console.error('Error fetching membership plan:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch membership plan' 
+    });
+  }
+});
+
+// Get member profile data
+router.get('/profile', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // Get user and member profile data
+    const userResult = await query(
+      `SELECT id, email, first_name, last_name, phone, date_of_birth, gender, address, emergency_contact, membership_start_date, membership_end_date
+       FROM users 
+       WHERE id = $1`,
+      [userId]
+    );
+
+    const profileResult = await query(
+      `SELECT current_plan_id, loyalty_points, streak_days, last_gym_visit, weight, height, profile_image_url, fitness_goals, health_notes
+       FROM member_profiles 
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    const profile = profileResult.rows[0] || {};
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone: user.phone,
+        date_of_birth: user.date_of_birth,
+        gender: user.gender,
+        address: user.address,
+        emergency_contact: user.emergency_contact,
+        membership_start_date: user.membership_start_date,
+        membership_end_date: user.membership_end_date
+      },
+      profile: {
+        current_plan_id: profile.current_plan_id,
+        loyalty_points: profile.loyalty_points || 0,
+        streak_days: profile.streak_days || 0,
+        last_gym_visit: profile.last_gym_visit,
+        weight: profile.weight,
+        height: profile.height,
+        profile_image_url: profile.profile_image_url,
+        fitness_goals: profile.fitness_goals,
+        health_notes: profile.health_notes
+      }
+    });
+
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch profile data' });
+  }
+});
+
+// Update member profile
+router.put('/profile', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const {
+      first_name,
+      last_name,
+      email,
+      phone,
+      date_of_birth,
+      gender,
+      address,
+      emergency_contact,
+      height,
+      weight,
+      fitness_goals,
+      health_notes
+    } = req.body;
+
+    // Update users table
+    await query(
+      `UPDATE users 
+       SET first_name = $1, last_name = $2, email = $3, phone = $4, date_of_birth = $5, gender = $6, address = $7, emergency_contact = $8, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9`,
+      [first_name, last_name, email, phone, date_of_birth, gender, address, emergency_contact, userId]
+    );
+
+    // Update or insert member_profiles table
+    const profileExists = await query(
+      'SELECT id FROM member_profiles WHERE user_id = $1',
+      [userId]
+    );
+
+    if (profileExists.rows.length > 0) {
+      // Update existing profile
+      await query(
+        `UPDATE member_profiles 
+         SET height = $1, weight = $2, fitness_goals = $3, health_notes = $4, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $5`,
+        [height, weight, fitness_goals, health_notes, userId]
+      );
+    } else {
+      // Insert new profile
+      await query(
+        `INSERT INTO member_profiles (user_id, height, weight, fitness_goals, health_notes)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userId, height, weight, fitness_goals, health_notes]
+      );
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Profile updated successfully' 
+    });
+
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Log new weight
+router.post('/weight-log', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { weight, notes } = req.body;
+
+    if (!weight || parseFloat(weight) <= 0) {
+      return res.status(400).json({ error: 'Valid weight is required' });
+    }
+
+    // Get current height from member_profiles
+    const heightResult = await query(
+      'SELECT height FROM member_profiles WHERE user_id = $1',
+      [userId]
+    );
+
+    const height = heightResult.rows[0]?.height;
+
+    // Get previous weight for change calculation
+    const previousWeightResult = await query(
+      `SELECT weight FROM weight_tracking 
+       WHERE user_id = $1 
+       ORDER BY recorded_date DESC, created_at DESC 
+       LIMIT 1`,
+      [userId]
+    );
+
+    const previousWeight = previousWeightResult.rows[0]?.weight;
+    const weightChange = previousWeight ? parseFloat(weight) - previousWeight : 0;
+
+    // Insert new weight record
+    await query(
+      `INSERT INTO weight_tracking (user_id, weight, height, recorded_date, notes)
+       VALUES ($1, $2, $3, CURRENT_DATE, $4)`,
+      [userId, parseFloat(weight), height, notes || '']
+    );
+
+    // Update member_profiles with new weight
+    await query(
+      `UPDATE member_profiles 
+       SET weight = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $2`,
+      [parseFloat(weight), userId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Weight logged successfully',
+      weight: parseFloat(weight),
+      weightChange: weightChange,
+      previousWeight: previousWeight
+    });
+
+  } catch (error) {
+    console.error('Weight logging error:', error);
+    res.status(500).json({ error: 'Failed to log weight' });
+  }
+});
+
+// Get weight change data
+router.get('/weight-change', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // Get current weight from member_profiles
+    const currentWeightResult = await query(
+      'SELECT weight FROM member_profiles WHERE user_id = $1',
+      [userId]
+    );
+    
+    const currentWeight = currentWeightResult.rows[0]?.weight;
+    
+    if (!currentWeight) {
+      return res.json({ 
+        success: true, 
+        currentWeight: null,
+        previousWeight: null,
+        weightChange: null
+      });
+    }
+
+    // Get previous weight from weight_tracking
+    const previousWeightResult = await query(
+      `SELECT weight FROM weight_tracking 
+       WHERE user_id = $1 AND weight != $2
+       ORDER BY recorded_date DESC, created_at DESC 
+       LIMIT 1`,
+      [userId, currentWeight]
+    );
+
+    const previousWeight = previousWeightResult.rows[0]?.weight;
+    const weightChange = previousWeight ? currentWeight - previousWeight : null;
+
+    res.json({ 
+      success: true, 
+      currentWeight: currentWeight,
+      previousWeight: previousWeight,
+      weightChange: weightChange
+    });
+
+  } catch (error) {
+    console.error('Weight change fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch weight change data' });
+  }
+});
+
+// Forgot password - send verification code
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if user exists
+    const userResult = await query(
+      'SELECT id, first_name FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // For now, just return success (in real app, send email with verification code)
+    res.json({ 
+      success: true, 
+      message: 'Verification code sent to your email',
+      verificationCode: '123456' // Mock code for testing
+    });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process forgot password request' });
+  }
+});
+
+// Reset password with verification code
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, verificationCode, newPassword } = req.body;
+
+    if (!email || !verificationCode || !newPassword) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Check if user exists
+    const userResult = await query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // For now, accept any verification code (in real app, validate the code)
+    // Hash the new password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    
+    // Update password in database
+    await query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE email = $2',
+      [hashedPassword, email]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Password reset successfully' 
+    });
+
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// Calculate plan change details and balance
+router.post('/calculate-plan-change', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { newPlanId } = req.body;
+
+    if (!newPlanId) {
+      return res.status(400).json({ error: 'New plan ID is required' });
+    }
+
+    // Get current plan details
+    const currentPlanResult = await query(
+      `SELECT mp.current_plan_id, mpl.name as plan_name, mpl.price, mpl.duration_months,
+              u.membership_start_date, u.membership_end_date
+       FROM member_profiles mp
+       LEFT JOIN membership_plans mpl ON mp.current_plan_id = mpl.id
+       LEFT JOIN users u ON mp.user_id = u.id
+       WHERE mp.user_id = $1`,
+      [userId]
+    );
+
+    // Get new plan details
+    const newPlanResult = await query(
+      'SELECT * FROM membership_plans WHERE id = $1 AND is_active = true',
+      [newPlanId]
+    );
+
+    if (newPlanResult.rows.length === 0) {
+      return res.status(404).json({ error: 'New plan not found' });
+    }
+
+    const currentPlan = currentPlanResult.rows[0];
+    const newPlan = newPlanResult.rows[0];
+
+    if (!currentPlan.current_plan_id) {
+      return res.status(400).json({ error: 'No current plan found' });
+    }
+
+    // Calculate current plan balance
+    let currentPlanBalance = 0;
+    if (currentPlan.membership_end_date) {
+      const endDate = new Date(currentPlan.membership_end_date);
+      const today = new Date();
+      const daysRemaining = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+      
+      if (daysRemaining > 0) {
+        // Calculate daily value based on plan duration
+        let totalDays;
+        if (currentPlan.duration_months === 12) {
+          totalDays = 365; // Yearly plan
+        } else {
+          totalDays = currentPlan.duration_months * 30; // Monthly plan (approximate)
+        }
+        
+        const dailyValue = currentPlan.price / totalDays;
+        currentPlanBalance = dailyValue * daysRemaining;
+      }
+    }
+
+    // Calculate balance difference
+    const balanceDifference = newPlan.price - currentPlanBalance;
+
+    // Determine payment requirements
+    let paymentRequired = false;
+    let paymentAmount = 0;
+    let message = '';
+
+    if (balanceDifference > 0) {
+      paymentRequired = true;
+      paymentAmount = balanceDifference;
+      message = `You need to pay $${paymentAmount.toFixed(2)} more for the new plan.`;
+    } else if (balanceDifference === 0) {
+      message = 'Perfect! Your current plan balance covers the new plan exactly.';
+    } else {
+      message = `You have $${Math.abs(balanceDifference).toFixed(2)} in excess balance that will be added to your member balance.`;
+    }
+
+    res.json({
+      success: true,
+      currentPlan: {
+        id: currentPlan.current_plan_id,
+        name: currentPlan.plan_name,
+        price: currentPlan.price,
+        daysRemaining: currentPlan.membership_end_date ? 
+          Math.ceil((new Date(currentPlan.membership_end_date) - new Date()) / (1000 * 60 * 60 * 24)) : 0
+      },
+      newPlan: {
+        id: newPlan.id,
+        name: newPlan.name,
+        price: newPlan.price,
+        duration_months: newPlan.duration_months,
+        features: newPlan.features
+      },
+      currentPlanBalance: parseFloat(currentPlanBalance.toFixed(2)),
+      balanceDifference: parseFloat(balanceDifference.toFixed(2)),
+      paymentRequired,
+      paymentAmount: parseFloat(paymentAmount.toFixed(2)),
+      message
+    });
+
+  } catch (error) {
+    console.error('Plan change calculation error:', error);
+    res.status(500).json({ error: 'Failed to calculate plan change details' });
+  }
+});
+
+// Initiate plan change request
+router.post('/initiate-plan-change', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { newPlanId, currentPlanBalance, newPlanPrice, balanceDifference } = req.body;
+
+    if (!newPlanId || currentPlanBalance === undefined || !newPlanPrice || balanceDifference === undefined) {
+      return res.status(400).json({ error: 'All plan change details are required' });
+    }
+
+    // Get current plan ID
+    const currentPlanResult = await query(
+      'SELECT current_plan_id FROM member_profiles WHERE user_id = $1',
+      [userId]
+    );
+
+    if (currentPlanResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Member profile not found' });
+    }
+
+    const currentPlanId = currentPlanResult.rows[0].current_plan_id;
+
+    // Create plan change request
+    const planChangeResult = await query(
+      `INSERT INTO plan_change_requests 
+       (user_id, current_plan_id, new_plan_id, current_plan_balance, new_plan_price, balance_difference, payment_required, payment_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      [
+        userId,
+        currentPlanId,
+        newPlanId,
+        currentPlanBalance,
+        newPlanPrice,
+        balanceDifference,
+        balanceDifference > 0,
+        balanceDifference > 0 ? balanceDifference : 0
+      ]
+    );
+
+    res.json({
+      success: true,
+      requestId: planChangeResult.rows[0].id,
+      message: 'Plan change request initiated successfully'
+    });
+
+  } catch (error) {
+    console.error('Plan change initiation error:', error);
+    res.status(500).json({ error: 'Failed to initiate plan change' });
+  }
+});
+
+// Confirm plan change
+router.post('/confirm-plan-change', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { requestId, email, password } = req.body;
+
+    if (!requestId || !email || !password) {
+      return res.status(400).json({ error: 'Request ID, email, and password are required' });
+    }
+
+    // Verify user credentials
+    const userResult = await query(
+      'SELECT id, password_hash FROM users WHERE id = $1 AND email = $2',
+      [userId, email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or user ID' });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, userResult.rows[0].password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Get plan change request details
+    const requestResult = await query(
+      'SELECT * FROM plan_change_requests WHERE id = $1 AND user_id = $2 AND status = $3',
+      [requestId, userId, 'pending']
+    );
+
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Plan change request not found or already processed' });
+    }
+
+    const request = requestResult.rows[0];
+
+    // Update plan change request status
+    await query(
+      'UPDATE plan_change_requests SET status = $1, completed_at = CURRENT_TIMESTAMP WHERE id = $2',
+      ['confirmed', requestId]
+    );
+
+    // Update user's current plan
+    await query(
+      'UPDATE member_profiles SET current_plan_id = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2',
+      [request.new_plan_id, userId]
+    );
+
+    // Update membership dates (set new start date to today)
+    const newStartDate = new Date();
+    const newEndDate = new Date();
+    newEndDate.setMonth(newEndDate.getMonth() + 1); // Default to 1 month, adjust based on plan
+
+    await query(
+      'UPDATE users SET membership_start_date = $1, membership_end_date = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+      [newStartDate, newEndDate, userId]
+    );
+
+    // Handle member balance
+    if (request.balance_difference < 0) {
+      // User has excess balance, add to member balance
+      const excessAmount = Math.abs(request.balance_difference);
+      
+      // Insert or update member balance
+      await query(
+        `INSERT INTO member_balance (user_id, current_balance, total_earned)
+         VALUES ($1, $2, $2)
+         ON CONFLICT (user_id) 
+         DO UPDATE SET 
+           current_balance = member_balance.current_balance + $2,
+           total_earned = member_balance.total_earned + $2,
+           last_updated = CURRENT_TIMESTAMP`,
+        [userId, excessAmount]
+      );
+
+      // Record balance transaction
+      await query(
+        `INSERT INTO member_balance_transactions 
+         (user_id, transaction_type, amount, balance_before, balance_after, description, reference_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          userId,
+          'plan_change',
+          excessAmount,
+          0, // Will be calculated from current balance
+          excessAmount,
+          `Excess balance from plan change to ${request.new_plan_id}`,
+          requestId
+        ]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Plan change confirmed successfully',
+      newPlanId: request.new_plan_id,
+      excessBalanceAdded: request.balance_difference < 0 ? Math.abs(request.balance_difference) : 0
+    });
+
+  } catch (error) {
+    console.error('Plan change confirmation error:', error);
+    res.status(500).json({ error: 'Failed to confirm plan change' });
+  }
+});
+
+// Get member balance
+router.get('/balance', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Get current balance
+    const balanceResult = await query(
+      'SELECT * FROM member_balance WHERE user_id = $1',
+      [userId]
+    );
+
+    // Get recent transactions
+    const transactionsResult = await query(
+      `SELECT * FROM member_balance_transactions 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [userId]
+    );
+
+    const balance = balanceResult.rows[0] || {
+      current_balance: 0,
+      total_earned: 0,
+      total_spent: 0
+    };
+
+    res.json({
+      success: true,
+      balance: {
+        current: parseFloat(balance.current_balance || 0),
+        totalEarned: parseFloat(balance.total_earned || 0),
+        totalSpent: parseFloat(balance.total_spent || 0)
+      },
+      recentTransactions: transactionsResult.rows
+    });
+
+  } catch (error) {
+    console.error('Balance fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch member balance' });
+  }
+});
+
+// Top up member balance
+router.post('/top-up-balance', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { amount } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount. Amount must be greater than 0.' });
+    }
+
+    // Get current balance
+    const currentBalanceResult = await query(
+      'SELECT current_balance FROM member_balance WHERE user_id = $1',
+      [userId]
+    );
+
+    const currentBalance = currentBalanceResult.rows[0]?.current_balance || 0;
+    const newBalance = parseFloat(currentBalance) + parseFloat(amount);
+
+    // Insert or update member balance
+    await query(
+      `INSERT INTO member_balance (user_id, current_balance, total_earned)
+       VALUES ($1, $2, $2)
+       ON CONFLICT (user_id) 
+       DO UPDATE SET 
+         current_balance = $2,
+         total_earned = member_balance.total_earned + $3,
+         last_updated = CURRENT_TIMESTAMP`,
+      [userId, newBalance, amount]
+    );
+
+    // Record balance transaction
+    await query(
+      `INSERT INTO member_balance_transactions 
+       (user_id, transaction_type, amount, balance_before, balance_after, description, reference_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        userId,
+        'top_up',
+        amount,
+        currentBalance,
+        newBalance,
+        `Balance top-up of $${amount}`,
+        null
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: 'Balance topped up successfully',
+      newBalance: newBalance,
+      amountAdded: amount
+    });
+
+  } catch (error) {
+    console.error('Top-up balance error:', error);
+    res.status(500).json({ error: 'Failed to top up balance' });
   }
 });
 

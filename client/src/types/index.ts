@@ -1,8 +1,22 @@
 export interface User {
-  id: string;
-  name: string;
+  id: number;
+  first_name: string;
+  last_name: string;
   email: string;
-  role: 'public' | 'member' | 'trainer' | 'nutritionist' | 'admin' | 'frontdesk';
+  role: 'public' | 'member' | 'trainer' | 'nutritionist' | 'admin' | 'front_desk';
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
+  address?: string;
+  emergency_contact?: string;
+  membership_type?: string;
+  membership_start_date?: string;
+  membership_end_date?: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // Legacy fields for backward compatibility
+  name?: string;
   membershipPlan?: string;
   loyaltyPoints?: number;
   consistencyStreak?: number;
@@ -34,7 +48,7 @@ export interface Class {
 }
 
 export interface MembershipPlan {
-  id: string;
+  id: number;
   name: string;
   price: number;
   duration: string;

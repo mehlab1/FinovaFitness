@@ -191,3 +191,17 @@ CREATE TABLE IF NOT EXISTS gym_visits (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, visit_date) -- One visit per day per user
 );
+
+-- Weight tracking table for monitoring weight changes over time
+CREATE TABLE IF NOT EXISTS weight_tracking (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    weight DECIMAL(5,2) NOT NULL, -- in kg
+    height DECIMAL(5,2), -- in cm (optional, for BMI calculation)
+    recorded_date DATE NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index for efficient weight history queries
+CREATE INDEX IF NOT EXISTS idx_weight_tracking_user_date ON weight_tracking(user_id, recorded_date DESC);

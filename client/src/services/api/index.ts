@@ -1,6 +1,7 @@
 // Export all API modules
 export { trainerApi } from './trainerApi';
 export { memberApi } from './memberApi';
+export { userApi } from './userApi';
 
 // Common API utilities
 export const API_BASE_URL = 'http://localhost:3001/api';

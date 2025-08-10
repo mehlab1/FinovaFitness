@@ -586,6 +586,20 @@ CREATE INDEX IF NOT EXISTS idx_client_trainer_subs_client_id ON client_trainer_s
 CREATE INDEX IF NOT EXISTS idx_client_trainer_subs_trainer_id ON client_trainer_subscriptions(trainer_id);
 CREATE INDEX IF NOT EXISTS idx_client_trainer_subs_status ON client_trainer_subscriptions(status);
 
+-- Weight tracking table for monitoring weight changes over time
+CREATE TABLE IF NOT EXISTS weight_tracking (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    weight DECIMAL(5,2) NOT NULL, -- in kg
+    height DECIMAL(5,2), -- in cm (optional, for BMI calculation)
+    recorded_date DATE NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index for efficient weight history queries
+CREATE INDEX IF NOT EXISTS idx_weight_tracking_user_date ON weight_tracking(user_id, recorded_date DESC);
+
 -- ==============================================
 -- SAMPLE DATA FOR TRAINER PORTAL
 -- ==============================================

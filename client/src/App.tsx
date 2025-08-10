@@ -24,32 +24,8 @@ function App() {
   const [showBookingModal, setShowBookingModal] = useState(false);
 
   const handleSignIn = (userData: { user: any; token: string }) => {
-    // Switch to the appropriate portal based on user role
-    const role = userData.user.role;
-    let portalId = 'website';
-    
-    switch (role) {
-      case 'member':
-        portalId = 'member';
-        break;
-      case 'trainer':
-        portalId = 'trainer';
-        break;
-      case 'nutritionist':
-        portalId = 'nutritionist';
-        break;
-      case 'admin':
-        portalId = 'admin';
-        break;
-      case 'front_desk':
-        portalId = 'frontdesk';
-        break;
-      default:
-        portalId = 'website';
-    }
-    
-    // Update the portal state
-    switchPortal(portalId);
+    // Use the login function from usePortal hook
+    login(userData);
     
     // Show success message
     showToast(`Welcome back, ${userData.user.first_name}!`, 'success');
@@ -92,7 +68,7 @@ function App() {
         return <NutritionistPortal user={currentUser} onLogout={handleLogout} />;
       case 'admin':
         return <AdminPortal user={currentUser} onLogout={handleLogout} />;
-      case 'frontdesk':
+      case 'front_desk':
         return <FrontDeskPortal user={currentUser} onLogout={handleLogout} />;
       default:
         return (

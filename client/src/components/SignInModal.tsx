@@ -18,29 +18,18 @@ export const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSig
     setError('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/users/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const { authApi } = await import('../services/api');
+      const data = await authApi.login(email, password);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store token in localStorage
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Call the onSignIn callback with user data
-        onSignIn(data);
-        onClose();
-      } else {
-        setError(data.error || 'Login failed');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
+      // Store token in localStorage
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Call the onSignIn callback with user data
+      onSignIn(data);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }

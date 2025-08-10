@@ -1,35 +1,45 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
-import { trainers, classes, membershipPlans, products, blogPosts } from '../data/mockData';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { trainers, classes, products, blogPosts } from '../data/mockData';
+import { usePortal } from '../hooks/usePortal';
+import { authApi, membershipApi } from '../services/api';
+import { MembershipPlan } from '../types';
 
 interface WebsitePortalProps {
   onSignIn: () => void;
   onBookClass: () => void;
 }
 
+interface WizardData {
+  name?: string;
+  email?: string;
+  phone?: string;
+  age?: string;
+  selectedPlan?: number;
+}
+
 export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => {
+  const { login } = usePortal();
   const [currentPage, setCurrentPage] = useState('home');
+  const [showPortalDropdown, setShowPortalDropdown] = useState(false);
   const [showMembershipWizard, setShowMembershipWizard] = useState(false);
   const [showTrialWizard, setShowTrialWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
-  const [wizardData, setWizardData] = useState<any>({});
-  const [showPortalDropdown, setShowPortalDropdown] = useState(false);
+  const [wizardData, setWizardData] = useState<WizardData>({});
   const [validationErrors, setValidationErrors] = useState<any>({});
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
-  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [showAccountCreation, setShowAccountCreation] = useState(false);
-  const [paymentDetails, setPaymentDetails] = useState<any>({});
   const [accountData, setAccountData] = useState<any>({});
+  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
+  const [plansError, setPlansError] = useState<string | null>(null);
 
   // Optimized input handlers to prevent re-renders
-  const handleInputChange = useCallback((field: string, value: string) => {
+  const handleInputChange = useCallback((field: string, value: any) => {
     setWizardData((prev: any) => ({...prev, [field]: value}));
   }, []);
 
-  // Optimized payment details handler
-  const handlePaymentDetailsChange = useCallback((field: string, value: string) => {
-    setPaymentDetails((prev: any) => ({...prev, [field]: value}));
-  }, []);
+
 
   // Optimized account data handler
   const handleAccountDataChange = useCallback((field: string, value: string) => {
@@ -58,7 +68,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
     if (!wizardData.phone || wizardData.phone.trim() === '') {
       errors.phone = 'Phone number is required';
     }
-    if (!wizardData.age || wizardData.age < 16 || wizardData.age > 100) {
+    if (!wizardData.age || parseInt(wizardData.age) < 16 || parseInt(wizardData.age) > 100) {
       errors.age = 'Age must be between 16 and 100';
     }
     return errors;
@@ -80,45 +90,14 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
     return errors;
   };
 
-  const validatePaymentDetails = () => {
-    const errors: any = {};
-    
-    if (selectedPaymentMethod === 'jazzcash' || selectedPaymentMethod === 'easypaisa') {
-      if (!paymentDetails.phoneNumber || paymentDetails.phoneNumber.trim() === '') {
-        errors.phoneNumber = 'Phone number is required';
-      } else if (!/^03\d{9}$/.test(paymentDetails.phoneNumber)) {
-        errors.phoneNumber = 'Please enter a valid Pakistani phone number (03XXXXXXXXX)';
-      }
-    } else if (selectedPaymentMethod === 'stripe') {
-      if (!paymentDetails.cardNumber || paymentDetails.cardNumber.trim() === '') {
-        errors.cardNumber = 'Card number is required';
-      } else if (!/^\d{16}$/.test(paymentDetails.cardNumber.replace(/\s/g, ''))) {
-        errors.cardNumber = 'Please enter a valid 16-digit card number';
-      }
-      if (!paymentDetails.expiryDate || paymentDetails.expiryDate.trim() === '') {
-        errors.expiryDate = 'Expiry date is required';
-      } else if (!/^\d{2}\/\d{2}$/.test(paymentDetails.expiryDate)) {
-        errors.expiryDate = 'Please enter expiry date in MM/YY format';
-      }
-      if (!paymentDetails.cvv || paymentDetails.cvv.trim() === '') {
-        errors.cvv = 'CVV is required';
-      } else if (!/^\d{3,4}$/.test(paymentDetails.cvv)) {
-        errors.cvv = 'Please enter a valid CVV';
-      }
-      if (!paymentDetails.cardholderName || paymentDetails.cardholderName.trim() === '') {
-        errors.cardholderName = 'Cardholder name is required';
-      }
-    }
-    
-    return errors;
-  };
+
 
   const validateAccountCreation = () => {
     const errors: any = {};
-    if (!accountData.username || accountData.username.trim() === '') {
-      errors.username = 'Username is required';
-    } else if (accountData.username.length < 3) {
-      errors.username = 'Username must be at least 3 characters';
+    if (!wizardData.email || wizardData.email.trim() === '') {
+      errors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(wizardData.email)) {
+      errors.email = 'Please enter a valid email address';
     }
     if (!accountData.password || accountData.password.trim() === '') {
       errors.password = 'Password is required';
@@ -128,7 +107,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
     if (!accountData.confirmPassword || accountData.confirmPassword.trim() === '') {
       errors.confirmPassword = 'Please confirm your password';
     } else if (accountData.password !== accountData.confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
+      errors.password = 'Passwords do not match';
     }
     return errors;
   };
@@ -154,52 +133,79 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
     if (wizardStep < 3) {
       setWizardStep(wizardStep + 1);
     } else {
-      // Show payment details form
-      setShowPaymentDetails(true);
-    }
-  };
-
-  const handlePaymentDetailsSubmit = () => {
-    const errors = validatePaymentDetails();
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
-      return;
-    }
-
-    setValidationErrors({});
-    setShowPaymentDetails(false);
-    handlePaymentProcessing();
-  };
-
-  const handlePaymentProcessing = async () => {
-    setIsProcessingPayment(true);
-    
-    // Simulate payment processing for 3 seconds
-    setTimeout(() => {
-      setIsProcessingPayment(false);
+      // After step 3, show account creation form directly
       setShowAccountCreation(true);
-    }, 3000);
+    }
   };
 
-  const handleAccountCreation = () => {
+  // Remove payment processing step - go directly to account creation
+
+  const handleAccountCreation = async () => {
     const errors = validateAccountCreation();
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
       return;
     }
 
-    setValidationErrors({});
-    setShowAccountCreation(false);
-    setShowMembershipWizard(false);
-    setWizardStep(1);
-    setWizardData({});
-    setSelectedPaymentMethod('');
-    setPaymentDetails({});
-    setAccountData({});
-    
-    // Show success message and redirect to login
-    alert('Account created successfully! You can now login to your member portal.');
-    onSignIn();
+    try {
+      // Prepare user data for registration
+      const [firstName, ...lastNameParts] = (wizardData.name || '').split(' ');
+      const lastName = lastNameParts.join(' ') || firstName; // Use firstName as fallback if no lastName
+      
+      // Ensure we have at least a first name
+      if (!firstName || firstName.trim() === '') {
+        setValidationErrors({ 
+          general: 'Please enter your full name' 
+        });
+        return;
+      }
+      
+      const userData = {
+        email: wizardData.email,
+        password: accountData.password,
+        first_name: firstName,
+        last_name: lastName,
+        role: 'member',
+        phone: wizardData.phone,
+        date_of_birth: wizardData.age ? new Date().getFullYear() - parseInt(wizardData.age) + '-01-01' : undefined,
+        gender: undefined, // Could be added to the form if needed
+        address: undefined, // Could be added to the form if needed
+        emergency_contact: undefined, // Could be added to the form if needed
+        membership_plan_id: wizardData.selectedPlan // Pass the selected membership plan ID
+      };
+
+      console.log('Sending registration data:', userData);
+      console.log('Email being sent:', userData.email);
+      console.log('Email type:', typeof userData.email);
+      console.log('Email length:', userData.email?.length);
+      
+      // Register the user using the imported authApi
+      const response = await authApi.register(userData);
+      
+      // Store the token and user data
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      
+      setValidationErrors({});
+      setShowAccountCreation(false);
+      setShowMembershipWizard(false);
+      setWizardStep(1);
+      setWizardData({});
+      setSelectedPaymentMethod('');
+      setAccountData({});
+      
+      // Show success message and redirect to member portal
+      alert('Account created successfully! Welcome to Finova Fitness!');
+      
+              // Use the login function from usePortal to automatically log in the user
+        // and redirect to the member portal
+        login({ user: { ...response.user, role: response.user.role as 'member' }, token: response.token });
+    } catch (error: any) {
+      console.error('Account creation error:', error);
+      setValidationErrors({ 
+        general: error.message || 'Failed to create account. Please try again.' 
+      });
+    }
   };
 
   const handlePaymentMethodSelect = (method: string) => {
@@ -275,6 +281,52 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
       onSignIn();
     }
   };
+
+  // Fetch membership plans from backend
+  useEffect(() => {
+    const fetchMembershipPlans = async () => {
+      try {
+        setIsLoadingPlans(true);
+        setPlansError(null);
+        const plans = await membershipApi.getPlans();
+        setMembershipPlans(plans);
+      } catch (error) {
+        console.error('Error fetching membership plans:', error);
+        setPlansError('Failed to load membership plans. Please try again.');
+        // Fallback to mock data if API fails
+        setMembershipPlans([
+          {
+            id: 1,
+            name: 'Basic',
+            price: 49.99,
+            duration: 'per month',
+            features: ['Gym access', 'Group classes', 'Locker room'],
+            discount: ''
+          },
+          {
+            id: 2,
+            name: 'Premium',
+            price: 89.99,
+            duration: 'per month',
+            features: ['Gym access', 'All classes', 'Personal training', 'Nutrition consultation'],
+            discount: ''
+          },
+          {
+            id: 3,
+            name: 'Elite',
+            price: 129.99,
+            duration: 'per month',
+            features: ['Unlimited access', 'All classes', 'Personal training', 'Nutrition consultation', 'Spa access'],
+            discount: ''
+          }
+        ]);
+      } finally {
+        setIsLoadingPlans(false);
+      }
+    };
+
+    fetchMembershipPlans();
+  }, []);
 
   // Page Components
   const HomePage = ({ onSignIn, onBookClass, onJoinNow, onFreeTrial }: { onSignIn: () => void; onBookClass: () => void; onJoinNow: () => void; onFreeTrial: () => void }) => (
@@ -1426,198 +1478,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
         </div>
       )}
 
-             {/* Payment Details Form */}
-       {showPaymentDetails && (
-         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-           <div className="glass-card p-8 rounded-2xl max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Payment Details</h2>
-              <button 
-                onClick={() => setShowPaymentDetails(false)} 
-                className="close-button text-gray-300 hover:text-white p-2 rounded-lg"
-                title="Close"
-              >
-                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-white mb-4">Step 1: Select Payment Method</h3>
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div 
-                  className={`p-4 border rounded-lg text-center cursor-pointer transition-all duration-300 ${
-                    selectedPaymentMethod === 'jazzcash' 
-                      ? 'border-green-400 bg-green-500 bg-opacity-20' 
-                      : 'border-gray-600 hover:border-green-400'
-                  }`}
-                  onClick={() => handlePaymentMethodSelect('jazzcash')}
-                >
-                  <i className="fas fa-mobile-alt text-2xl text-green-400 mb-2"></i>
-                  <p className="text-sm text-gray-300">JazzCash</p>
-                </div>
-                <div 
-                  className={`p-4 border rounded-lg text-center cursor-pointer transition-all duration-300 ${
-                    selectedPaymentMethod === 'easypaisa' 
-                      ? 'border-blue-400 bg-blue-500 bg-opacity-20' 
-                      : 'border-gray-600 hover:border-blue-400'
-                  }`}
-                  onClick={() => handlePaymentMethodSelect('easypaisa')}
-                >
-                  <i className="fas fa-wallet text-2xl text-blue-400 mb-2"></i>
-                  <p className="text-sm text-gray-300">EasyPaisa</p>
-                </div>
-                <div 
-                  className={`p-4 border rounded-lg text-center cursor-pointer transition-all duration-300 ${
-                    selectedPaymentMethod === 'stripe' 
-                      ? 'border-purple-400 bg-purple-500 bg-opacity-20' 
-                      : 'border-gray-600 hover:border-purple-400'
-                  }`}
-                  onClick={() => handlePaymentMethodSelect('stripe')}
-                >
-                  <i className="fab fa-stripe text-2xl text-purple-400 mb-2"></i>
-                  <p className="text-sm text-gray-300">Stripe</p>
-                </div>
-              </div>
-
-              {selectedPaymentMethod === 'jazzcash' && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-white mb-4">Step 2: JazzCash Details</h3>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Phone Number *</label>
-                    <input
-                      type="tel"
-                      placeholder="03XXXXXXXXX"
-                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white focus:outline-none ${
-                        validationErrors.phoneNumber ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
-                      }`}
-                      value={paymentDetails.phoneNumber || ''}
-                      onChange={(e) => handlePaymentDetailsChange('phoneNumber', e.target.value)}
-                    />
-                    {validationErrors.phoneNumber && (
-                      <p className="text-red-400 text-sm mt-1">{validationErrors.phoneNumber}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {selectedPaymentMethod === 'easypaisa' && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-white mb-4">Step 2: EasyPaisa Details</h3>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Phone Number *</label>
-                    <input
-                      type="tel"
-                      placeholder="03XXXXXXXXX"
-                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white focus:outline-none ${
-                        validationErrors.phoneNumber ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
-                      }`}
-                      value={paymentDetails.phoneNumber || ''}
-                      onChange={(e) => handlePaymentDetailsChange('phoneNumber', e.target.value)}
-                    />
-                    {validationErrors.phoneNumber && (
-                      <p className="text-red-400 text-sm mt-1">{validationErrors.phoneNumber}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {selectedPaymentMethod === 'stripe' && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-white mb-4">Step 2: Stripe Details</h3>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Card Number *</label>
-                    <input
-                      type="text"
-                      placeholder="1234 5678 9012 3456"
-                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white focus:outline-none ${
-                        validationErrors.cardNumber ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
-                      }`}
-                      value={formatCardNumber(paymentDetails.cardNumber || '')}
-                                              onChange={(e) => handlePaymentDetailsChange('cardNumber', e.target.value)}
-                    />
-                    {validationErrors.cardNumber && (
-                      <p className="text-red-400 text-sm mt-1">{validationErrors.cardNumber}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Expiry Date *</label>
-                    <input
-                      type="text"
-                      placeholder="MM/YY"
-                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white focus:outline-none ${
-                        validationErrors.expiryDate ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
-                      }`}
-                      value={formatExpiryDate(paymentDetails.expiryDate || '')}
-                                              onChange={(e) => handlePaymentDetailsChange('expiryDate', e.target.value)}
-                    />
-                    {validationErrors.expiryDate && (
-                      <p className="text-red-400 text-sm mt-1">{validationErrors.expiryDate}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">CVV *</label>
-                    <input
-                      type="text"
-                      placeholder="123"
-                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white focus:outline-none ${
-                        validationErrors.cvv ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
-                      }`}
-                      value={paymentDetails.cvv || ''}
-                                              onChange={(e) => handlePaymentDetailsChange('cvv', e.target.value)}
-                    />
-                    {validationErrors.cvv && (
-                      <p className="text-red-400 text-sm mt-1">{validationErrors.cvv}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Cardholder Name *</label>
-                    <input
-                      type="text"
-                      placeholder="John Doe"
-                      className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white focus:outline-none ${
-                        validationErrors.cardholderName ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
-                      }`}
-                      value={paymentDetails.cardholderName || ''}
-                                              onChange={(e) => handlePaymentDetailsChange('cardholderName', e.target.value)}
-                    />
-                    {validationErrors.cardholderName && (
-                      <p className="text-red-400 text-sm mt-1">{validationErrors.cardholderName}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-gray-800 p-4 rounded-lg">
-                <h4 className="font-bold text-white mb-2">Order Summary</h4>
-                <div className="space-y-1 text-sm text-gray-300">
-                  <p>Name: {wizardData.name}</p>
-                  <p>Email: {wizardData.email}</p>
-                  <p>Plan: {membershipPlans.find(p => p.id === wizardData.selectedPlan)?.name}</p>
-                  <p className="text-blue-400 font-bold">Total: PKR {membershipPlans.find(p => p.id === wizardData.selectedPlan)?.price.toLocaleString()}</p>
-                </div>
-              </div>
-              <button
-                onClick={handlePaymentDetailsSubmit}
-                disabled={isProcessingPayment}
-                className={`w-full py-2 rounded-lg transition-all duration-300 ${
-                  isProcessingPayment 
-                    ? 'bg-gray-600 cursor-not-allowed' 
-                    : 'bg-blue-500 hover:bg-blue-600 hover-glow'
-                } text-white`}
-              >
-                {isProcessingPayment ? (
-                  <div className="flex items-center justify-center">
-                    <i className="fas fa-spinner fa-spin mr-2"></i>
-                    Processing Payment...
-                  </div>
-                ) : (
-                  'Confirm Payment'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      
 
              {/* Account Creation Form */}
        {showAccountCreation && (
@@ -1636,20 +1497,26 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
             
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-white mb-4">Step 1: Account Details</h3>
+              
+              {/* General error display */}
+              {validationErrors.general && (
+                <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
+                  {validationErrors.general}
+                </div>
+              )}
+              
               <div>
-                <label className="block text-sm font-medium mb-2">Username *</label>
+                <label className="block text-sm font-medium mb-2">Email *</label>
                 <input
-                  type="text"
-                  placeholder="Username"
+                  type="email"
+                  placeholder="Email"
                   className={`w-full bg-gray-800 border rounded-lg px-3 py-2 text-white focus:outline-none ${
-                    validationErrors.username ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
+                    validationErrors.email ? 'border-red-500' : 'border-gray-600 focus:border-blue-400'
                   }`}
-                  value={accountData.username || ''}
-                                      onChange={(e) => handleAccountDataChange('username', e.target.value)}
+                  value={wizardData.email || ''}
+                  disabled
                 />
-                {validationErrors.username && (
-                  <p className="text-red-400 text-sm mt-1">{validationErrors.username}</p>
-                )}
+                <p className="text-gray-400 text-sm mt-1">Email from your membership application</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Password *</label>
@@ -1706,544 +1573,3 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
     </div>
   );
 };
-
-
-
-const AboutPage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-          About Finova Fitness
-        </h1>
-        
-        <div className="grid md:grid-cols-2 gap-12 mb-16">
-          <div className="glass-card p-8 rounded-2xl">
-            <h2 className="text-2xl font-bold mb-6 text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Our Story</h2>
-            <p className="text-gray-300 leading-relaxed">
-              Founded in 2010, Finova Fitness emerged from a simple belief: everyone deserves access to functional training that transforms both body and mind. We started with a single location and a vision to revolutionize how people approach fitness. Today, we're proud to serve over 5,000 members across 10 state-of-the-art facilities, each equipped with cutting-edge technology and staffed by world-class professionals.
-            </p>
-          </div>
-          
-          <div className="glass-card p-8 rounded-2xl">
-            <h2 className="text-2xl font-bold mb-6 text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>Our Mission</h2>
-            <p className="text-gray-300 leading-relaxed">
-              Our mission is to empower individuals to achieve their fitness goals through innovative training methods, personalized guidance, and a supportive community. We believe that fitness should be accessible, enjoyable, and sustainable for everyone, regardless of age, fitness level, or background. Every day, we work to create an environment where members can push their limits, discover their potential, and transform their lives.
-            </p>
-          </div>
-        </div>
-        
-        {/* Location Map */}
-        <div className="glass-card p-8 rounded-2xl mb-16">
-          <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Our Locations</h2>
-          <div className="mb-6">
-            <div className="bg-gray-800 rounded-lg p-6 text-center">
-              <img 
-                src="https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&h=600&q=80" 
-                alt="Google Map of Islamabad"
-                className="w-full h-80 object-cover rounded-lg shadow-2xl hover:scale-105 transition-transform duration-500"
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  target.style.display = 'none';
-                  const nextElement = target.nextElementSibling as HTMLElement;
-                  if (nextElement) {
-                    nextElement.style.display = 'block';
-                  }
-                }}
-              />
-              <div className="hidden w-full h-80 bg-gradient-to-br from-gray-700 to-gray-900 rounded-lg flex items-center justify-center shadow-2xl">
-                <div className="text-center p-8">
-                  <i className="fas fa-map-marker-alt text-6xl text-blue-400 mb-6 neon-glow"></i>
-                  <h3 className="text-2xl font-bold mb-4 text-white" style={{ fontFamily: 'Orbitron, monospace' }}>Islamabad, Pakistan</h3>
-                  <p className="text-gray-300 text-lg">Our main location in the capital city</p>
-                  <div className="mt-4 flex justify-center space-x-4">
-                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="glass-card p-6 rounded-xl hover-glow transition-all duration-300">
-              <div className="flex items-center mb-3">
-                <i className="fas fa-map-marker-alt text-2xl text-green-400 mr-3"></i>
-                <h3 className="font-bold text-green-400 text-lg">Islamabad Central</h3>
-              </div>
-              <p className="text-gray-300">Blue Area, Islamabad, Pakistan</p>
-              <p className="text-sm text-gray-400 mt-2">Main facility with all amenities</p>
-            </div>
-            <div className="glass-card p-6 rounded-xl hover-glow transition-all duration-300">
-              <div className="flex items-center mb-3">
-                <i className="fas fa-map-marker-alt text-2xl text-blue-400 mr-3"></i>
-                <h3 className="font-bold text-blue-400 text-lg">Islamabad North</h3>
-              </div>
-              <p className="text-gray-300">F-7 Markaz, Islamabad, Pakistan</p>
-              <p className="text-sm text-gray-400 mt-2">Premium location with luxury facilities</p>
-            </div>
-          </div>
-        </div>
-        
-        {/* Target Audience */}
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="text-center glass-card p-8 rounded-2xl">
-            <i className="fas fa-mars text-4xl text-blue-400 mb-4 neon-glow"></i>
-            <h3 className="text-xl font-bold mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>Men</h3>
-            <p className="text-gray-300">Tailored strength training, bodybuilding, and functional fitness programs designed for men's specific goals and physiology.</p>
-          </div>
-          
-          <div className="text-center glass-card p-8 rounded-2xl">
-            <i className="fas fa-venus text-4xl text-pink-400 mb-4 neon-glow"></i>
-            <h3 className="text-xl font-bold mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>Women</h3>
-            <p className="text-gray-300">Empowering fitness programs including strength training, cardio, and specialized classes for women's health and wellness.</p>
-          </div>
-          
-          <div className="text-center glass-card p-8 rounded-2xl">
-            <i className="fas fa-users text-4xl text-green-400 mb-4 neon-glow"></i>
-            <h3 className="text-xl font-bold mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>All Ages</h3>
-            <p className="text-gray-300">Inclusive programs for teens, adults, and seniors with age-appropriate training methods and safety protocols.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const ServicesPage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Our Services
-      </h1>
-      
-      {/* Main Facilities */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-        {[
-          { icon: 'fas fa-dumbbell', title: 'Weight Training', color: 'text-green-400', description: 'State-of-the-art strength training equipment including free weights, machines, and functional training tools for all fitness levels.' },
-          { icon: 'fas fa-heartbeat', title: 'Cardio Zone', color: 'text-pink-400', description: 'Premium cardio equipment including treadmills, ellipticals, rowing machines, and bikes with entertainment systems.' },
-          { icon: 'fas fa-fist-raised', title: 'CrossFit', color: 'text-purple-400', description: 'Dedicated CrossFit area with Olympic lifting platforms, battle ropes, and functional training equipment.' },
-          { icon: 'fas fa-hand-rock', title: 'Boxing', color: 'text-orange-400', description: 'Professional boxing ring, heavy bags, speed bags, and training equipment for all levels from beginner to pro.' },
-          { icon: 'fas fa-hot-tub', title: 'Sauna & Steam', color: 'text-blue-400', description: 'Luxury sauna and steam rooms for post-workout recovery and relaxation. Separate facilities for men and women.' },
-          { icon: 'fas fa-swimming-pool', title: 'Swimming Pool', color: 'text-green-400', description: 'Olympic-sized swimming pool with designated lanes for lap swimming, water aerobics, and recreational swimming.' }
-        ].map((service, index) => (
-          <div key={index} className={`glass-card p-8 rounded-2xl text-center hover-glow transition-all duration-300 ${service.color}`}>
-            <i className={`${service.icon} text-4xl mb-4 neon-glow`}></i>
-            <h3 className="text-xl font-bold mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>{service.title}</h3>
-            <p className="text-gray-300">{service.description}</p>
-          </div>
-        ))}
-      </div>
-      
-      {/* Additional Services */}
-      <div className="glass-card p-8 rounded-2xl">
-        <h2 className="text-2xl font-bold mb-8 text-blue-400 text-center" style={{ fontFamily: 'Orbitron, monospace' }}>
-          Additional Services
-        </h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="text-center">
-            <i className="fas fa-user-tie text-3xl text-pink-400 mb-4 neon-glow"></i>
-            <h3 className="text-lg font-bold mb-2">Personal Training</h3>
-            <p className="text-gray-300 text-sm">One-on-one training sessions with certified personal trainers customized to your goals and fitness level.</p>
-          </div>
-          
-          <div className="text-center">
-            <i className="fas fa-apple-alt text-3xl text-green-400 mb-4 neon-glow"></i>
-            <h3 className="text-lg font-bold mb-2">Nutrition Plans</h3>
-            <p className="text-gray-300 text-sm">Personalized meal plans and nutrition counseling from registered dietitians and nutritionists.</p>
-          </div>
-          
-          <div className="text-center">
-            <i className="fas fa-hand-holding-heart text-3xl text-orange-400 mb-4 neon-glow"></i>
-            <h3 className="text-lg font-bold mb-2">Physiotherapy</h3>
-            <p className="text-gray-300 text-sm">Professional physiotherapy services for injury recovery, prevention, and movement optimization.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const SchedulePage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Class Schedule
-      </h1>
-      
-      {/* Filter Bar */}
-      <div className="glass-card p-6 rounded-2xl mb-8">
-        <div className="flex flex-wrap gap-4 items-center justify-center">
-          <div>
-            <label className="block text-sm font-medium mb-2">Trainer</label>
-            <select className="px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
-              <option value="">All Trainers</option>
-              {trainers.map(trainer => (
-                <option key={trainer.id} value={trainer.id}>{trainer.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Difficulty</label>
-            <select className="px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
-              <option value="">All Levels</option>
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Time</label>
-            <select className="px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
-              <option value="">All Times</option>
-              <option value="morning">Morning (6-12)</option>
-              <option value="afternoon">Afternoon (12-18)</option>
-              <option value="evening">Evening (18-22)</option>
-            </select>
-          </div>
-          <button className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg hover-glow transition-all duration-300">
-            Filter
-          </button>
-        </div>
-      </div>
-      
-      {/* Weekly Schedule */}
-      <div className="glass-card p-8 rounded-2xl">
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-          {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day, index) => (
-            <div key={day} className="text-center">
-              <h3 className="font-bold text-blue-400 mb-4 p-4" style={{ fontFamily: 'Orbitron, monospace' }}>{day}</h3>
-              <div className="space-y-2">
-                {classes.filter(cls => cls.day === day).map(cls => (
-                  <div key={cls.id} className="glass-card p-3 rounded-lg cursor-pointer hover-glow transition-all duration-300">
-                    <div className="text-sm font-bold text-green-400">{cls.name}</div>
-                    <div className="text-xs text-gray-300">{cls.time}</div>
-                    <div className="text-xs text-gray-400">{cls.trainer}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const MembershipPage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Membership Plans
-      </h1>
-      
-      {/* Auto-renew Toggle */}
-      <div className="text-center mb-8">
-        <label className="inline-flex items-center cursor-pointer">
-          <input type="checkbox" className="sr-only peer" />
-          <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-          <span className="ml-3 text-sm font-medium text-gray-300">Auto-renew subscription</span>
-        </label>
-      </div>
-      
-      {/* Pricing Table */}
-      <div className="grid md:grid-cols-4 gap-8 mb-12">
-        {membershipPlans.map((plan, index) => (
-          <div key={plan.id} className={`glass-card p-8 rounded-2xl text-center hover-glow transition-all duration-300 ${plan.popular ? 'neon-border border-green-400' : ''}`}>
-            {plan.popular && (
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-green-500 text-black px-4 py-1 rounded-full text-sm font-bold">
-                MOST POPULAR
-              </div>
-            )}
-            <h3 className="text-2xl font-bold mb-4 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>{plan.name}</h3>
-            <div className="text-4xl font-bold mb-2">PKR {plan.price.toLocaleString()}</div>
-            <div className="text-gray-400 mb-6">{plan.duration}</div>
-            <ul className="space-y-3 mb-8">
-              {plan.features.map((feature, idx) => (
-                <li key={idx} className="flex items-center">
-                  <i className="fas fa-check text-green-400 mr-3"></i>
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-            <button className={`w-full py-3 rounded-lg font-bold hover-glow transition-all duration-300 ${
-              plan.popular 
-                ? 'bg-green-500 hover:bg-green-600 text-white' 
-                : 'bg-blue-500 hover:bg-blue-600 text-white'
-            }`}>
-              Choose {plan.name}
-            </button>
-          </div>
-        ))}
-      </div>
-      
-      {/* Special Discount Badges */}
-      <div className="grid md:grid-cols-3 gap-6">
-        {[
-          { icon: 'fas fa-graduation-cap', title: 'Student Discount', description: '15% off all memberships with valid student ID', color: 'text-green-400' },
-          { icon: 'fas fa-heart', title: 'Couple Package', description: '20% off when two people sign up together', color: 'text-pink-400' },
-          { icon: 'fas fa-users', title: 'Family Plan', description: '25% off for families of 3 or more', color: 'text-purple-400' }
-        ].map((discount, index) => (
-          <div key={index} className={`glass-card p-6 rounded-2xl text-center ${discount.color}`}>
-            <i className={`${discount.icon} text-3xl mb-4`}></i>
-            <h3 className="text-lg font-bold mb-2">{discount.title}</h3>
-            <p className="text-gray-300 mb-4">{discount.description}</p>
-            <div className="font-bold">Special Offer</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
-
-const GalleryPage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Gallery
-      </h1>
-      
-      {/* Photo Gallery */}
-      <div className="mb-16">
-        <h2 className="text-2xl font-bold mb-8 text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Photo Gallery</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[
-            'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600',
-            'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600',
-            'https://images.unsplash.com/photo-1544551763-46a013bb70d5?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600',
-            'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600',
-            'https://images.unsplash.com/photo-1518611012118-696072aa579a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600',
-            'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600'
-          ].map((image, index) => (
-            <div key={index} className="glass-card rounded-2xl overflow-hidden hover-glow transition-all duration-300">
-              <img src={image} alt={`Gallery ${index + 1}`} className="w-full h-64 object-cover" />
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      {/* Virtual Tour */}
-      <div className="mb-16">
-        <h2 className="text-2xl font-bold mb-8 text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>360° Virtual Tour</h2>
-        <div className="glass-card p-8 rounded-2xl">
-          <div className="bg-gray-900 rounded-lg p-8 text-center">
-            <i className="fas fa-vr-cardboard text-6xl text-pink-400 mb-4"></i>
-            <h3 className="text-xl font-bold mb-4">Experience Our Gym Virtually</h3>
-            <p className="text-gray-300 mb-6">Take a 360° tour of our facilities from the comfort of your home</p>
-            <button className="px-6 py-3 bg-pink-500 hover:bg-pink-600 text-white rounded-lg hover-glow transition-all duration-300">
-              Start Virtual Tour
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Video Gallery */}
-      <div>
-        <h2 className="text-2xl font-bold mb-8 text-purple-400" style={{ fontFamily: 'Orbitron, monospace' }}>Short Reels</h2>
-        <div className="grid md:grid-cols-3 gap-6">
-          {[
-            { title: 'Morning Workout Routine', description: 'Start your day with our energizing morning workout routine' },
-            { title: 'HIIT Training Session', description: 'High-intensity interval training for maximum results' },
-            { title: 'Strength Training Tips', description: 'Professional tips for effective strength training' }
-          ].map((video, index) => (
-            <div key={index} className="glass-card p-6 rounded-2xl">
-              <div className="bg-gray-900 rounded-lg p-8 text-center mb-4">
-                <i className="fas fa-play-circle text-4xl text-purple-400 mb-4"></i>
-                <h3 className="font-bold">{video.title}</h3>
-              </div>
-              <p className="text-gray-300 text-sm">{video.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const TrainersPage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Our Trainers
-      </h1>
-      
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {trainers.map((trainer) => (
-          <div key={trainer.id} className="glass-card p-8 rounded-2xl text-center hover-glow transition-all duration-300">
-            <div className="w-32 h-32 mx-auto mb-6 rounded-full overflow-hidden border-4 border-blue-400">
-              <img src={trainer.image} alt={trainer.name} className="w-full h-full object-cover" />
-            </div>
-            <h3 className="text-xl font-bold mb-2 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-              {trainer.name}
-            </h3>
-            <p className="text-green-400 mb-4">{trainer.specialization}</p>
-            <div className="text-sm text-gray-300 mb-4">
-              {trainer.certifications.map((cert, index) => (
-                <p key={index} className="mb-2">• {cert}</p>
-              ))}
-            </div>
-            <p className="text-gray-300 text-sm mb-6">{trainer.bio}</p>
-            <div className="flex justify-center space-x-4">
-              <a href={trainer.socialMedia.instagram} className="text-pink-400 hover:text-white transition-colors">
-                <i className="fab fa-instagram text-xl"></i>
-              </a>
-              <a href={trainer.socialMedia.facebook} className="text-blue-400 hover:text-white transition-colors">
-                <i className="fab fa-facebook text-xl"></i>
-              </a>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
-
-const BlogPage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Fitness Blog
-      </h1>
-      
-      <div className="grid md:grid-cols-3 gap-8">
-        {blogPosts.map((post) => (
-          <div key={post.id} className="glass-card rounded-2xl overflow-hidden hover-glow transition-all duration-300">
-            <img src={post.image} alt={post.title} className="w-full h-48 object-cover" />
-            <div className="p-6">
-              <h3 className="text-xl font-bold mb-3 text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-                {post.title}
-              </h3>
-              <p className="text-gray-300 mb-4">{post.excerpt}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-400">{post.date}</span>
-                <a href="#" className="text-green-400 hover:text-white transition-colors">
-                  Read More <i className="fas fa-arrow-right ml-1"></i>
-                </a>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
-
-const ContactPage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Contact Us
-      </h1>
-      
-      <div className="grid md:grid-cols-2 gap-12">
-        {/* Contact Form */}
-        <div className="glass-card p-8 rounded-2xl">
-          <h2 className="text-2xl font-bold mb-6 text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-            Get In Touch
-          </h2>
-          <form className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Name</label>
-              <input
-                type="text"
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
-                placeholder="Your name"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Email</label>
-              <input
-                type="email"
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
-                placeholder="Your email"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Subject</label>
-              <input
-                type="text"
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
-                placeholder="Subject"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Message</label>
-              <textarea
-                rows={4}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none transition-colors"
-                placeholder="Your message"
-              ></textarea>
-            </div>
-            <button className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-bold hover-glow transition-all duration-300">
-              Send Message
-            </button>
-          </form>
-        </div>
-        
-        {/* Contact Info */}
-        <div className="glass-card p-8 rounded-2xl">
-          <h2 className="text-2xl font-bold mb-6 text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-            Visit Us
-          </h2>
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-bold text-blue-400 mb-2">Islamabad Central</h3>
-              <p className="text-gray-300">Blue Area<br />Islamabad, Pakistan</p>
-            </div>
-            <div>
-              <h3 className="font-bold text-blue-400 mb-2">Islamabad North</h3>
-              <p className="text-gray-300">F-7 Markaz<br />Islamabad, Pakistan</p>
-            </div>
-            <div>
-              <h3 className="font-bold text-blue-400 mb-2">Quick Contact</h3>
-              <div className="space-y-2">
-                <a href="tel:+92511234567" className="flex items-center text-gray-300 hover:text-blue-400 transition-colors">
-                  <i className="fas fa-phone mr-3"></i>
-                  +92 51 123 4567
-                </a>
-                <a href="mailto:info@finovafitness.com" className="flex items-center text-gray-300 hover:text-blue-400 transition-colors">
-                  <i className="fas fa-envelope mr-3"></i>
-                  info@finovafitness.com
-                </a>
-                <a href="#" className="flex items-center text-gray-300 hover:text-blue-400 transition-colors">
-                  <i className="fab fa-whatsapp mr-3"></i>
-                  WhatsApp Chat
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const StorePage = () => (
-  <div className="animate-fade-in">
-    <div className="container mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Online Store
-      </h1>
-      
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {products.map((product) => (
-          <div key={product.id} className="product-card p-6 rounded-2xl hover-glow transition-all duration-300">
-            <img src={product.image} alt={product.name} className="w-full h-48 object-cover rounded-lg mb-4" />
-            <h3 className="text-lg font-bold mb-2">{product.name}</h3>
-            <p className="text-gray-300 text-sm mb-4">{product.description}</p>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <span className="text-xl font-bold">PKR {product.price.toLocaleString()}</span>
-                <div className="text-sm text-green-400">Members save 10%</div>
-              </div>
-              <span className="text-sm text-gray-400">{product.category}</span>
-            </div>
-            <button className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold hover-glow transition-all duration-300">
-              Add to Cart
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);

@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { query } from '../config/database.js';
+import { query } from '../database.js';
 
 // Verify JWT token middleware
 export const verifyToken = async (req, res, next) => {

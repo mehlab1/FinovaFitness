@@ -162,7 +162,7 @@ export const membershipPlans: MembershipPlan[] = [
     duration: 'per quarter',
     features: ['24/7 gym access', 'All group classes', 'Locker room access', '3 guest passes/month', 'Sauna/Steam access', '2 PT sessions included'],
     popular: true,
-    discount: 'Student'
+    discount: ''
   },
   {
     id: '4',
@@ -170,7 +170,7 @@ export const membershipPlans: MembershipPlan[] = [
     price: 165000,
     duration: 'per year',
     features: ['24/7 gym access', 'All group classes', 'Locker room access', '5 guest passes/month', 'Sauna/Steam access', '2 PT sessions/month', 'Nutrition consultation'],
-    discount: 'Family'
+    discount: ''
   }
 ];
 

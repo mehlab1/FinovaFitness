@@ -110,4 +110,114 @@ export const memberApi = {
     });
     return handleResponse(response);
   },
+
+  // Get member profile data
+  getProfile: async () => {
+    const response = await fetch(`${BASE_URL}/members/profile`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Update member profile
+  updateProfile: async (profileData: any) => {
+    const response = await fetch(`${BASE_URL}/members/profile`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(profileData),
+    });
+    return handleResponse(response);
+  },
+
+  // Log new weight
+  logWeight: async (weightData: { weight: number; notes?: string }) => {
+    const response = await fetch(`${BASE_URL}/members/weight-log`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(weightData),
+    });
+    return handleResponse(response);
+  },
+
+  // Get weight change data
+  getWeightChange: async () => {
+    const response = await fetch(`${BASE_URL}/members/weight-change`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Forgot password
+  forgotPassword: async (email: string) => {
+    const response = await fetch(`${BASE_URL}/members/forgot-password`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ email }),
+    });
+    return handleResponse(response);
+  },
+
+  // Reset password
+  resetPassword: async (resetData: { email: string; verificationCode: string; newPassword: string }) => {
+    const response = await fetch(`${BASE_URL}/members/reset-password`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(resetData),
+    });
+    return handleResponse(response);
+  },
+
+  // Plan change functionality
+  calculatePlanChange: async (newPlanId: number) => {
+    const response = await fetch(`${BASE_URL}/members/calculate-plan-change`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ newPlanId }),
+    });
+    return handleResponse(response);
+  },
+
+  initiatePlanChange: async (planChangeData: {
+    newPlanId: number;
+    currentPlanBalance: number;
+    newPlanPrice: number;
+    balanceDifference: number;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/initiate-plan-change`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(planChangeData),
+    });
+    return handleResponse(response);
+  },
+
+  confirmPlanChange: async (confirmationData: {
+    requestId: number;
+    email: string;
+    password: string;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/confirm-plan-change`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(confirmationData),
+    });
+    return handleResponse(response);
+  },
+
+  getBalance: async () => {
+    const response = await fetch(`${BASE_URL}/members/balance`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Top up balance
+  topUpBalance: async (amount: number) => {
+    const response = await fetch(`${BASE_URL}/members/top-up-balance`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ amount }),
+    });
+    return handleResponse(response);
+  },
 };
