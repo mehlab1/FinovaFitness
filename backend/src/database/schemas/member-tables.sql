@@ -205,3 +205,16 @@ CREATE TABLE IF NOT EXISTS weight_tracking (
 
 -- Create index for efficient weight history queries
 CREATE INDEX IF NOT EXISTS idx_weight_tracking_user_date ON weight_tracking(user_id, recorded_date DESC);
+
+-- Subscription pauses table
+CREATE TABLE IF NOT EXISTS subscription_pauses (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    pause_start_date DATE NOT NULL,
+    pause_end_date DATE NOT NULL,
+    pause_duration_days INTEGER NOT NULL,
+    reason TEXT,
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -220,4 +220,62 @@ export const memberApi = {
     });
     return handleResponse(response);
   },
+
+  // Pause subscription
+  pauseSubscription: async (pauseDurationDays: number) => {
+    const response = await fetch(`${BASE_URL}/members/pause-subscription`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ pauseDurationDays }),
+    });
+    return handleResponse(response);
+  },
+
+  // Resume subscription
+  resumeSubscription: async () => {
+    const response = await fetch(`${BASE_URL}/members/resume-subscription`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Cancel subscription
+  cancelSubscription: async () => {
+    const response = await fetch(`${BASE_URL}/members/cancel-subscription`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Update personal data
+  updatePersonalData: async (personalData: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    address?: string;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/update-personal-data`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(personalData),
+    });
+    return handleResponse(response);
+  },
+
+  // Subscribe to new plan
+  subscribeToPlan: async (subscriptionData: {
+    planId: number;
+    paymentMethod: string;
+    personalData: any;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/subscribe-to-plan`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(subscriptionData),
+    });
+    return handleResponse(response);
+  },
 };

@@ -59,6 +59,14 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
       [userId]
     );
 
+    // Check if subscription is currently paused
+    const pauseResult = await query(
+      `SELECT * FROM subscription_pauses 
+       WHERE user_id = $1 AND status = 'active' 
+       AND CURRENT_DATE BETWEEN pause_start_date AND pause_end_date`,
+      [userId]
+    );
+
     // Get upcoming bookings
     const bookingsResult = await query(
       `SELECT b.*, t.id as trainer_id, u.first_name as trainer_first_name, u.last_name as trainer_last_name
@@ -199,6 +207,8 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
         end_date: planResult.rows[0]?.membership_end_date,
         days_remaining: daysRemaining
       },
+      subscriptionPaused: pauseResult.rows.length > 0,
+      pauseDetails: pauseResult.rows[0] || null,
       upcomingBookings: bookingsResult.rows,
       recentVisits: visitsResult.rows,
       loyaltyStats: loyaltyResult.rows[0] || {
@@ -1228,6 +1238,189 @@ router.post('/top-up-balance', verifyMemberToken, async (req, res) => {
   } catch (error) {
     console.error('Top-up balance error:', error);
     res.status(500).json({ error: 'Failed to top up balance' });
+  }
+});
+
+// Pause subscription
+router.post('/pause-subscription', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { pauseDurationDays } = req.body;
+
+    if (!pauseDurationDays || pauseDurationDays <= 0) {
+      return res.status(400).json({ error: 'Invalid pause duration. Duration must be greater than 0.' });
+    }
+
+    // Get current membership details
+    const membershipResult = await query(
+      `SELECT u.membership_end_date, u.is_active, mp.current_plan_id
+       FROM users u
+       LEFT JOIN member_profiles mp ON u.id = mp.user_id
+       WHERE u.id = $1`,
+      [userId]
+    );
+
+    if (membershipResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Membership not found' });
+    }
+
+    const membership = membershipResult.rows[0];
+    
+    if (!membership.is_active) {
+      return res.status(400).json({ error: 'Membership is not active' });
+    }
+
+    if (!membership.membership_end_date) {
+      return res.status(400).json({ error: 'No valid membership end date found' });
+    }
+
+    // Calculate pause dates
+    const pauseStartDate = new Date();
+    const pauseEndDate = new Date();
+    pauseEndDate.setDate(pauseEndDate.getDate() + pauseDurationDays);
+
+    // Extend membership end date by pause duration
+    const newMembershipEndDate = new Date(membership.membership_end_date);
+    newMembershipEndDate.setDate(newMembershipEndDate.getDate() + pauseDurationDays);
+
+    // Begin transaction
+    await query('BEGIN');
+
+    try {
+      // Insert pause record
+      await query(
+        `INSERT INTO subscription_pauses 
+         (user_id, pause_start_date, pause_end_date, pause_duration_days, reason, status)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          userId,
+          pauseStartDate.toISOString().split('T')[0],
+          pauseEndDate.toISOString().split('T')[0],
+          pauseDurationDays,
+          'Member requested pause',
+          'active'
+        ]
+      );
+
+      // Update membership end date
+      await query(
+        `UPDATE users 
+         SET membership_end_date = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [newMembershipEndDate.toISOString().split('T')[0], userId]
+      );
+
+      // Update member profile status to paused
+      await query(
+        `UPDATE member_profiles 
+         SET updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [userId]
+      );
+
+      await query('COMMIT');
+
+      res.json({
+        success: true,
+        message: `Subscription paused successfully for ${pauseDurationDays} days`,
+        pauseStartDate: pauseStartDate.toISOString().split('T')[0],
+        pauseEndDate: pauseEndDate.toISOString().split('T')[0],
+        newMembershipEndDate: newMembershipEndDate.toISOString().split('T')[0],
+        pauseDurationDays
+      });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Pause subscription error:', error);
+    res.status(500).json({ error: 'Failed to pause subscription' });
+  }
+});
+
+// Resume subscription (end pause early)
+router.post('/resume-subscription', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Check if there's an active pause
+    const pauseResult = await query(
+      `SELECT * FROM subscription_pauses 
+       WHERE user_id = $1 AND status = 'active' 
+       AND CURRENT_DATE BETWEEN pause_start_date AND pause_end_date`,
+      [userId]
+    );
+
+    if (pauseResult.rows.length === 0) {
+      return res.status(400).json({ error: 'No active pause found to resume' });
+    }
+
+    const pause = pauseResult.rows[0];
+    const pauseEndDate = new Date(pause.pause_end_date);
+    const today = new Date();
+    
+    // Calculate remaining pause days
+    const remainingPauseDays = Math.ceil((pauseEndDate - today) / (1000 * 60 * 60 * 24));
+    
+    if (remainingPauseDays <= 0) {
+      return res.status(400).json({ error: 'Pause has already ended' });
+    }
+
+    // Get current membership end date
+    const membershipResult = await query(
+      `SELECT membership_end_date FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (membershipResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Membership not found' });
+    }
+
+    const currentEndDate = new Date(membershipResult.rows[0].membership_end_date);
+    
+    // Calculate new end date (subtract remaining pause days)
+    const newEndDate = new Date(currentEndDate);
+    newEndDate.setDate(newEndDate.getDate() - remainingPauseDays);
+
+    // Begin transaction
+    await query('BEGIN');
+
+    try {
+      // Update pause status to completed
+      await query(
+        `UPDATE subscription_pauses 
+         SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [pause.id]
+      );
+
+      // Update membership end date
+      await query(
+        `UPDATE users 
+         SET membership_end_date = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [newEndDate.toISOString().split('T')[0], userId]
+      );
+
+      await query('COMMIT');
+
+      res.json({
+        success: true,
+        message: 'Subscription resumed successfully',
+        newEndDate: newEndDate.toISOString().split('T')[0],
+        daysRemoved: remainingPauseDays
+      });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Resume subscription error:', error);
+    res.status(500).json({ error: 'Failed to resume subscription' });
   }
 });
 

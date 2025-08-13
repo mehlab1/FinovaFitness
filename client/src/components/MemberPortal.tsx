@@ -11,16 +11,137 @@ interface MemberPortalProps {
 
 export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [membershipData, setMembershipData] = useState<any>(null);
   const { showToast } = useToast();
 
+  // Fetch membership data on component mount
+  useEffect(() => {
+    const fetchMembershipData = async () => {
+      try {
+        const data = await memberApi.getDashboard();
+        setMembershipData(data);
+      } catch (error) {
+        console.error('Failed to fetch membership data:', error);
+        showToast('Failed to load membership data', 'error');
+      }
+    };
+
+    fetchMembershipData();
+  }, []); // Remove showToast dependency to prevent infinite loop
+
+  // Membership pause overlay component
+  const MembershipPauseOverlay = () => (
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-10 flex items-center justify-center p-4">
+      <div className="glass-card p-6 rounded-xl max-w-sm w-full mx-4 animate-slide-up transform transition-all duration-500 hover:shadow-xl hover:shadow-yellow-500/25 relative overflow-hidden group">
+        {/* Background gradient and shimmer effects */}
+        <div className="absolute inset-0 bg-gradient-to-br from-yellow-600/20 via-orange-500/20 to-red-600/20 rounded-xl"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 to-orange-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="absolute inset-0 animate-shimmer"></div>
+        
+        {/* Decorative elements */}
+        <div className="absolute top-3 right-3 w-1.5 h-1.5 bg-yellow-400/60 rounded-full animate-pulseGlow"></div>
+        <div className="absolute bottom-3 left-3 w-1 h-1 bg-orange-400/40 rounded-full animate-pulseGlow" style={{ animationDelay: '0.5s' }}></div>
+        
+        {/* Main content */}
+        <div className="relative z-10 text-center">
+          {/* Icon and title */}
+          <div className="mb-4">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-full border border-yellow-400/30 mb-3 group-hover:scale-110 transition-transform duration-300">
+              <i className="fas fa-pause-circle text-2xl text-yellow-400 group-hover:text-yellow-300 transition-colors duration-300"></i>
+            </div>
+            <h2 className="text-lg font-bold text-white mb-2 group-hover:scale-105 transition-transform duration-300" style={{ fontFamily: 'Orbitron, monospace' }}>
+              Membership Paused
+            </h2>
+            <p className="text-gray-300 leading-relaxed text-xs">
+              Your membership is currently on pause. Access to most features is restricted until your membership becomes active again.
+            </p>
+          </div>
+          
+          {/* Pause details card */}
+          {membershipData?.pauseDetails && (
+            <div className="bg-gradient-to-br from-yellow-500/10 via-orange-500/10 to-red-500/10 rounded-lg p-3 border border-yellow-400/20 mb-4 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/5 to-orange-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="relative z-10">
+                <div className="flex items-center justify-center space-x-2 mb-1">
+                  <i className="fas fa-calendar-alt text-yellow-400 text-xs"></i>
+                  <span className="text-yellow-200 text-xs font-medium">Pause Ends</span>
+                </div>
+                <p className="text-white font-semibold text-sm">
+                  {new Date(membershipData.pauseDetails.pause_end_date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* Action buttons */}
+          <div className="space-y-2">
+            <div className="bg-gradient-to-br from-blue-600/10 via-purple-500/10 to-blue-600/10 rounded-lg p-3 border border-blue-400/20">
+              <div className="flex items-center justify-center space-x-2">
+                <i className="fas fa-info-circle text-blue-400 text-xs"></i>
+                <span className="text-blue-200 text-xs font-medium">What You Can Still Do</span>
+              </div>
+              <p className="text-gray-300 text-xs mt-1">
+                Access membership details and manage your account
+              </p>
+            </div>
+            
+            <button
+              onClick={() => setCurrentPage('membership')}
+              className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-2 px-4 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-yellow-500/25 active:scale-95 relative overflow-hidden group text-sm"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 to-orange-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <span className="relative z-10 flex items-center justify-center space-x-2">
+                <i className="fas fa-id-card text-xs"></i>
+                <span>Go to Membership</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderPage = () => {
+    // If subscription is cancelled, only show membership tab
+    if (membershipData?.subscriptionStatus === 'cancelled' || membershipData?.subscriptionCancelled) {
+      if (currentPage !== 'membership') {
+        return (
+          <div className="animate-fade-in">
+            <div className="glass-card p-8 rounded-2xl max-w-2xl mx-auto">
+              <div className="text-center">
+                <div className="w-20 h-20 mx-auto mb-4 bg-red-500/20 rounded-full flex items-center justify-center">
+                  <i className="fas fa-lock text-3xl text-red-400"></i>
+                </div>
+                <h2 className="text-2xl font-bold mb-2 text-red-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+                  Portal Frozen
+                </h2>
+                <p className="text-gray-300 mb-4">
+                  Your subscription has been cancelled. You can only access the membership tab to reactivate your account.
+                </p>
+                <button
+                  onClick={() => setCurrentPage('membership')}
+                  className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
+                >
+                  Go to Membership
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+    }
+
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard user={user} showToast={showToast} />;
       case 'profile':
         return <Profile user={user} showToast={showToast} />;
       case 'membership':
-        return <Membership user={user} showToast={showToast} />;
+        return <Membership user={user} showToast={showToast} membershipData={membershipData} onMembershipUpdate={setMembershipData} />;
       case 'workout':
         return <WorkoutSchedule showToast={showToast} />;
       case 'trainers':
@@ -97,7 +218,11 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
       </div>
 
       {/* Main Content */}
-      <div className="ml-64 flex-1">
+      <div className="ml-64 flex-1 relative">
+        {/* Show pause overlay for all tabs except membership */}
+        {membershipData?.subscriptionPaused && currentPage !== 'membership' && <MembershipPauseOverlay />}
+        
+        {/* Topbar */}
         <div className="topbar px-6 py-4 sticky top-0 z-40">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold" style={{ fontFamily: 'Orbitron, monospace' }}>
@@ -115,8 +240,15 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
           </div>
         </div>
         
-        <div className="p-6">
-          {renderPage()}
+        {/* Main content with conditional blur */}
+        <div className={`transition-all duration-300 ${
+          membershipData?.subscriptionPaused && currentPage !== 'membership' 
+            ? 'filter blur-sm pointer-events-none' 
+            : ''
+        }`}>
+          <div className="p-6">
+            {renderPage()}
+          </div>
         </div>
       </div>
     </div>
@@ -146,7 +278,7 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
     };
 
     fetchDashboardData();
-  }, [showToast]);
+  }, []); // Remove showToast dependency to prevent infinite loop
 
   // All useCallback hooks
   const closeBalanceModal = useCallback(() => {
@@ -1499,10 +1631,9 @@ const Profile = ({ user, showToast }: { user: User | null; showToast: (message: 
   );
 };
 
-const Membership = ({ user, showToast }: { user: User | null; showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+const Membership = ({ user, showToast, membershipData, onMembershipUpdate }: { user: User | null; showToast: (message: string, type?: 'success' | 'error' | 'info') => void; membershipData: any; onMembershipUpdate: (data: any) => void }) => {
   const [autoRenew, setAutoRenew] = useState(true);
-  const [membershipData, setMembershipData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showPlanChangeModal, setShowPlanChangeModal] = useState(false);
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
@@ -1511,22 +1642,31 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [requestId, setRequestId] = useState<string | null>(null);
+  const [showPauseWizard, setShowPauseWizard] = useState(false);
+  const [pauseStep, setPauseStep] = useState(1);
+  const [selectedPauseDuration, setSelectedPauseDuration] = useState<number>(0);
+  const [pauseLoading, setPauseLoading] = useState(false);
+  
+  // Cancel subscription states
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelConfirmation, setCancelConfirmation] = useState(false);
+  const [cancellationDetails, setCancellationDetails] = useState<any>(null);
+  const [showMembershipPlans, setShowMembershipPlans] = useState(false);
+  const [selectedNewPlan, setSelectedNewPlan] = useState<any>(null);
+  const [showPersonalDataUpdate, setShowPersonalDataUpdate] = useState(false);
+  const [personalDataForm, setPersonalDataForm] = useState({
+    firstName: user?.first_name || '',
+    lastName: user?.last_name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    address: user?.address || ''
+  });
 
   useEffect(() => {
-    const fetchMembershipData = async () => {
-      try {
-        const data = await memberApi.getDashboard();
-        setMembershipData(data);
-      } catch (error) {
-        console.error('Failed to fetch membership data:', error);
-        showToast('Failed to load membership data', 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMembershipData();
-  }, []);
+    if (membershipData) {
+      setLoading(false);
+    }
+  }, [membershipData]);
 
   const fetchAvailablePlans = async () => {
     try {
@@ -1603,7 +1743,7 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
         
         // Refresh membership data
         const updatedData = await memberApi.getDashboard();
-        setMembershipData(updatedData);
+        onMembershipUpdate(updatedData);
       } else {
         showToast(data.error || 'Failed to confirm plan change', 'error');
       }
@@ -1628,6 +1768,157 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
     }, 2000);
   };
 
+  const handlePauseSubscription = () => {
+    setShowPauseWizard(true);
+    setPauseStep(1);
+    setSelectedPauseDuration(0);
+  };
+
+  const handlePauseDurationSelect = (duration: number) => {
+    setSelectedPauseDuration(duration);
+    setPauseStep(2);
+  };
+
+  const confirmPauseSubscription = async () => {
+    if (!selectedPauseDuration) return;
+    
+    setPauseLoading(true);
+    try {
+      const data = await memberApi.pauseSubscription(selectedPauseDuration);
+      
+      if (data.success) {
+        showToast(data.message, 'success');
+        setShowPauseWizard(false);
+        setPauseStep(1);
+        setSelectedPauseDuration(0);
+        
+        // Refresh membership data
+        const updatedData = await memberApi.getDashboard();
+        onMembershipUpdate(updatedData);
+      } else {
+        showToast(data.error || 'Failed to pause subscription', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to pause subscription:', error);
+      showToast('Failed to pause subscription', 'error');
+    } finally {
+      setPauseLoading(false);
+    }
+  };
+
+  const closePauseWizard = () => {
+    setShowPauseWizard(false);
+    setPauseStep(1);
+    setSelectedPauseDuration(0);
+    setPauseLoading(false);
+  };
+
+  // Cancel subscription handlers
+  const handleCancelSubscription = async () => {
+    try {
+      // Calculate cancellation details
+      const currentPlan = membershipData?.currentPlan || {};
+      const endDate = new Date(currentPlan.end_date);
+      const today = new Date();
+      const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Calculate value lost (proportional to days remaining)
+      const totalDays = Math.ceil((endDate.getTime() - new Date(currentPlan.start_date).getTime()) / (1000 * 60 * 60 * 24));
+      const valueLost = daysLeft > 0 ? (currentPlan.price / totalDays) * daysLeft : 0;
+      
+      setCancellationDetails({
+        daysLeft: Math.max(0, daysLeft),
+        valueLost: valueLost.toFixed(2),
+        planName: currentPlan.name,
+        endDate: currentPlan.end_date
+      });
+      
+      setShowCancelModal(true);
+    } catch (error) {
+      console.error('Error calculating cancellation details:', error);
+      showToast('Failed to calculate cancellation details', 'error');
+    }
+  };
+
+  const confirmCancellation = async () => {
+    try {
+      setLoading(true);
+      const data = await memberApi.cancelSubscription();
+      
+      if (data.success) {
+        showToast('Subscription cancelled successfully', 'success');
+        setShowCancelModal(false);
+        setCancelConfirmation(true);
+        
+        // Refresh membership data
+        const updatedData = await memberApi.getDashboard();
+        onMembershipUpdate(updatedData);
+      } else {
+        showToast(data.error || 'Failed to cancel subscription', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error);
+      showToast('Failed to cancel subscription', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePersonalDataUpdate = async () => {
+    try {
+      setLoading(true);
+      const data = await memberApi.updatePersonalData(personalDataForm);
+      
+      if (data.success) {
+        showToast('Personal data updated successfully', 'success');
+        setShowPersonalDataUpdate(false);
+        setShowMembershipPlans(true);
+      } else {
+        showToast(data.error || 'Failed to update personal data', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to update personal data:', error);
+      showToast('Failed to update personal data', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNewMembershipSelection = async (plan: any) => {
+    setSelectedNewPlan(plan);
+    setShowMembershipPlans(false);
+    setShowPaymentModal(true);
+  };
+
+  const handleNewMembershipPayment = async () => {
+    try {
+      setLoading(true);
+      const data = await memberApi.subscribeToPlan({
+        planId: selectedNewPlan.id,
+        paymentMethod: 'credit_card', // This would be dynamic based on user selection
+        personalData: personalDataForm
+      });
+      
+      if (data.success) {
+        showToast('New membership activated successfully!', 'success');
+        setShowPaymentModal(false);
+        setCancelConfirmation(false);
+        setSelectedNewPlan(null);
+        
+        // Refresh membership data
+        const updatedData = await memberApi.getDashboard();
+        onMembershipUpdate(updatedData);
+      } else {
+        showToast(data.error || 'Failed to activate new membership', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to activate new membership:', error);
+      showToast('Failed to activate new membership', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="animate-fade-in">
@@ -1642,6 +1933,73 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
 
   const currentPlan = membershipData?.currentPlan || {};
   const profile = membershipData?.profile || {};
+  const isSubscriptionCancelled = membershipData?.subscriptionStatus === 'cancelled' || membershipData?.subscriptionCancelled;
+
+  // Show reactivation UI for cancelled members
+  if (isSubscriptionCancelled) {
+    return (
+      <div className="animate-fade-in">
+        <div className="glass-card p-8 rounded-2xl max-w-2xl">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 mx-auto mb-4 bg-red-500/20 rounded-full flex items-center justify-center">
+              <i className="fas fa-times-circle text-3xl text-red-400"></i>
+            </div>
+            <h2 className="text-2xl font-bold mb-2 text-red-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+              Subscription Cancelled
+            </h2>
+            <p className="text-gray-300">
+              Your membership has been cancelled. Your portal is currently frozen and you can only access membership management.
+            </p>
+          </div>
+          
+          <div className="space-y-6">
+            {/* Reactivation Options */}
+            <div className="bg-gray-700/50 rounded-lg p-6 border border-gray-600">
+              <h3 className="text-lg font-semibold text-white mb-4 text-center">Reactivate Your Membership</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  onClick={() => setShowPersonalDataUpdate(true)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white py-4 px-6 rounded-lg font-semibold transition-colors text-center"
+                >
+                  <div className="flex flex-col items-center space-y-2">
+                    <i className="fas fa-user-edit text-2xl"></i>
+                    <div>
+                      <div className="font-semibold">Update Personal Data</div>
+                      <div className="text-sm opacity-90">Review and update your information</div>
+                    </div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => setShowMembershipPlans(true)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold transition-colors text-center"
+                >
+                  <div className="flex flex-col items-center space-y-2">
+                    <i className="fas fa-credit-card text-2xl"></i>
+                    <div>
+                      <div className="font-semibold">Choose New Plan</div>
+                      <div className="text-sm opacity-90">Select a membership plan</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+            
+            {/* Current Status */}
+            <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+              <div className="text-center">
+                <div className="text-gray-300 text-sm mb-2">Portal Status</div>
+                <div className="text-red-400 font-semibold">FROZEN</div>
+                <div className="text-gray-400 text-xs mt-1">
+                  All features locked except membership management
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -1658,7 +2016,18 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
               <p><strong>Start Date:</strong> {currentPlan.start_date ? new Date(currentPlan.start_date).toLocaleDateString() : 'Not set'}</p>
               <p><strong>End Date:</strong> {currentPlan.end_date ? new Date(currentPlan.end_date).toLocaleDateString() : 'Not set'}</p>
               <p><strong>Price:</strong> {currentPlan.price ? `$${currentPlan.price}` : 'Not set'}</p>
-              <p><strong>Status:</strong> <span className="text-green-400">Active</span></p>
+              <p><strong>Status:</strong> 
+                {membershipData?.subscriptionPaused ? (
+                  <span className="text-yellow-400">Paused</span>
+                ) : (
+                  <span className="text-green-400">Active</span>
+                )}
+              </p>
+              {membershipData?.subscriptionPaused && membershipData?.pauseDetails && (
+                <p><strong>Pause Ends:</strong> <span className="text-yellow-400">
+                  {new Date(membershipData.pauseDetails.pause_end_date).toLocaleDateString()}
+                </span></p>
+              )}
               {currentPlan.days_remaining !== null && (
                 <p><strong>Days Remaining:</strong> {currentPlan.days_remaining} days</p>
               )}
@@ -1689,14 +2058,38 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
               >
                 Change Plan
               </button>
+              {membershipData?.subscriptionPaused ? (
+                <button
+                  onClick={async () => {
+                    try {
+                      const data = await memberApi.resumeSubscription();
+                      if (data.success) {
+                        showToast(data.message, 'success');
+                        // Refresh membership data
+                        const updatedData = await memberApi.getDashboard();
+                        onMembershipUpdate(updatedData);
+                      } else {
+                        showToast(data.error || 'Failed to resume subscription', 'error');
+                      }
+                    } catch (error) {
+                      console.error('Failed to resume subscription:', error);
+                      showToast('Failed to resume subscription', 'error');
+                    }
+                  }}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-semibold transition-colors"
+                >
+                  Resume Subscription
+                </button>
+              ) : (
+                <button
+                  onClick={handlePauseSubscription}
+                  className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold transition-colors"
+                >
+                  Pause Subscription
+                </button>
+              )}
               <button
-                onClick={() => showToast('Subscription paused for 30 days', 'info')}
-                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold transition-colors"
-              >
-                Pause Subscription
-              </button>
-              <button
-                onClick={() => showToast('Subscription cancelled. You can reactivate anytime.', 'info')}
+                onClick={handleCancelSubscription}
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition-colors"
               >
                 Cancel Subscription
@@ -1851,6 +2244,451 @@ const Membership = ({ user, showToast }: { user: User | null; showToast: (messag
                   Confirm
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pause Subscription Wizard */}
+      {showPauseWizard && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+            {pauseStep === 1 && (
+              <>
+                <h3 className="text-xl font-bold text-blue-400 mb-4">Pause Your Subscription</h3>
+                <p className="text-gray-300 mb-6 text-center">
+                  Choose how long you'd like to pause your subscription. Your membership will be extended by the same number of days.
+                </p>
+                
+                <div className="space-y-3">
+                  <button
+                    onClick={() => handlePauseDurationSelect(15)}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Pause for 15 Days
+                  </button>
+                  <button
+                    onClick={() => handlePauseDurationSelect(30)}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Pause for 1 Month (30 Days)
+                  </button>
+                  <button
+                    onClick={() => handlePauseDurationSelect(90)}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Pause for 3 Months (90 Days)
+                  </button>
+                </div>
+                
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={closePauseWizard}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {pauseStep === 2 && (
+              <>
+                <h3 className="text-xl font-bold text-blue-400 mb-4">Confirm Pause</h3>
+                <div className="bg-gray-700 p-4 rounded-lg mb-6">
+                  <p className="text-white text-center mb-2">
+                    Your subscription will be paused for <span className="text-yellow-400 font-bold">{selectedPauseDuration} days</span>
+                  </p>
+                  <p className="text-gray-300 text-sm text-center">
+                    During this time, your membership will be extended by {selectedPauseDuration} days, so you won't lose any time.
+                  </p>
+                </div>
+                
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setPauseStep(1)}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={confirmPauseSubscription}
+                    disabled={pauseLoading}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded transition-colors disabled:opacity-50"
+                  >
+                    {pauseLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Processing...</span>
+                      </div>
+                    ) : (
+                      'Confirm Pause'
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Subscription Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-card p-6 rounded-xl max-w-sm w-full mx-4 animate-slide-up transform transition-all duration-500 hover:shadow-xl hover:shadow-red-500/25 relative overflow-hidden group">
+            {/* Background gradient and shimmer effects */}
+            <div className="absolute inset-0 bg-gradient-to-br from-red-600/20 via-red-500/20 to-red-600/20 rounded-xl"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div className="absolute inset-0 animate-shimmer"></div>
+            
+            {/* Decorative elements */}
+            <div className="absolute top-3 right-3 w-1.5 h-1.5 bg-red-400/60 rounded-full animate-pulseGlow"></div>
+            <div className="absolute bottom-3 left-3 w-1 h-1 bg-red-400/40 rounded-full animate-pulseGlow" style={{ animationDelay: '0.5s' }}></div>
+            
+            {/* Main content */}
+            <div className="relative z-10 text-center">
+              {/* Icon and title */}
+              <div className="mb-4">
+                <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-red-500/20 to-red-600/20 rounded-full border border-red-400/30 mb-3 group-hover:scale-110 transition-transform duration-300">
+                  <i className="fas fa-exclamation-triangle text-2xl text-red-400 group-hover:text-red-300 transition-colors duration-300"></i>
+                </div>
+                <h3 className="text-lg font-bold text-white mb-2 group-hover:scale-105 transition-transform duration-300" style={{ fontFamily: 'Orbitron, monospace' }}>
+                  Cancel Subscription
+                </h3>
+                <p className="text-gray-300 text-xs leading-relaxed">
+                  This action cannot be undone. Your portal will be frozen.
+                </p>
+              </div>
+              
+              {/* Cancellation Details */}
+              {cancellationDetails && (
+                <div className="bg-gradient-to-br from-red-500/10 via-red-600/10 to-red-500/10 rounded-lg p-3 border border-red-400/20 mb-4 relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-400/5 to-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="relative z-10">
+                    <div className="text-red-200 text-xs font-medium mb-2">What You'll Lose</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-yellow-400 mb-1">
+                          {cancellationDetails.daysLeft}
+                        </div>
+                        <div className="text-gray-300 text-xs">Days Left</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-red-400 mb-1">
+                          ${cancellationDetails.valueLost}
+                        </div>
+                        <div className="text-gray-300 text-xs">Value Lost</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-center">
+                      <div className="text-gray-300 text-xs mb-1">{cancellationDetails.planName}</div>
+                      <div className="text-red-200 text-xs">
+                        Ends: {new Date(cancellationDetails.endDate).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Warning Message */}
+              <div className="bg-gradient-to-br from-red-500/10 via-red-600/10 to-red-500/10 rounded-lg p-3 border border-red-400/20 mb-4">
+                <div className="flex items-start space-x-2">
+                  <i className="fas fa-info-circle text-red-400 text-xs mt-0.5"></i>
+                  <div className="text-xs text-red-200 text-left">
+                    <p className="font-semibold mb-1">After cancellation:</p>
+                    <ul className="space-y-0.5 text-xs">
+                      <li>• Portal will be frozen</li>
+                      <li>• Only membership tab accessible</li>
+                      <li>• Can reactivate anytime</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Action buttons */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white py-2 px-4 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-gray-500/25 active:scale-95 relative overflow-hidden group text-sm"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-gray-500/20 to-gray-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <span className="relative z-10">Keep Subscription</span>
+                </button>
+                
+                <button
+                  onClick={confirmCancellation}
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-red-600/50 disabled:to-red-700/50 text-white py-2 px-4 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-red-500/25 active:scale-95 relative overflow-hidden group text-sm disabled:cursor-not-allowed"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-400/20 to-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <span className="relative z-10">
+                    {loading ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin mr-2"></i>
+                        Cancelling...
+                      </>
+                    ) : (
+                      'Cancel Subscription'
+                    )}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Membership Plans Modal */}
+      {showMembershipPlans && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-green-400 mb-4">Select New Membership Plan</h3>
+            <div className="space-y-4">
+              {availablePlans.map((plan) => (
+                <div key={plan.id} className="bg-gray-700 p-4 rounded-lg">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="text-lg font-semibold text-white">{plan.name}</h4>
+                      <p className="text-gray-300 text-sm">{plan.description}</p>
+                      <div className="mt-2 space-y-1">
+                        {plan.features && plan.features.map((feature: string, index: number) => (
+                          <p key={index} className="text-green-400 text-sm">• {feature}</p>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-green-400">${plan.price}</p>
+                      <p className="text-gray-400 text-sm">{plan.duration_months === 12 ? 'Yearly' : 'Monthly'}</p>
+                      <button
+                        onClick={() => handleNewMembershipSelection(plan)}
+                        className="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors"
+                      >
+                        Select Plan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex justify-end mt-6 space-x-3">
+              <button
+                onClick={() => setShowMembershipPlans(false)}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Personal Data Update Modal */}
+      {showPersonalDataUpdate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-purple-400 mb-4">Update Personal Data</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">First Name</label>
+                <input
+                  type="text"
+                  value={personalDataForm.firstName}
+                  onChange={(e) => setPersonalDataForm({ ...personalDataForm, firstName: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="Enter first name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Last Name</label>
+                <input
+                  type="text"
+                  value={personalDataForm.lastName}
+                  onChange={(e) => setPersonalDataForm({ ...personalDataForm, lastName: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="Enter last name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Email</label>
+                <input
+                  type="email"
+                  value={personalDataForm.email}
+                  onChange={(e) => setPersonalDataForm({ ...personalDataForm, email: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="Enter email"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Phone</label>
+                <input
+                  type="tel"
+                  value={personalDataForm.phone}
+                  onChange={(e) => setPersonalDataForm({ ...personalDataForm, phone: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Address</label>
+                <textarea
+                  value={personalDataForm.address}
+                  onChange={(e) => setPersonalDataForm({ ...personalDataForm, address: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder="Enter address"
+                  rows={3}
+                ></textarea>
+              </div>
+              <div className="flex space-x-4">
+                <button
+                  onClick={handlePersonalDataUpdate}
+                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Update Data
+                </button>
+                <button
+                  onClick={() => setShowPersonalDataUpdate(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Confirmation Flow */}
+      {cancelConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-lg w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                <i className="fas fa-check-circle text-2xl text-yellow-400"></i>
+              </div>
+              <h3 className="text-xl font-bold text-yellow-400 mb-2">Subscription Cancelled</h3>
+              <p className="text-gray-300 text-sm">
+                Your subscription has been cancelled. Your portal is now frozen and you can only access the membership tab.
+              </p>
+            </div>
+            
+            {/* Portal Status */}
+            <div className="bg-gray-700/50 rounded-lg p-4 mb-6 border border-yellow-500/20">
+              <div className="flex items-center justify-center space-x-3 mb-3">
+                <i className="fas fa-lock text-yellow-400"></i>
+                <span className="text-white font-semibold">Portal Status: Frozen</span>
+              </div>
+              <p className="text-gray-300 text-sm text-center">
+                All features are locked except membership management
+              </p>
+            </div>
+            
+            {/* Next Steps */}
+            <div className="space-y-4 mb-6">
+              <h4 className="text-lg font-semibold text-white text-center">What would you like to do next?</h4>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => setShowPersonalDataUpdate(true)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white py-3 px-4 rounded-lg font-semibold transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3">
+                    <i className="fas fa-user-edit text-lg"></i>
+                    <div>
+                      <div className="font-semibold">Update Personal Data</div>
+                      <div className="text-sm opacity-90">Review and update your information before choosing a new plan</div>
+                    </div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => setShowMembershipPlans(true)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3">
+                    <i className="fas fa-credit-card text-lg"></i>
+                    <div>
+                      <div className="font-semibold">Choose New Plan</div>
+                      <div className="text-sm opacity-90">Skip data update and go directly to membership plans</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+            
+            <div className="text-center">
+              <button
+                onClick={() => setCancelConfirmation(false)}
+                className="text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Membership Payment Modal */}
+      {showPaymentModal && selectedNewPlan && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-green-400 mb-4">Complete New Membership</h3>
+            
+            {/* Plan Summary */}
+            <div className="bg-gray-700 rounded-lg p-4 mb-6">
+              <h4 className="text-lg font-semibold text-white mb-2">{selectedNewPlan.name}</h4>
+              <p className="text-gray-300 text-sm mb-3">{selectedNewPlan.description}</p>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-300">Price:</span>
+                <span className="text-2xl font-bold text-green-400">${selectedNewPlan.price}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-gray-300">Duration:</span>
+                <span className="text-white">{selectedNewPlan.duration_months === 12 ? 'Yearly' : 'Monthly'}</span>
+              </div>
+            </div>
+            
+            {/* Payment Method Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-3">Payment Method</label>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input type="radio" name="paymentMethod" value="credit_card" defaultChecked className="text-green-500" />
+                  <span className="text-white">Credit Card</span>
+                </label>
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input type="radio" name="paymentMethod" value="debit_card" className="text-green-500" />
+                  <span className="text-white">Debit Card</span>
+                </label>
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input type="radio" name="paymentMethod" value="bank_transfer" className="text-green-500" />
+                  <span className="text-white">Bank Transfer</span>
+                </label>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleNewMembershipPayment}
+                disabled={loading}
+                className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-600/50 text-white py-2 rounded-lg transition-colors disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    Processing...
+                  </>
+                ) : (
+                  'Complete Payment'
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -2569,7 +3407,7 @@ const TrainersTab = ({ showToast }: { showToast: (message: string, type?: 'succe
     };
 
     fetchTrainers();
-  }, [showToast]);
+  }, []); // Remove showToast dependency to prevent infinite loop
 
   if (loading) {
     return (
