@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { User } from '../types';
 import { facilities, exercises } from '../data/mockData';
 import { useToast } from './Toast';
@@ -124,12 +124,14 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
 };
 
 const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  // All state hooks first
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showBalanceModal, setShowBalanceModal] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('');
   const [topUpLoading, setTopUpLoading] = useState(false);
 
+  // All useEffect hooks
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -146,7 +148,25 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
     fetchDashboardData();
   }, [showToast]);
 
-  const handleTopUp = async () => {
+  // All useCallback hooks
+  const closeBalanceModal = useCallback(() => {
+    setShowBalanceModal(false);
+  }, []);
+
+  const openBalanceModal = useCallback(() => {
+    setShowBalanceModal(true);
+  }, []);
+
+  const refreshDashboardData = useCallback(async () => {
+    try {
+      const data = await memberApi.getDashboard();
+      setDashboardData(data);
+    } catch (error) {
+      console.error('Failed to refresh dashboard data:', error);
+    }
+  }, []);
+
+  const handleTopUp = useCallback(async () => {
     if (!topUpAmount || parseFloat(topUpAmount) <= 0) {
       showToast('Please enter a valid amount', 'error');
       return;
@@ -157,7 +177,7 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
       const result = await memberApi.topUpBalance(parseFloat(topUpAmount));
       showToast('Balance topped up successfully!', 'success');
       setTopUpAmount('');
-      setShowBalanceModal(false);
+      closeBalanceModal();
       
       // Refresh dashboard data to get updated balance
       const data = await memberApi.getDashboard();
@@ -168,30 +188,17 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
     } finally {
       setTopUpLoading(false);
     }
-  };
+  }, [topUpAmount, showToast, closeBalanceModal]);
 
-  const refreshDashboardData = async () => {
-    try {
-      const data = await memberApi.getDashboard();
-      setDashboardData(data);
-    } catch (error) {
-      console.error('Failed to refresh dashboard data:', error);
-    }
-  };
-
-  const openBalanceModal = async () => {
-    await refreshDashboardData();
-    setShowBalanceModal(true);
-  };
-
-  const formatCurrency = (amount: number) => {
+  // All useMemo hooks
+  const formatCurrency = useMemo(() => (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(amount);
-  };
+  }, []);
 
-  const getTransactionTypeColor = (type: string) => {
+  const getTransactionTypeColor = useCallback((type: string) => {
     switch (type) {
       case 'top_up':
         return 'text-green-400';
@@ -202,9 +209,9 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
       default:
         return 'text-gray-400';
     }
-  };
+  }, []);
 
-  const getTransactionTypeIcon = (type: string) => {
+  const getTransactionTypeIcon = useCallback((type: string) => {
     switch (type) {
       case 'top_up':
         return 'fas fa-plus-circle';
@@ -215,7 +222,15 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
       default:
         return 'fas fa-circle';
     }
-  };
+  }, []);
+
+  // All useMemo hooks must come before any conditional returns
+  const profile = useMemo(() => dashboardData?.profile || {}, [dashboardData?.profile]);
+  const currentPlan = useMemo(() => dashboardData?.currentPlan || {}, [dashboardData?.currentPlan]);
+  const loyaltyStats = useMemo(() => dashboardData?.loyaltyStats || {}, [dashboardData?.loyaltyStats]);
+  const referralCount = useMemo(() => dashboardData?.referralCount || 0, [dashboardData?.referralCount]);
+  const workoutStats = useMemo(() => dashboardData?.workoutStats || {}, [dashboardData?.workoutStats]);
+  const balance = useMemo(() => dashboardData?.balance || {}, [dashboardData?.balance]);
 
   if (loading) {
     return (
@@ -227,12 +242,6 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
       </div>
     );
   }
-
-  const profile = dashboardData?.profile || {};
-  const currentPlan = dashboardData?.currentPlan || {};
-  const loyaltyStats = dashboardData?.loyaltyStats || {};
-  const referralCount = dashboardData?.referralCount || 0;
-  const workoutStats = dashboardData?.workoutStats || {};
 
   return (
     <div className="animate-fade-in">
@@ -265,7 +274,7 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
             </div>
             
             <p className="text-xl font-bold text-white mb-1 group-hover:text-purple-100 transition-colors duration-300">
-              {dashboardData?.balance?.current_balance ? formatCurrency(dashboardData.balance.current_balance) : '$0.00'}
+              {balance?.current_balance ? formatCurrency(parseFloat(balance.current_balance)) : '$0.00'}
             </p>
             
             <div className="flex items-center justify-between">
@@ -406,8 +415,8 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
 
       {/* Balance Modal */}
       {showBalanceModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl w-full max-w-sm mx-auto shadow-2xl border border-gray-700/50 animate-slideUp overflow-hidden transform transition-all duration-300 hover:scale-[1.02] max-h-[85vh]">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-fadeIn" onClick={closeBalanceModal}>
+          <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl w-full max-w-sm mx-auto shadow-2xl border border-gray-700/50 animate-slideUp overflow-hidden transform transition-all duration-300 hover:scale-[1.02] max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
             {/* Compact Header */}
             <div className="relative p-3 border-b border-gray-700/50 bg-gradient-to-r from-gray-800/50 to-gray-700/50 flex-shrink-0">
               <div className="flex items-center justify-between">
@@ -420,7 +429,7 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
                   </h2>
                 </div>
                 <button
-                  onClick={() => setShowBalanceModal(false)}
+                  onClick={closeBalanceModal}
                   className="w-6 h-6 bg-gray-700/50 hover:bg-gray-600 rounded-md flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200 hover:scale-110 hover:rotate-90"
                 >
                   <i className="fas fa-times text-xs"></i>
@@ -438,16 +447,16 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
                   <div className="relative z-10 text-center">
                     <p className="text-purple-200 text-xs mb-1 opacity-80">Current Balance</p>
                     <p className="text-xl font-bold text-white mb-2 group-hover:scale-105 transition-transform duration-300 animate-balanceGlow">
-                      {dashboardData?.balance?.current_balance ? formatCurrency(parseFloat(dashboardData.balance.current_balance)) : '$0.00'}
+                      {balance?.current_balance ? formatCurrency(parseFloat(balance.current_balance)) : '$0.00'}
                     </p>
                     <div className="flex justify-center space-x-3 text-xs">
                       <div className="text-center">
                         <p className="text-purple-200 opacity-60">Earned</p>
-                        <p className="text-white font-medium">{dashboardData?.balance?.total_earned ? formatCurrency(parseFloat(dashboardData.balance.total_earned)) : '$0.00'}</p>
+                        <p className="text-white font-medium">{balance?.total_earned ? formatCurrency(parseFloat(balance.total_earned)) : '$0.00'}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-purple-200 opacity-60">Spent</p>
-                        <p className="text-white font-medium">{dashboardData?.balance?.total_spent ? formatCurrency(parseFloat(dashboardData.balance.total_spent)) : '$0.00'}</p>
+                        <p className="text-white font-medium">{balance?.total_spent ? formatCurrency(parseFloat(balance.total_spent)) : '$0.00'}</p>
                       </div>
                     </div>
                   </div>
@@ -774,8 +783,8 @@ const Profile = ({ user, showToast }: { user: User | null; showToast: (message: 
         gender: profile.gender,
         address: profile.address,
         emergency_contact: profile.emergencyContact,
-        height: profile.height ? parseFloat(profile.height) : null,
-        weight: profile.weight ? parseFloat(profile.weight) : null,
+        height: profile.height ? parseFloat(profile.height) || null : null,
+        weight: profile.weight ? parseFloat(profile.weight) || null : null,
         fitness_goals: profile.fitnessGoals,
         health_notes: profile.healthGoals
       };
