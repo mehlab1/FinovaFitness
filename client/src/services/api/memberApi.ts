@@ -59,6 +59,72 @@ export const memberApi = {
     return handleResponse(response);
   },
 
+  // Create workout schedule
+  createWorkoutSchedule: async (scheduleData: any) => {
+    const response = await fetch(`${BASE_URL}/members/workout-schedule`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(scheduleData),
+    });
+    return handleResponse(response);
+  },
+
+  // Delete workout schedule for a specific day
+  deleteWorkoutSchedule: async (dayOfWeek: number) => {
+    const response = await fetch(`${BASE_URL}/members/workout-schedule/${dayOfWeek}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+  
+  // Remove specific exercise from a workout schedule
+  removeExercise: async (scheduleId: number, exerciseName: string) => {
+    const response = await fetch(`${BASE_URL}/members/workout-schedule/${scheduleId}/exercise/${encodeURIComponent(exerciseName)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get muscle groups
+  getMuscleGroups: async () => {
+    const response = await fetch(`${BASE_URL}/members/muscle-groups`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get exercises
+  getExercises: async (muscleGroupId?: number) => {
+    const url = muscleGroupId 
+      ? `${BASE_URL}/members/exercises?muscleGroupId=${muscleGroupId}`
+      : `${BASE_URL}/members/exercises`;
+    
+    const response = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Log workout performance
+  logWorkout: async (data: any) => {
+    const response = await fetch(`${BASE_URL}/members/workout-log`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  // Get workout history
+  getWorkoutHistory: async (limit = 20, offset = 0) => {
+    const response = await fetch(`${BASE_URL}/members/workout-history?limit=${limit}&offset=${offset}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
   // Create training request
   createTrainingRequest: async (data: any) => {
     const response = await fetch(`${BASE_URL}/members/training-request`, {
@@ -275,6 +341,22 @@ export const memberApi = {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(subscriptionData),
+    });
+    return handleResponse(response);
+  },
+
+  // Get muscle groups
+  getMuscleGroups: async () => {
+    const response = await fetch(`${BASE_URL}/members/muscle-groups`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get exercises
+  getExercises: async () => {
+    const response = await fetch(`${BASE_URL}/members/exercises`, {
+      headers: getAuthHeaders(),
     });
     return handleResponse(response);
   },

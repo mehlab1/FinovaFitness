@@ -37,6 +37,23 @@ CREATE TABLE IF NOT EXISTS workout_logs (
     duration_minutes INTEGER,
     calories_burned INTEGER,
     notes TEXT,
+    -- Enhanced workout logging fields
+    start_time TIME,
+    end_time TIME,
+    energy_level INTEGER CHECK (energy_level BETWEEN 1 AND 10),
+    difficulty INTEGER CHECK (difficulty BETWEEN 1 AND 10),
+    mood VARCHAR(50),
+    sleep_quality INTEGER CHECK (sleep_quality BETWEEN 1 AND 10),
+    hydration INTEGER CHECK (hydration BETWEEN 1 AND 10),
+    pre_workout_meal TEXT,
+    post_workout_meal TEXT,
+    supplements TEXT[], -- Array of supplement names
+    body_weight DECIMAL(5,2), -- in kg
+    body_fat_percentage DECIMAL(4,2), -- percentage
+    muscle_soreness VARCHAR(20) CHECK (muscle_soreness IN ('None', 'Light', 'Moderate', 'Heavy')),
+    cardio_intensity VARCHAR(20) CHECK (cardio_intensity IN ('Low', 'Moderate', 'High')),
+    workout_focus VARCHAR(20) CHECK (workout_focus IN ('Strength', 'Hypertrophy', 'Endurance', 'Power', 'Flexibility')),
+    personal_notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -144,8 +161,10 @@ CREATE TABLE IF NOT EXISTS schedule_muscle_groups (
 CREATE TABLE IF NOT EXISTS schedule_exercises (
     id SERIAL PRIMARY KEY,
     schedule_id INTEGER REFERENCES member_workout_schedules(id) ON DELETE CASCADE,
-    exercise_id INTEGER REFERENCES exercises(id) ON DELETE CASCADE,
+    exercise_id INTEGER REFERENCES exercises(id) ON DELETE SET NULL, -- Allow NULL for custom exercises
     muscle_group_id INTEGER REFERENCES muscle_groups(id) ON DELETE CASCADE,
+    exercise_name VARCHAR(255) NOT NULL, -- Store the actual exercise name (custom or predefined)
+    exercise_type VARCHAR(20) DEFAULT 'predefined' CHECK (exercise_type IN ('predefined', 'custom')), -- Distinguish between predefined and custom exercises
     sets INTEGER,
     reps VARCHAR(50), -- e.g., "8-12", "to failure"
     weight DECIMAL(6,2), -- in kg

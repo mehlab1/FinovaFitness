@@ -373,46 +373,569 @@ router.get('/workout-schedule', verifyMemberToken, async (req, res) => {
   try {
     const userId = req.userId;
     
-    const result = await query(
-      `SELECT 
-         mws.*,
-         json_agg(
-           json_build_object(
-             'muscle_group_id', mg.id,
-             'muscle_group_name', mg.name,
-             'exercises', (
-               SELECT json_agg(
-                 json_build_object(
-                   'exercise_id', e.id,
-                   'exercise_name', e.name,
-                   'sets', se.sets,
-                   'reps', se.reps,
-                   'weight', se.weight,
-                   'rest_seconds', se.rest_seconds,
-                   'notes', se.notes
-                 )
-               )
-               FROM schedule_exercises se
-               JOIN exercises e ON se.exercise_id = e.id
-               WHERE se.schedule_id = mws.id AND se.muscle_group_id = mg.id
-               ORDER BY se.order_index
-             )
-           )
-         ) as muscle_groups
-       FROM member_workout_schedules mws
-       LEFT JOIN schedule_muscle_groups smg ON mws.id = smg.schedule_id
-       LEFT JOIN muscle_groups mg ON smg.muscle_group_id = mg.id
-       WHERE mws.user_id = $1 AND mws.is_active = true
-       GROUP BY mws.id
-       ORDER BY mws.day_of_week`,
+    // First, check if user has any workout schedules
+    const scheduleResult = await query(
+      `SELECT id, day_of_week, schedule_name, is_active, created_at, updated_at
+       FROM member_workout_schedules 
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY day_of_week`,
       [userId]
+    );
+
+    if (scheduleResult.rows.length === 0) {
+      // Return empty array if no schedules exist
+      return res.json([]);
+    }
+
+    // Get muscle groups for each schedule
+    const schedules = [];
+    for (const schedule of scheduleResult.rows) {
+      const muscleGroupsResult = await query(
+        `SELECT 
+           smg.muscle_group_id,
+           mg.name as muscle_group_name,
+           smg.order_index
+         FROM schedule_muscle_groups smg
+         JOIN muscle_groups mg ON smg.muscle_group_id = mg.id
+         WHERE smg.schedule_id = $1
+         ORDER BY smg.order_index`,
+        [schedule.id]
+      );
+
+      const muscleGroups = [];
+      for (const muscleGroup of muscleGroupsResult.rows) {
+        // Get exercises for this muscle group
+        const exercisesResult = await query(
+          `SELECT 
+             se.exercise_id,
+             se.exercise_name,
+             se.exercise_type,
+             se.sets,
+             se.reps,
+             se.weight,
+             se.rest_seconds,
+             se.notes,
+             se.order_index
+           FROM schedule_exercises se
+           WHERE se.schedule_id = $1 AND se.muscle_group_id = $2
+           ORDER BY se.order_index`,
+          [schedule.id, muscleGroup.muscle_group_id]
+        );
+
+        // Group exercises by name and combine their sets
+        const exerciseGroups = {};
+        exercisesResult.rows.forEach((exercise) => {
+          const exerciseName = exercise.exercise_name || 'Unknown Exercise';
+          
+          if (!exerciseGroups[exerciseName]) {
+            exerciseGroups[exerciseName] = {
+              exercise_id: exercise.exercise_id,
+              exercise_name: exerciseName,
+              exercise_type: exercise.exercise_type,
+              sets: 0,
+              reps: [],
+              weights: [],
+              rest_seconds: [],
+              notes: exercise.notes,
+              order_index: exercise.order_index
+            };
+          }
+          
+          // Add this set's data
+          exerciseGroups[exerciseName].sets += 1;
+          exerciseGroups[exerciseName].reps.push(exercise.reps);
+          exerciseGroups[exerciseName].weights.push(exercise.weight);
+          exerciseGroups[exerciseName].rest_seconds.push(exercise.rest_seconds);
+        });
+
+        // Convert grouped exercises to array format
+        const exercises = Object.values(exerciseGroups).map((group) => ({
+          exercise_id: group.exercise_id,
+          exercise_name: group.exercise_name,
+          exercise_type: group.exercise_type,
+          sets: group.sets,
+          reps: group.reps.join(', '),
+          weight: group.weights.join(', '),
+          rest_seconds: group.rest_seconds.join(', '),
+          notes: group.notes,
+          order_index: group.order_index
+        }));
+
+        muscleGroups.push({
+          muscle_group_id: muscleGroup.muscle_group_id,
+          muscle_group_name: muscleGroup.muscle_group_name,
+          exercises: exercises
+        });
+      }
+
+      schedules.push({
+        ...schedule,
+        muscle_groups: muscleGroups
+      });
+    }
+
+    res.json(schedules);
+
+  } catch (error) {
+    console.error('Workout schedule error:', error);
+    
+    // Provide more specific error messages
+    if (error.message.includes('column') && error.message.includes('does not exist')) {
+      console.error('Schema mismatch detected. Database needs migration.');
+      res.status(500).json({ 
+        error: 'Database schema needs update. Please run migration script.',
+        details: 'Missing columns: exercise_name, exercise_type'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to get workout schedule' });
+    }
+  }
+});
+
+// Create or update workout schedule for a specific day
+router.post('/workout-schedule', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { dayOfWeek, scheduleName, muscleGroups } = req.body;
+
+    // Start a transaction
+    await query('BEGIN');
+
+    try {
+      // Check if schedule already exists for this day
+      let scheduleId;
+      const existingSchedule = await query(
+        'SELECT id FROM member_workout_schedules WHERE user_id = $1 AND day_of_week = $2 AND is_active = true',
+        [userId, dayOfWeek]
+      );
+
+      if (existingSchedule.rows.length > 0) {
+        // Update existing schedule
+        scheduleId = existingSchedule.rows[0].id;
+        await query(
+          'UPDATE member_workout_schedules SET schedule_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [scheduleName, scheduleId]
+        );
+        
+        // Clear existing muscle groups and exercises
+        await query('DELETE FROM schedule_exercises WHERE schedule_id = $1', [scheduleId]);
+        await query('DELETE FROM schedule_muscle_groups WHERE schedule_id = $1', [scheduleId]);
+      } else {
+        // Create new schedule
+        const newSchedule = await query(
+          'INSERT INTO member_workout_schedules (user_id, day_of_week, schedule_name) VALUES ($1, $2, $3) RETURNING id',
+          [userId, dayOfWeek, scheduleName]
+        );
+        scheduleId = newSchedule.rows[0].id;
+      }
+
+      // Add muscle groups and exercises
+      for (let i = 0; i < muscleGroups.length; i++) {
+        const muscleGroup = muscleGroups[i];
+        
+        // Add muscle group to schedule
+        await query(
+          'INSERT INTO schedule_muscle_groups (schedule_id, muscle_group_id, order_index) VALUES ($1, $2, $3)',
+          [scheduleId, muscleGroup.muscleGroupId, i]
+        );
+
+        // Add exercises for this muscle group
+        for (let j = 0; j < muscleGroup.exercises.length; j++) {
+          const exercise = muscleGroup.exercises[j];
+          
+          let exerciseId = exercise.exerciseId;
+          let exerciseType = 'predefined';
+          let exerciseName = '';
+          
+          // If this is a custom exercise (temporary ID), mark it as custom
+          if (exerciseId > 1000000) { // Temporary ID for custom exercises
+            exerciseId = null; // Set to NULL for custom exercises
+            exerciseType = 'custom';
+            exerciseName = exercise.exerciseName || `Custom Exercise ${Date.now()}`;
+          } else {
+            // For predefined exercises, get the name from the exercises table
+            const exerciseResult = await query(
+              'SELECT name FROM exercises WHERE id = $1',
+              [exerciseId]
+            );
+            exerciseName = exerciseResult.rows[0]?.name || 'Unknown Exercise';
+          }
+
+          // Parse the comma-separated values for sets, reps, weights, and rest times
+          const setCount = parseInt(exercise.sets) || 1;
+          const repsArray = exercise.reps ? exercise.reps.split(',').map(r => r.trim()) : ['8-12'];
+          const weightsArray = exercise.weight ? exercise.weight.split(',').map(w => w.trim()) : ['0'];
+          const restArray = exercise.restSeconds ? exercise.restSeconds.toString().split(',').map(r => parseInt(r.trim()) || 60) : [60];
+
+          // Create individual set entries
+          for (let setIndex = 0; setIndex < setCount; setIndex++) {
+            const setReps = repsArray[setIndex] || repsArray[0] || '8-12';
+            const setWeight = weightsArray[setIndex] || weightsArray[0] || '0';
+            const setRest = restArray[setIndex] || restArray[0] || 60;
+            
+            await query(
+              `INSERT INTO schedule_exercises 
+               (schedule_id, exercise_id, muscle_group_id, exercise_name, exercise_type, sets, reps, weight, rest_seconds, notes, order_index) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              [
+                scheduleId, 
+                exerciseId, 
+                muscleGroup.muscleGroupId, 
+                exerciseName,
+                exerciseType,
+                1, // Each entry represents one set
+                setReps, 
+                parseFloat(setWeight) || 0, 
+                setRest, 
+                exercise.notes || '', 
+                (j * 100) + setIndex // Order index to group sets of same exercise together
+              ]
+            );
+          }
+        }
+      }
+
+      await query('COMMIT');
+      res.json({ success: true, scheduleId });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Create workout schedule error:', error);
+    res.status(500).json({ error: 'Failed to create workout schedule' });
+  }
+});
+
+// Delete workout schedule for a specific day or by schedule ID
+router.delete('/workout-schedule/:identifier', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { identifier } = req.params;
+
+    console.log('Delete workout schedule called with:', { userId, identifier, params: req.params });
+
+    // Check if identifier is a number (schedule ID) or day of week
+    const isScheduleId = !isNaN(identifier);
+    console.log('Is schedule ID?', isScheduleId);
+    
+    let result;
+    if (isScheduleId) {
+      // Delete by schedule ID - first delete related records, then the schedule
+      console.log('Deleting by schedule ID:', parseInt(identifier));
+      
+      // Start a transaction
+      await query('BEGIN');
+      
+      try {
+        // Delete related schedule_exercises first
+        await query(
+          'DELETE FROM schedule_exercises WHERE schedule_id = $1',
+          [parseInt(identifier)]
+        );
+        
+        // Delete related schedule_muscle_groups
+        await query(
+          'DELETE FROM schedule_muscle_groups WHERE schedule_id = $1',
+          [parseInt(identifier)]
+        );
+        
+        // Finally delete the main schedule
+        result = await query(
+          'DELETE FROM member_workout_schedules WHERE id = $1 AND user_id = $2',
+          [parseInt(identifier), userId]
+        );
+        
+        await query('COMMIT');
+        console.log('Schedule ID delete result:', result);
+      } catch (error) {
+        await query('ROLLBACK');
+        throw error;
+      }
+    } else {
+      // Delete by day of week - first delete related records, then the schedule
+      console.log('Deleting by day of week:', parseInt(identifier));
+      
+      // Start a transaction
+      await query('BEGIN');
+      
+      try {
+        // Get the schedule ID first
+        const scheduleResult = await query(
+          'SELECT id FROM member_workout_schedules WHERE user_id = $1 AND day_of_week = $2 AND is_active = true',
+          [userId, parseInt(identifier)]
+        );
+        
+        if (scheduleResult.rows.length === 0) {
+          await query('ROLLBACK');
+          return res.status(404).json({ error: 'Workout schedule not found' });
+        }
+        
+        const scheduleId = scheduleResult.rows[0].id;
+        
+        // Delete related schedule_exercises first
+        await query(
+          'DELETE FROM schedule_exercises WHERE schedule_id = $1',
+          [scheduleId]
+        );
+        
+        // Delete related schedule_muscle_groups
+        await query(
+          'DELETE FROM schedule_muscle_groups WHERE schedule_id = $1',
+          [scheduleId]
+        );
+        
+        // Finally delete the main schedule
+        result = await query(
+          'DELETE FROM member_workout_schedules WHERE id = $1',
+          [scheduleId]
+        );
+        
+        await query('COMMIT');
+        console.log('Day of week delete result:', result);
+      } catch (error) {
+        await query('ROLLBACK');
+        throw error;
+      }
+    }
+
+    if (result.rowCount === 0) {
+      console.log('No rows affected, returning 404');
+      return res.status(404).json({ error: 'Workout schedule not found' });
+    }
+
+    console.log('Successfully deleted, rows affected:', result.rowCount);
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('Delete workout schedule error:', error);
+    console.error('Error details:', { message: error.message, stack: error.stack });
+    res.status(500).json({ error: 'Failed to delete workout schedule', details: error.message });
+  }
+});
+
+// Remove specific exercise from a muscle group
+router.delete('/workout-schedule/:scheduleId/exercise/:exerciseName', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { scheduleId, exerciseName } = req.params;
+
+    // Verify the schedule belongs to the user
+    const scheduleCheck = await query(
+      'SELECT id FROM member_workout_schedules WHERE id = $1 AND user_id = $2 AND is_active = true',
+      [scheduleId, userId]
+    );
+
+    if (scheduleCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Workout schedule not found' });
+    }
+
+    // Remove all sets of the specified exercise
+    const result = await query(
+      'DELETE FROM schedule_exercises WHERE schedule_id = $1 AND exercise_name = $2',
+      [scheduleId, exerciseName]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    res.json({ success: true, removedSets: result.rowCount });
+
+  } catch (error) {
+    console.error('Remove exercise error:', error);
+    res.status(500).json({ error: 'Failed to remove exercise' });
+  }
+});
+
+// Get muscle groups
+router.get('/muscle-groups', verifyMemberToken, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT id, name, description FROM muscle_groups ORDER BY name',
+      []
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Muscle groups error:', error);
+    res.status(500).json({ error: 'Failed to get muscle groups' });
+  }
+});
+
+// Get exercises
+router.get('/exercises', verifyMemberToken, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT id, name, description, primary_muscle_group_id, difficulty_level FROM exercises ORDER BY name',
+      []
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Exercises error:', error);
+    res.status(500).json({ error: 'Failed to get exercises' });
+  }
+});
+
+// Log workout performance
+router.post('/workout-log', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { 
+      workoutDate, 
+      workoutType, 
+      durationMinutes, 
+      caloriesBurned, 
+      notes,
+      exercises,
+      // Enhanced workout logging fields
+      startTime,
+      endTime,
+      energyLevel,
+      difficulty,
+      mood,
+      sleepQuality,
+      hydration,
+      preWorkoutMeal,
+      postWorkoutMeal,
+      supplements,
+      bodyWeight,
+      bodyFatPercentage,
+      muscleSoreness,
+      cardioIntensity,
+      workoutFocus,
+      personalNotes
+    } = req.body;
+
+    // Start a transaction
+    await query('BEGIN');
+
+    try {
+      // Create workout log entry with all enhanced fields
+      const workoutLog = await query(
+        `INSERT INTO workout_logs (
+          user_id, workout_date, workout_type, duration_minutes, calories_burned, notes,
+          start_time, end_time, energy_level, difficulty, mood, sleep_quality, hydration,
+          pre_workout_meal, post_workout_meal, supplements, body_weight, body_fat_percentage,
+          muscle_soreness, cardio_intensity, workout_focus, personal_notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) 
+        RETURNING id`,
+        [
+          userId, 
+          workoutDate, 
+          workoutType, 
+          durationMinutes, 
+          caloriesBurned, 
+          notes,
+          startTime || null,
+          endTime || null,
+          energyLevel || null,
+          difficulty || null,
+          mood || null,
+          sleepQuality || null,
+          hydration || null,
+          preWorkoutMeal || null,
+          postWorkoutMeal || null,
+          supplements || [],
+          bodyWeight || null,
+          bodyFatPercentage || null,
+          muscleSoreness || null,
+          cardioIntensity || null,
+          workoutFocus || null,
+          personalNotes || null
+        ]
+      );
+
+      const workoutLogId = workoutLog.rows[0].id;
+
+      // Log individual exercise performance
+      if (exercises && exercises.length > 0) {
+        for (const exercise of exercises) {
+          // Handle the new exercise structure with multiple sets
+          if (exercise.sets && Array.isArray(exercise.sets)) {
+            for (const set of exercise.sets) {
+              await query(
+                `INSERT INTO exercise_logs (workout_log_id, exercise_name, muscle_group, sets, reps, weight, rest_seconds, rpe, notes)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                [
+                  workoutLogId,
+                  exercise.exerciseName || 'Unknown Exercise',
+                  exercise.muscleGroup || 'Unknown Muscle Group',
+                  1, // Each set is logged separately
+                  set.reps || '',
+                  parseFloat(set.weight) || 0,
+                  set.restSeconds || 60,
+                  set.rpe || 7,
+                  set.notes || ''
+                ]
+              );
+            }
+          } else {
+            // Fallback for old exercise structure
+            await query(
+              `INSERT INTO exercise_logs (workout_log_id, exercise_id, sets, reps, weight, notes)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                workoutLogId,
+                exercise.exerciseId || null,
+                exercise.sets || 1,
+                JSON.stringify(exercise.reps || []), // Store as JSON for flexibility
+                parseFloat(exercise.weight) || 0,
+                exercise.notes || ''
+              ]
+            );
+          }
+        }
+      }
+
+      await query('COMMIT');
+      res.json({ success: true, workoutLogId });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Workout log error:', error);
+    res.status(500).json({ error: 'Failed to log workout' });
+  }
+});
+
+// Get workout history
+router.get('/workout-history', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { limit = 20, offset = 0 } = req.query;
+
+    const result = await query(
+      `SELECT wl.*, 
+              json_agg(
+                json_build_object(
+                  'exercise_id', el.exercise_id,
+                  'exercise_name', e.name,
+                  'sets', el.sets,
+                  'reps', el.reps,
+                  'weight', el.weight,
+                  'notes', el.notes
+                )
+              ) as exercises
+       FROM workout_logs wl
+       LEFT JOIN exercise_logs el ON wl.id = el.workout_log_id
+       LEFT JOIN exercises e ON el.exercise_id = e.id
+       WHERE wl.user_id = $1
+       GROUP BY wl.id
+       ORDER BY wl.workout_date DESC, wl.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, parseInt(limit), parseInt(offset)]
     );
 
     res.json(result.rows);
 
   } catch (error) {
-    console.error('Workout schedule error:', error);
-    res.status(500).json({ error: 'Failed to get workout schedule' });
+    console.error('Workout history error:', error);
+    res.status(500).json({ error: 'Failed to get workout history' });
   }
 });
 

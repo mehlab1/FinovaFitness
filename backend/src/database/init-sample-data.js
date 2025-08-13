@@ -95,6 +95,68 @@ const initializeSampleData = async () => {
         console.log('ℹ️  Muscle groups already exist, skipping...');
       }
 
+      // Check if exercises exist
+      const existingExercises = await client.query('SELECT COUNT(*) FROM exercises');
+      
+      if (existingExercises.rows[0].count === '0') {
+        console.log('🏋️ Creating sample exercises...');
+        
+        // Get muscle group IDs
+        const chestId = await client.query('SELECT id FROM muscle_groups WHERE name = $1', ['Chest']);
+        const backId = await client.query('SELECT id FROM muscle_groups WHERE name = $1', ['Back']);
+        const shouldersId = await client.query('SELECT id FROM muscle_groups WHERE name = $1', ['Shoulders']);
+        const bicepsId = await client.query('SELECT id FROM muscle_groups WHERE name = $1', ['Biceps']);
+        const tricepsId = await client.query('SELECT id FROM muscle_groups WHERE name = $1', ['Triceps']);
+        const legsId = await client.query('SELECT id FROM muscle_groups WHERE name = $1', ['Quadriceps']);
+        
+        const exercises = [
+          // Chest exercises
+          { name: 'Bench Press', description: 'Classic compound chest exercise', muscleGroupId: chestId.rows[0].id, difficulty: 'intermediate' },
+          { name: 'Push-ups', description: 'Bodyweight chest exercise', muscleGroupId: chestId.rows[0].id, difficulty: 'beginner' },
+          { name: 'Dumbbell Flyes', description: 'Isolation chest exercise', muscleGroupId: chestId.rows[0].id, difficulty: 'intermediate' },
+          { name: 'Incline Bench Press', description: 'Upper chest focus', muscleGroupId: chestId.rows[0].id, difficulty: 'intermediate' },
+          
+          // Back exercises
+          { name: 'Pull-ups', description: 'Upper body pulling exercise', muscleGroupId: backId.rows[0].id, difficulty: 'intermediate' },
+          { name: 'Deadlifts', description: 'Posterior chain compound exercise', muscleGroupId: backId.rows[0].id, difficulty: 'advanced' },
+          { name: 'Barbell Rows', description: 'Mid-back focus exercise', muscleGroupId: backId.rows[0].id, difficulty: 'intermediate' },
+          { name: 'Lat Pulldowns', description: 'Latissimus dorsi focus', muscleGroupId: backId.rows[0].id, difficulty: 'beginner' },
+          
+          // Shoulder exercises
+          { name: 'Military Press', description: 'Overhead pressing movement', muscleGroupId: shouldersId.rows[0].id, difficulty: 'intermediate' },
+          { name: 'Lateral Raises', description: 'Side deltoid isolation', muscleGroupId: shouldersId.rows[0].id, difficulty: 'beginner' },
+          { name: 'Front Raises', description: 'Anterior deltoid focus', muscleGroupId: shouldersId.rows[0].id, difficulty: 'beginner' },
+          
+          // Biceps exercises
+          { name: 'Barbell Curls', description: 'Classic bicep curl', muscleGroupId: bicepsId.rows[0].id, difficulty: 'beginner' },
+          { name: 'Hammer Curls', description: 'Forearm and bicep focus', muscleGroupId: bicepsId.rows[0].id, difficulty: 'beginner' },
+          { name: 'Preacher Curls', description: 'Strict form bicep isolation', muscleGroupId: bicepsId.rows[0].id, difficulty: 'intermediate' },
+          
+          // Triceps exercises
+          { name: 'Dips', description: 'Compound tricep exercise', muscleGroupId: tricepsId.rows[0].id, difficulty: 'intermediate' },
+          { name: 'Skull Crushers', description: 'Lying tricep extension', muscleGroupId: tricepsId.rows[0].id, difficulty: 'intermediate' },
+          { name: 'Tricep Pushdowns', description: 'Cable tricep exercise', muscleGroupId: tricepsId.rows[0].id, difficulty: 'beginner' },
+          
+          // Leg exercises
+          { name: 'Squats', description: 'King of leg exercises', muscleGroupId: legsId.rows[0].id, difficulty: 'intermediate' },
+          { name: 'Lunges', description: 'Unilateral leg exercise', muscleGroupId: legsId.rows[0].id, difficulty: 'beginner' },
+          { name: 'Leg Press', description: 'Machine leg exercise', muscleGroupId: legsId.rows[0].id, difficulty: 'beginner' },
+          { name: 'Romanian Deadlifts', description: 'Posterior chain focus', muscleGroupId: legsId.rows[0].id, difficulty: 'advanced' }
+        ];
+
+        for (const exercise of exercises) {
+          await client.query(
+            `INSERT INTO exercises (name, description, primary_muscle_group_id, difficulty_level)
+             VALUES ($1, $2, $3, $4)`,
+            [exercise.name, exercise.description, exercise.muscleGroupId, exercise.difficulty]
+          );
+        }
+        
+        console.log('✅ Sample exercises created');
+      } else {
+        console.log('ℹ️  Exercises already exist, skipping...');
+      }
+
       // Check if sample classes exist
       const existingClasses = await client.query('SELECT COUNT(*) FROM classes');
       

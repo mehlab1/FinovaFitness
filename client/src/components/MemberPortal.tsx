@@ -246,8 +246,8 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
             ? 'filter blur-sm pointer-events-none' 
             : ''
         }`}>
-          <div className="p-6">
-            {renderPage()}
+        <div className="p-6">
+          {renderPage()}
           </div>
         </div>
       </div>
@@ -1641,7 +1641,7 @@ const Membership = ({ user, showToast, membershipData, onMembershipUpdate }: { u
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', password: '' });
-  const [requestId, setRequestId] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<number | null>(null);
   const [showPauseWizard, setShowPauseWizard] = useState(false);
   const [pauseStep, setPauseStep] = useState(1);
   const [selectedPauseDuration, setSelectedPauseDuration] = useState<number>(0);
@@ -1664,8 +1664,8 @@ const Membership = ({ user, showToast, membershipData, onMembershipUpdate }: { u
 
   useEffect(() => {
     if (membershipData) {
-      setLoading(false);
-    }
+        setLoading(false);
+      }
   }, [membershipData]);
 
   const fetchAvailablePlans = async () => {
@@ -1725,9 +1725,11 @@ const Membership = ({ user, showToast, membershipData, onMembershipUpdate }: { u
   };
 
   const confirmPlanChange = async () => {
+    if (!requestId) return; // Add null check
+    
     try {
       const data = await memberApi.confirmPlanChange({
-        requestId,
+        requestId: requestId!, // Use non-null assertion
         email: credentials.email,
         password: credentials.password
       });
@@ -2059,7 +2061,7 @@ const Membership = ({ user, showToast, membershipData, onMembershipUpdate }: { u
                 Change Plan
               </button>
               {membershipData?.subscriptionPaused ? (
-                <button
+              <button
                   onClick={async () => {
                     try {
                       const data = await memberApi.resumeSubscription();
@@ -2083,10 +2085,10 @@ const Membership = ({ user, showToast, membershipData, onMembershipUpdate }: { u
               ) : (
                 <button
                   onClick={handlePauseSubscription}
-                  className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold transition-colors"
-                >
-                  Pause Subscription
-                </button>
+                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold transition-colors"
+              >
+                Pause Subscription
+              </button>
               )}
               <button
                 onClick={handleCancelSubscription}
@@ -2698,106 +2700,554 @@ const Membership = ({ user, showToast, membershipData, onMembershipUpdate }: { u
 };
 
 const WorkoutSchedule = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
-  const [showAddColumn, setShowAddColumn] = useState(false);
-  const [newColumn, setNewColumn] = useState('');
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [workoutData, setWorkoutData] = useState<any[]>([]);
+  const [muscleGroups, setMuscleGroups] = useState<any[]>([]);
+  const [exercises, setExercises] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddMuscleGroup, setShowAddMuscleGroup] = useState(false);
+  const [showAddExercise, setShowAddExercise] = useState(false);
+  const [showWorkoutLog, setShowWorkoutLog] = useState(false);
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<any>(null);
+  const [selectedDay, setSelectedDay] = useState<any>(null);
+  const [customMuscleGroupName, setCustomMuscleGroupName] = useState('');
+  const [scheduleName, setScheduleName] = useState('');
+  const [showRemoveConfirmation, setShowRemoveConfirmation] = useState(false);
+  const [muscleGroupToRemove, setMuscleGroupToRemove] = useState<any>(null);
+  const [customExerciseName, setCustomExerciseName] = useState('');
+  const [exerciseSets, setExerciseSets] = useState<Array<{weight: string, reps: string, restSeconds: number}>>([
+    { weight: '', reps: '8-12', restSeconds: 60 }
+  ]);
+  const [workoutLogData, setWorkoutLogData] = useState({
+    workoutDate: new Date().toISOString().split('T')[0],
+    workoutType: '',
+    durationMinutes: 0,
+    caloriesBurned: 0,
+    notes: '',
+    exercises: [] as any[],
+    // Enhanced workout logging fields
+    startTime: '',
+    endTime: '',
+    energyLevel: 5, // 1-10 scale
+    difficulty: 5, // 1-10 scale
+    mood: 'Good',
+    sleepQuality: 7, // 1-10 scale
+    hydration: 8, // 1-10 scale
+    preWorkoutMeal: '',
+    postWorkoutMeal: '',
+    supplements: [] as string[],
+    bodyWeight: '',
+    bodyFatPercentage: '',
+    muscleSoreness: 'None', // None, Light, Moderate, Heavy
+    cardioIntensity: 'Moderate', // Low, Moderate, High
+    workoutFocus: 'Strength', // Strength, Hypertrophy, Endurance, Power, Flexibility
+    personalNotes: ''
+  });
 
-  const workoutData: { [key: string]: { [key: string]: string[] } } = {
-    Monday: {
-      Shoulders: ['Military Press', 'Lateral Raises', 'Front Raises'],
-      Chest: ['Bench Press', 'Push-ups', 'Dumbbell Flyes'],
-      Biceps: ['Barbell Curls', 'Hammer Curls', 'Preacher Curls']
-    },
-    Tuesday: {
-      Back: ['Pull-ups', 'Deadlifts', 'Rows'],
-      Triceps: ['Dips', 'Skull Crushers', 'Tricep Extensions'],
-      Legs: ['Squats', 'Lunges', 'Calf Raises']
-    },
-    Wednesday: {
-      Chest: ['Incline Bench Press', 'Decline Bench Press', 'Cable Flyes', 'Dumbbell Press', 'Push-ups'],
-      Shoulders: ['Military Press', 'Lateral Raises', 'Front Raises', 'Rear Delt Flyes', 'Arnold Press'],
-      Biceps: ['Barbell Curls', 'Hammer Curls', 'Preacher Curls', 'Concentration Curls', 'Incline Curls'],
-      Triceps: ['Dips', 'Skull Crushers', 'Tricep Extensions', 'Overhead Extensions', 'Rope Pushdowns'],
-      Back: ['Pull-ups', 'Deadlifts', 'Rows', 'Lat Pulldowns', 'Face Pulls'],
-      Legs: ['Squats', 'Lunges', 'Calf Raises', 'Leg Press', 'Romanian Deadlifts']
+  // New state variables for enhanced workout logging
+  const [showExerciseLog, setShowExerciseLog] = useState(false);
+  const [currentExerciseLog, setCurrentExerciseLog] = useState({
+    exerciseName: '',
+    muscleGroup: '',
+    sets: [{ weight: '', reps: '', restSeconds: 60, rpe: 7, notes: '' }]
+  });
+  const [loggedExercises, setLoggedExercises] = useState<Array<{
+    id: number;
+    exerciseName: string;
+    muscleGroup: string;
+    sets: Array<{ weight: string; reps: string; restSeconds: number; rpe: number; notes: string }>;
+  }>>([]);
+  const [showSupplementModal, setShowSupplementModal] = useState(false);
+  const [supplementInput, setSupplementInput] = useState('');
+
+  const days = [
+    { id: 1, name: 'Monday' },
+    { id: 2, name: 'Tuesday' },
+    { id: 3, name: 'Wednesday' },
+    { id: 4, name: 'Thursday' },
+    { id: 5, name: 'Friday' },
+    { id: 6, name: 'Saturday' },
+    { id: 0, name: 'Sunday' }
+  ];
+
+  // Fetch workout data on component mount
+  useEffect(() => {
+    fetchWorkoutData();
+    fetchMuscleGroups();
+    fetchExercises();
+  }, []);
+
+  const fetchWorkoutData = async () => {
+    try {
+      const data = await memberApi.getWorkoutSchedule();
+      setWorkoutData(data || []); // Ensure we always have an array
+    } catch (error) {
+      console.error('Failed to fetch workout data:', error);
+      // Don't show error toast for workout data, just set empty array
+      setWorkoutData([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const fetchMuscleGroups = async () => {
+    try {
+      const data = await memberApi.getMuscleGroups();
+      setMuscleGroups(data || []); // Ensure we always have an array
+    } catch (error) {
+      console.error('Failed to fetch muscle groups:', error);
+      setMuscleGroups([]); // Set empty array on error
+    }
+  };
 
-  const handleAddColumn = () => {
-    if (newColumn.trim() && expandedDay) {
-      if (workoutData[expandedDay]) {
-        workoutData[expandedDay][newColumn] = [];
+  const fetchExercises = async () => {
+    try {
+      const data = await memberApi.getExercises();
+      setExercises(data || []); // Ensure we always have an array
+    } catch (error) {
+      console.error('Failed to fetch exercises:', error);
+      setExercises([]); // Set empty array on error
+    }
+  };
+
+  const getWorkoutForDay = (dayId: number) => {
+    return workoutData.find(workout => workout.day_of_week === dayId);
+  };
+
+  const handleAddMuscleGroup = async (dayId: number, muscleGroupId: number | null, customName: string, scheduleName: string) => {
+    try {
+      let muscleGroupName = customName;
+      let muscleGroupIdToUse = muscleGroupId;
+      
+      // If no custom name provided, use the selected muscle group
+      if (!customName && muscleGroupId) {
+        const muscleGroup = muscleGroups.find(mg => mg.id === muscleGroupId);
+        if (!muscleGroup) return;
+        muscleGroupName = muscleGroup.name;
+        muscleGroupIdToUse = muscleGroup.id;
+      } else if (customName && !muscleGroupId) {
+        // Custom name provided, create a temporary ID for display
+        muscleGroupIdToUse = Date.now(); // Temporary ID for custom muscle groups
       }
-      setNewColumn('');
-      setShowAddColumn(false);
-      showToast(`Added new muscle group: ${newColumn}`, 'success');
+
+      // Check if schedule already exists for this day
+      const existingSchedule = workoutData.find(w => w.day_of_week === dayId);
+      
+      if (existingSchedule) {
+        // Add to existing schedule
+        const updatedMuscleGroups = [
+          ...existingSchedule.muscle_groups,
+          {
+            muscle_group_id: muscleGroupIdToUse,
+            muscle_group_name: muscleGroupName,
+            exercises: []
+          }
+        ];
+
+        const updatedSchedule = {
+          dayOfWeek: dayId,
+          scheduleName: scheduleName || existingSchedule.schedule_name,
+          muscleGroups: updatedMuscleGroups.map((mg: any) => ({
+            muscleGroupId: mg.muscle_group_id,
+            exercises: mg.exercises || []
+          }))
+        };
+
+        await memberApi.createWorkoutSchedule(updatedSchedule);
+        showToast(`Added ${muscleGroupName} to ${days.find(d => d.id === dayId)?.name}`, 'success');
+      } else {
+        // Create new schedule
+        const newSchedule = {
+          dayOfWeek: dayId,
+          scheduleName: scheduleName || `${muscleGroupName} Day`,
+          muscleGroups: [{
+            muscleGroupId: muscleGroupIdToUse,
+            exercises: []
+          }]
+        };
+
+        await memberApi.createWorkoutSchedule(newSchedule);
+        showToast(`Created ${scheduleName || muscleGroupName + ' Day'} for ${days.find(d => d.id === dayId)?.name}`, 'success');
+      }
+
+      fetchWorkoutData();
+      setShowAddMuscleGroup(false);
+      setCustomMuscleGroupName(''); // Reset custom name
+      setSelectedMuscleGroup(null); // Reset selection
+    } catch (error) {
+      console.error('Failed to add muscle group:', error);
+      showToast('Failed to add muscle group', 'error');
     }
   };
 
-  const handleAddExercise = (day: string, muscleGroup: string) => {
-    const exerciseName = prompt(`Add exercise for ${muscleGroup}:`);
-    if (exerciseName && workoutData[day] && workoutData[day][muscleGroup]) {
-      workoutData[day][muscleGroup].push(exerciseName);
-      showToast(`Added exercise: ${exerciseName}`, 'success');
+  const handleRemoveMuscleGroup = async (dayId: number, muscleGroupId: number) => {
+    try {
+      const existingSchedule = workoutData.find(w => w.day_of_week === dayId);
+      if (!existingSchedule) return;
+
+      // Remove the specific muscle group
+      const updatedMuscleGroups = existingSchedule.muscle_groups.filter(
+        (mg: any) => mg.muscle_group_id !== muscleGroupId
+      );
+
+      if (updatedMuscleGroups.length === 0) {
+        // If no muscle groups left, delete the entire schedule using the schedule ID
+        await memberApi.deleteWorkoutSchedule(existingSchedule.id);
+        showToast(`Removed workout schedule for ${days.find(d => d.id === dayId)?.name}`, 'success');
+      } else {
+        // Update the schedule with remaining muscle groups
+        const updatedSchedule = {
+          dayOfWeek: dayId,
+          scheduleName: existingSchedule.schedule_name,
+          muscleGroups: updatedMuscleGroups.map((mg: any) => ({
+            muscleGroupId: mg.muscle_group_id,
+            exercises: mg.exercises || []
+          }))
+        };
+
+        await memberApi.createWorkoutSchedule(updatedSchedule);
+        showToast(`Removed muscle group from ${days.find(d => d.id === dayId)?.name}`, 'success');
+      }
+
+      fetchWorkoutData();
+    } catch (error) {
+      console.error('Failed to remove muscle group:', error);
+      showToast('Failed to remove muscle group', 'error');
     }
   };
 
-  const getAISuggestion = (day: string) => {
-    if (day === 'Monday' || day === 'Tuesday') {
-      return { message: 'Perfect plan for your goals and BMI!', color: 'text-green-400', bgColor: 'bg-green-500' };
-    } else if (day === 'Wednesday') {
-      return { message: 'This is not healthy! Please consult professional help.', color: 'text-red-400', bgColor: 'bg-red-500' };
+  const handleRemoveExercise = async (scheduleId: number, exerciseName: string) => {
+    try {
+      await memberApi.removeExercise(scheduleId, exerciseName);
+      showToast(`Removed ${exerciseName} from workout`, 'success');
+      fetchWorkoutData();
+    } catch (error) {
+      console.error('Failed to remove exercise:', error);
+      showToast('Failed to remove exercise', 'error');
     }
-    return { message: 'Good workout plan!', color: 'text-blue-400', bgColor: 'bg-blue-500' };
   };
+
+  const handleAddExercise = async (scheduleId: number, muscleGroupId: number, exerciseId: number | null, exerciseName: string, sets: Array<{weight: string, reps: string, restSeconds: number}>) => {
+    try {
+      let exerciseIdToUse = exerciseId;
+      
+      // If no exerciseId provided, create a temporary one for custom exercises
+      if (!exerciseId) {
+        exerciseIdToUse = Date.now(); // Temporary ID for custom exercises
+      }
+
+      // Get current schedule and add exercise
+      const currentSchedule = workoutData.find(w => w.id === scheduleId);
+      if (!currentSchedule) return;
+
+      const updatedMuscleGroups = currentSchedule.muscle_groups.map((mg: any) => {
+        if (mg.muscle_group_id === muscleGroupId) {
+          // Create a single exercise entry with all sets
+          const newExercise = {
+            exerciseId: exerciseIdToUse,
+            exerciseName: exerciseName, // Store the actual exercise name
+            sets: sets.length, // Total number of sets
+            reps: sets.map(set => set.reps).join(', '), // Combine all reps
+            weight: sets.map(set => set.weight).join(', '), // Combine all weights
+            restSeconds: sets.map(set => set.restSeconds || 60).join(', '), // Combine all rest times
+            notes: '', // Default empty notes
+            orderIndex: mg.exercises?.length || 0
+          };
+          
+          const updatedExercises = [...(mg.exercises || []), newExercise];
+          return { ...mg, exercises: updatedExercises };
+        }
+        return mg;
+      });
+
+      const updatedSchedule = {
+        dayOfWeek: currentSchedule.day_of_week,
+        scheduleName: currentSchedule.schedule_name,
+        muscleGroups: updatedMuscleGroups.map((mg: any) => ({
+          muscleGroupId: mg.muscle_group_id,
+          exercises: mg.exercises || []
+        }))
+      };
+
+      await memberApi.createWorkoutSchedule(updatedSchedule);
+      showToast(`Added ${exerciseName} with ${sets.length} set(s) to workout`, 'success');
+      fetchWorkoutData();
+      setShowAddExercise(false);
+    } catch (error) {
+      console.error('Failed to add exercise:', error);
+      showToast('Failed to add exercise', 'error');
+    }
+  };
+
+  // Helper functions for managing exercise sets
+  const addExerciseSet = () => {
+    setExerciseSets([...exerciseSets, { weight: '', reps: '8-12', restSeconds: 60 }]);
+  };
+
+  const removeExerciseSet = (index: number) => {
+    if (exerciseSets.length > 1) {
+      setExerciseSets(exerciseSets.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateExerciseSet = (index: number, field: 'weight' | 'reps' | 'restSeconds', value: string | number) => {
+    const updatedSets = [...exerciseSets];
+    if (field === 'weight') {
+      // For weight, ensure it's a valid number or empty string
+      const weightValue = typeof value === 'string' ? value : value.toString();
+      updatedSets[index] = { ...updatedSets[index], [field]: weightValue };
+    } else {
+      updatedSets[index] = { ...updatedSets[index], [field]: value };
+    }
+    setExerciseSets(updatedSets);
+  };
+
+  // Enhanced workout logging helper functions
+  const addExerciseSetToLog = () => {
+    setCurrentExerciseLog(prev => ({
+      ...prev,
+      sets: [...prev.sets, { weight: '', reps: '', restSeconds: 60, rpe: 7, notes: '' }]
+    }));
+  };
+
+  const removeExerciseSetFromLog = (index: number) => {
+    if (currentExerciseLog.sets.length > 1) {
+      setCurrentExerciseLog(prev => ({
+        ...prev,
+        sets: prev.sets.filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  const updateExerciseSetInLog = (index: number, field: string, value: string | number) => {
+    setCurrentExerciseLog(prev => ({
+      ...prev,
+      sets: prev.sets.map((set, i) => 
+        i === index ? { ...set, [field]: value } : set
+      )
+    }));
+  };
+
+  const addExerciseToLog = () => {
+    if (currentExerciseLog.exerciseName.trim() && currentExerciseLog.muscleGroup.trim()) {
+      setLoggedExercises(prev => [...prev, { ...currentExerciseLog, id: Date.now() }]);
+      setCurrentExerciseLog({
+        exerciseName: '',
+        muscleGroup: '',
+        sets: [{ weight: '', reps: '', restSeconds: 60, rpe: 7, notes: '' }]
+      });
+      setShowExerciseLog(false);
+    }
+  };
+
+  const removeExerciseFromLog = (exerciseId: number) => {
+    setLoggedExercises(prev => prev.filter(ex => ex.id !== exerciseId));
+  };
+
+  const addSupplement = () => {
+    if (supplementInput.trim()) {
+      setWorkoutLogData(prev => ({
+        ...prev,
+        supplements: [...prev.supplements, supplementInput.trim()]
+      }));
+      setSupplementInput('');
+      setShowSupplementModal(false);
+    }
+  };
+
+  const removeSupplement = (index: number) => {
+    setWorkoutLogData(prev => ({
+      ...prev,
+      supplements: prev.supplements.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleLogWorkout = async () => {
+    try {
+      // Include logged exercises in the workout data
+      const workoutDataToLog = {
+        ...workoutLogData,
+        exercises: loggedExercises
+      };
+      
+      await memberApi.logWorkout(workoutDataToLog);
+      showToast('Workout logged successfully!', 'success');
+      setShowWorkoutLog(false);
+      
+      // Reset all workout log data
+      setWorkoutLogData({
+        workoutDate: new Date().toISOString().split('T')[0],
+        workoutType: '',
+        durationMinutes: 0,
+        caloriesBurned: 0,
+        notes: '',
+        exercises: [],
+        // Enhanced workout logging fields
+        startTime: '',
+        endTime: '',
+        energyLevel: 5, // 1-10 scale
+        difficulty: 5, // 1-10 scale
+        mood: 'Good',
+        sleepQuality: 7, // 1-10 scale
+        hydration: 8, // 1-10 scale
+        preWorkoutMeal: '',
+        postWorkoutMeal: '',
+        supplements: [] as string[],
+        bodyWeight: '',
+        bodyFatPercentage: '',
+        muscleSoreness: 'None', // None, Light, Moderate, Heavy
+        cardioIntensity: 'Moderate', // Low, Moderate, High
+        workoutFocus: 'Strength', // Strength, Hypertrophy, Endurance, Power, Flexibility
+        personalNotes: ''
+      });
+      
+      // Reset logged exercises
+      setLoggedExercises([]);
+    } catch (error) {
+      console.error('Failed to log workout:', error);
+      showToast('Failed to log workout', 'error');
+    }
+  };
+
+  const getAISuggestion = (day: number) => {
+    const workout = getWorkoutForDay(day);
+    if (!workout || !workout.muscle_groups || workout.muscle_groups.length === 0) {
+      return { 
+        message: 'No workout plan set for this day. Add exercises to get personalized AI suggestions!', 
+        color: 'text-blue-400', 
+        bgColor: 'bg-blue-500' 
+      };
+    }
+    
+    // Simple AI suggestion based on workout intensity
+    const totalExercises = workout.muscle_groups.reduce((total: number, mg: any) => 
+      total + (mg.exercises?.length || 0), 0);
+    
+    if (totalExercises > 8) {
+      return { 
+        message: 'High volume workout detected! Consider splitting into two sessions or reducing volume for better recovery.', 
+        color: 'text-orange-400', 
+        bgColor: 'bg-orange-500' 
+      };
+    } else if (totalExercises > 5) {
+      return { 
+        message: 'Great balanced workout! This volume should provide optimal muscle stimulation and recovery.', 
+        color: 'text-green-400', 
+        bgColor: 'bg-green-500' 
+      };
+    } else {
+      return { 
+        message: 'Moderate workout volume. Consider adding 1-2 more exercises for better muscle group coverage.', 
+        color: 'text-blue-400', 
+        bgColor: 'bg-blue-500' 
+      };
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-fade-in flex items-center justify-center h-64">
+        <div className="text-center">
+          <i className="fas fa-spinner fa-spin text-4xl text-blue-400 mb-4"></i>
+          <p className="text-gray-300">Loading workout schedule...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-blue-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
           Weekly Workout Schedule
         </h2>
+          <button
+            onClick={() => setShowWorkoutLog(true)}
+            className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+          >
+            <i className="fas fa-plus mr-2"></i>Log Today's Workout
+          </button>
+        </div>
         
         {/* Weekly Overview */}
         <div className="glass-card p-6 rounded-2xl mb-6">
           <div className="grid grid-cols-7 gap-4">
-            {days.map(day => (
+            {days.map(day => {
+              const workout = getWorkoutForDay(day.id);
+              const muscleGroupCount = workout?.muscle_groups?.length || 0;
+              
+              return (
               <button
-                key={day}
-                onClick={() => setExpandedDay(expandedDay === day ? null : day)}
+                  key={day.id}
+                  onClick={() => setExpandedDay(expandedDay === day.id ? null : day.id)}
                 className={`p-4 rounded-lg text-center transition-all duration-300 ${
-                  expandedDay === day 
+                    expandedDay === day.id 
                     ? 'bg-blue-500 text-white' 
                     : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
                 }`}
               >
-                <div className="font-bold">{day}</div>
+                  <div className="font-bold">{day.name}</div>
                 <div className="text-sm opacity-75">
-                  {workoutData[day as keyof typeof workoutData] ? 
-                    Object.keys(workoutData[day as keyof typeof workoutData]).length + ' groups' : 
-                    'No plan'
-                  }
+                    {muscleGroupCount > 0 ? `${muscleGroupCount} groups` : 'No plan'}
                 </div>
+                  {/* Show schedule name if it exists */}
+                  {workout?.schedule_name && (
+                    <div className="text-xs opacity-60 mt-1 truncate">
+                      {workout.schedule_name}
+                    </div>
+                  )}
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
 
         {/* Expanded Day View */}
-        {expandedDay && workoutData[expandedDay as keyof typeof workoutData] && (
+        {expandedDay !== null && (
           <div className="glass-card p-6 rounded-2xl mb-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-blue-400">{expandedDay} Workout</h3>
+              <div>
+                <h3 className="text-xl font-bold text-blue-400">
+                  {days.find(d => d.id === expandedDay)?.name} Workout
+                </h3>
+                {/* Display schedule name if it exists */}
+                {(() => {
+                  const workout = getWorkoutForDay(expandedDay);
+                  return workout?.schedule_name ? (
+                    <p className="text-sm text-gray-400 mt-1">
+                      {workout.schedule_name}
+                    </p>
+                  ) : null;
+                })()}
+              </div>
               <button
-                onClick={() => setShowAddColumn(true)}
+                onClick={() => {
+                  setSelectedDay(expandedDay);
+                  setShowAddMuscleGroup(true);
+                }}
                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
               >
                 Add Muscle Group
               </button>
             </div>
 
+            {(() => {
+              const workout = getWorkoutForDay(expandedDay);
+              if (!workout || !workout.muscle_groups || workout.muscle_groups.length === 0) {
+                return (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-4">
+                      <i className="fas fa-dumbbell text-4xl mb-3"></i>
+                      <p className="text-lg">No workout plan set for {days.find(d => d.id === expandedDay)?.name}</p>
+                      <p className="text-sm text-gray-500 mt-2">Click "Add Muscle Group" to start building your workout plan</p>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <>
             {/* Workout Table */}
             <div className="overflow-x-auto minimal-scroll">
               <table className="w-full">
@@ -2809,23 +3259,79 @@ const WorkoutSchedule = ({ showToast }: { showToast: (message: string, type?: 's
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(workoutData[expandedDay as keyof typeof workoutData]).map(([muscleGroup, exercises]) => (
-                    <tr key={muscleGroup} className="border-b border-gray-700">
-                      <td className="p-3 font-semibold text-green-400">{muscleGroup}</td>
+                        {workout.muscle_groups.map((muscleGroup: any) => (
+                          <tr key={muscleGroup.muscle_group_id} className="border-b border-gray-700">
+                            <td className="p-3 font-semibold text-green-400">{muscleGroup.muscle_group_name}</td>
                       <td className="p-3">
-                        <div className="space-y-1">
-                          {exercises.map((exercise, index) => (
-                            <div key={index} className="text-gray-300">• {exercise}</div>
-                          ))}
+                              <div className="space-y-2">
+                                {muscleGroup.exercises && muscleGroup.exercises.length > 0 ? (
+                                  (() => {
+                                    return muscleGroup.exercises.map((exercise: any) => {
+                                      // Parse the comma-separated values
+                                      const exerciseName = exercise.exercise_name || 'Unknown Exercise';
+                                      const weights = exercise.weight ? exercise.weight.split(',').map((w: string) => w.trim()) : ['0'];
+                                      const reps = exercise.reps ? exercise.reps.split(',').map((r: string) => r.trim()) : ['8-12'];
+                                      const restTimes = exercise.rest_seconds ? exercise.rest_seconds.split(',').map((r: string) => r.trim()) : ['60'];
+                                      const setCount = parseInt(exercise.sets) || 1;
+                                      
+                                      return (
+                                        <div key={`${exerciseName}-${exercise.exercise_id}`} className="bg-gray-800 p-3 rounded-lg">
+                                          <div className="flex justify-between items-center mb-2">
+                                            <div className="font-medium text-white">{exerciseName}</div>
+                                            <button
+                                              onClick={() => {
+                                                const currentSchedule = workoutData.find(w => w.day_of_week === expandedDay);
+                                                if (currentSchedule) {
+                                                  handleRemoveExercise(currentSchedule.id, exerciseName);
+                                                }
+                                              }}
+                                              className="text-red-400 hover:text-red-300 text-sm bg-red-500/10 hover:bg-red-500/20 p-1 rounded-full transition-all duration-200"
+                                              title="Remove exercise"
+                                            >
+                                              <i className="fas fa-times"></i>
+                                            </button>
+                                          </div>
+                                          <div className="space-y-1">
+                                            {Array.from({ length: setCount }, (_, setIndex) => (
+                                              <div key={setIndex} className="flex items-center space-x-3 text-xs text-gray-300 bg-gray-700 px-2 py-1 rounded">
+                                                <span className="font-medium">Set {setIndex + 1}:</span>
+                                                <span>Weight: {weights[setIndex] || weights[0] || '0'}kg</span>
+                                                <span>Reps: {reps[setIndex] || reps[0] || '8-12'}</span>
+                                                <span>Rest: {restTimes[setIndex] || restTimes[0] || '60'}s</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    });
+                                  })()
+                                ) : (
+                                  <div className="text-gray-500 text-sm">No exercises added</div>
+                                )}
                         </div>
                       </td>
                       <td className="p-3">
+                              <div className="flex space-x-2">
                         <button
-                          onClick={() => handleAddExercise(expandedDay, muscleGroup)}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
-                        >
-                          <i className="fas fa-plus mr-1"></i>Add Exercise
+                                  onClick={() => {
+                                    setSelectedMuscleGroup(muscleGroup);
+                                    setSelectedDay(expandedDay);
+                                    setShowAddExercise(true);
+                                  }}
+                                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+                                >
+                                  <i className="fas fa-plus mr-2"></i>Add Exercise
                         </button>
+                                <button
+                                  onClick={() => {
+                                    setMuscleGroupToRemove(muscleGroup);
+                                    setShowRemoveConfirmation(true);
+                                  }}
+                                  className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-red-500/25 hover:shadow-red-500/40"
+                                >
+                                  <i className="fas fa-trash mr-2"></i>Remove
+                                </button>
+                              </div>
                       </td>
                     </tr>
                   ))}
@@ -2834,6 +3340,7 @@ const WorkoutSchedule = ({ showToast }: { showToast: (message: string, type?: 's
             </div>
 
             {/* AI Suggestions Bar */}
+                  {expandedDay !== null && (
             <div className={`mt-6 p-4 rounded-lg ${getAISuggestion(expandedDay).bgColor} bg-opacity-20 border border-current`}>
               <div className="flex items-center">
                 <i className="fas fa-robot mr-3 text-2xl"></i>
@@ -2845,32 +3352,836 @@ const WorkoutSchedule = ({ showToast }: { showToast: (message: string, type?: 's
                 </div>
               </div>
             </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
-        {/* Add Column Modal */}
-        {showAddColumn && (
+        {/* Add Muscle Group Modal */}
+        {showAddMuscleGroup && (
           <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
             <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
               <h3 className="text-xl font-bold mb-4 text-green-400">Add Muscle Group</h3>
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Muscle Group Name</label>
+                  <div className="relative">
                 <input
                   type="text"
-                  value={newColumn}
-                  onChange={(e) => setNewColumn(e.target.value)}
-                  placeholder="Muscle group name"
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"
-                />
+                      value={customMuscleGroupName}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCustomMuscleGroupName(value);
+                        
+                        // Check if the typed value matches any predefined muscle group
+                        const matchingGroup = muscleGroups.find(mg => 
+                          mg.name.toLowerCase().includes(value.toLowerCase())
+                        );
+                        
+                        if (matchingGroup && value.toLowerCase() === matchingGroup.name.toLowerCase()) {
+                          setSelectedMuscleGroup(matchingGroup);
+                        } else {
+                          setSelectedMuscleGroup(null);
+                        }
+                      }}
+                      placeholder="Type custom name or select from list"
+                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none pr-10"
+                    />
+                    <button
+                      onClick={() => setCustomMuscleGroupName('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  </div>
+                  
+                  {/* Dropdown suggestions */}
+                  {customMuscleGroupName.length > 0 && (
+                    <div className="mt-2 max-h-32 overflow-y-auto bg-gray-800 rounded-lg border border-gray-600">
+                      {muscleGroups
+                        .filter(mg => mg.name.toLowerCase().includes(customMuscleGroupName.toLowerCase()))
+                        .map(mg => (
+                          <button
+                            key={mg.id}
+                            onClick={() => {
+                              setCustomMuscleGroupName(mg.name);
+                              setSelectedMuscleGroup(mg);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+                          >
+                            {mg.name}
+                          </button>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+
+                {/* Schedule Name - Only show if this is the first muscle group */}
+                {(() => {
+                  const workout = getWorkoutForDay(selectedDay);
+                  const isFirstMuscleGroup = !workout || !workout.muscle_groups || workout.muscle_groups.length === 0;
+                  
+                  return isFirstMuscleGroup ? (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Schedule Name (Optional)</label>
+                      <input
+                        type="text"
+                        value={scheduleName}
+                        onChange={(e) => setScheduleName(e.target.value)}
+                        placeholder="e.g., Push Day, Upper Body"
+                        className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none"
+                      />
+                    </div>
+                  ) : null;
+                })()}
+
                 <div className="flex space-x-4">
                   <button
-                    onClick={handleAddColumn}
+                    onClick={() => {
+                      if (selectedDay !== null && customMuscleGroupName.trim()) {
+                        // Check if this is the first muscle group to determine if we should use schedule name
+                        const workout = getWorkoutForDay(selectedDay);
+                        const isFirstMuscleGroup = !workout || !workout.muscle_groups || workout.muscle_groups.length === 0;
+                        
+                        if (isFirstMuscleGroup) {
+                          // First muscle group - use schedule name if provided
+                          handleAddMuscleGroup(selectedDay, selectedMuscleGroup?.id || null, customMuscleGroupName.trim(), scheduleName);
+                        } else {
+                          // Additional muscle groups - don't use schedule name
+                          handleAddMuscleGroup(selectedDay, selectedMuscleGroup?.id || null, customMuscleGroupName.trim(), '');
+                        }
+                      }
+                    }}
                     className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                    disabled={!customMuscleGroupName.trim()}
                   >
                     Add Group
                   </button>
                   <button
-                    onClick={() => setShowAddColumn(false)}
+                    onClick={() => {
+                      setShowAddMuscleGroup(false);
+                      setCustomMuscleGroupName('');
+                      setSelectedMuscleGroup(null);
+                      setScheduleName('');
+                    }}
                     className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Exercise Modal */}
+        {showAddExercise && selectedMuscleGroup && (
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+            <div className="glass-card p-8 rounded-3xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-blue-400/20 shadow-2xl shadow-blue-500/10">
+              <div className="text-center mb-6">
+                <h3 className="text-2xl font-bold text-blue-400 mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>Add Exercise</h3>
+                <p className="text-gray-400 text-sm">Configure your exercise with custom sets and parameters</p>
+      </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-3 text-blue-300">Exercise Name</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={customExerciseName}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCustomExerciseName(value);
+                        
+                        // Check if the typed value matches any predefined exercise
+                        const matchingExercise = exercises.find(ex => 
+                          ex.name.toLowerCase().includes(value.toLowerCase())
+                        );
+                        
+                        if (matchingExercise && value.toLowerCase() === matchingExercise.name.toLowerCase()) {
+                          // Auto-select the matching exercise
+                        }
+                      }}
+                      placeholder="Type custom exercise name or select from suggestions"
+                      className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 pr-10 text-white placeholder-gray-500 transition-all duration-200"
+                    />
+                    <button
+                      onClick={() => setCustomExerciseName('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 p-1 rounded-full transition-all duration-200"
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  </div>
+                  
+                  {/* Exercise suggestions */}
+                  {customExerciseName.length > 0 && (
+                    <div className="mt-3 max-h-32 overflow-y-auto bg-gray-800/50 rounded-xl border border-blue-400/30 shadow-lg">
+                      {exercises
+                        .filter(ex => 
+                          ex.name.toLowerCase().includes(customExerciseName.toLowerCase()) &&
+                          (ex.primary_muscle_group_id === selectedMuscleGroup.muscle_group_id || !selectedMuscleGroup.muscle_group_id)
+                        )
+                        .map(ex => (
+                          <button
+                            key={ex.id}
+                            onClick={() => {
+                              setCustomExerciseName(ex.name);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-blue-500/10 text-gray-300 hover:text-blue-300 transition-all duration-200 border-b border-blue-400/10 last:border-b-0"
+                          >
+                            {ex.name}
+                          </button>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+
+                {/* Sets Management */}
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <label className="block text-sm font-medium text-blue-300">Exercise Sets</label>
+                    <button
+                      onClick={addExerciseSet}
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+                    >
+                      <i className="fas fa-plus mr-2"></i>Add Set
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {exerciseSets.map((set, index) => (
+                      <div key={index} className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-4 rounded-2xl border border-blue-400/20 shadow-lg">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-sm font-medium text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full">Set {index + 1}</span>
+                          {exerciseSets.length > 1 && (
+                            <button
+                              onClick={() => removeExerciseSet(index)}
+                              className="text-red-400 hover:text-red-300 text-sm bg-red-500/10 hover:bg-red-500/20 p-2 rounded-full transition-all duration-200"
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-xs text-blue-300 mb-2 font-medium">Weight (kg)</label>
+                            <input
+                              type="text"
+                              value={set.weight}
+                              onChange={(e) => updateExerciseSet(index, 'weight', e.target.value)}
+                              placeholder="0"
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-blue-400/30 rounded-xl text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 text-white placeholder-gray-500 transition-all duration-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-blue-300 mb-2 font-medium">Reps</label>
+                            <input
+                              type="text"
+                              value={set.reps}
+                              onChange={(e) => updateExerciseSet(index, 'reps', e.target.value)}
+                              placeholder="8-12"
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-blue-400/30 rounded-xl text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 text-white placeholder-gray-500 transition-all duration-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-blue-300 mb-2 font-medium">Rest (sec)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={set.restSeconds}
+                              onChange={(e) => updateExerciseSet(index, 'restSeconds', parseInt(e.target.value) || 60)}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-blue-400/30 rounded-xl text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 text-white placeholder-gray-500 transition-all duration-200"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mt-8">
+                  <button
+                    onClick={() => {
+                      if (selectedDay !== null && customExerciseName.trim()) {
+                        const currentSchedule = workoutData.find(w => w.day_of_week === selectedDay);
+                        if (currentSchedule) {
+                          // Add exercise with multiple sets
+                          handleAddExercise(
+                            currentSchedule.id,
+                            selectedMuscleGroup.muscle_group_id,
+                            null, // No predefined exercise ID for custom exercises
+                            customExerciseName.trim(),
+                            exerciseSets
+                          );
+                        }
+                      }
+                    }}
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!customExerciseName.trim() || exerciseSets.length === 0}
+                  >
+                    <i className="fas fa-plus mr-2"></i>Add Exercise
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddExercise(false);
+                      setCustomExerciseName('');
+                      setExerciseSets([{ weight: '', reps: '8-12', restSeconds: 60 }]);
+                    }}
+                    className="flex-1 bg-gray-600/50 hover:bg-gray-600 text-white py-3 rounded-xl font-semibold transition-all duration-200 border border-gray-500/30 hover:border-gray-500/50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Enhanced Workout Log Modal */}
+        {showWorkoutLog && (
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+            <div className="glass-card p-8 rounded-3xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-blue-400/20 shadow-2xl shadow-blue-500/10">
+              <div className="text-center mb-6">
+                <h3 className="text-3xl font-bold text-blue-400 mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>
+                  Log Your Workout
+                </h3>
+                <p className="text-gray-400">Track every detail of your fitness journey</p>
+              </div>
+
+              <div className="space-y-6">
+                {/* Basic Workout Info */}
+                <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 rounded-2xl border border-blue-400/20">
+                  <h4 className="text-xl font-semibold text-blue-400 mb-4">Basic Information</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Workout Date</label>
+                      <input
+                        type="date"
+                        value={workoutLogData.workoutDate}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, workoutDate: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Workout Type</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Push Day, Cardio, Strength"
+                        value={workoutLogData.workoutType}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, workoutType: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Start Time</label>
+                      <input
+                        type="time"
+                        value={workoutLogData.startTime}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, startTime: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">End Time</label>
+                      <input
+                        type="time"
+                        value={workoutLogData.endTime}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, endTime: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white transition-all duration-200"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Performance Metrics */}
+                <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 rounded-2xl border border-blue-400/20">
+                  <h4 className="text-xl font-semibold text-blue-400 mb-4">Performance Metrics</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Duration (minutes)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={workoutLogData.durationMinutes}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, durationMinutes: parseInt(e.target.value) || 0 })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Calories Burned</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={workoutLogData.caloriesBurned}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, caloriesBurned: parseInt(e.target.value) || 0 })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Energy Level (1-10)</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={workoutLogData.energyLevel}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, energyLevel: parseInt(e.target.value) })}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                      />
+                      <div className="text-center text-sm text-gray-400 mt-1">{workoutLogData.energyLevel}/10</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Difficulty (1-10)</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={workoutLogData.difficulty}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, difficulty: parseInt(e.target.value) })}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                      />
+                      <div className="text-center text-sm text-gray-400 mt-1">{workoutLogData.difficulty}/10</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Body Metrics */}
+                <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 rounded-2xl border border-blue-400/20">
+                  <h4 className="text-xl font-semibold text-blue-400 mb-4">Body Metrics</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Body Weight (kg)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={workoutLogData.bodyWeight}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, bodyWeight: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Body Fat %</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={workoutLogData.bodyFatPercentage}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, bodyFatPercentage: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Muscle Soreness</label>
+                      <select
+                        value={workoutLogData.muscleSoreness}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, muscleSoreness: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white transition-all duration-200"
+                      >
+                        <option value="None">None</option>
+                        <option value="Light">Light</option>
+                        <option value="Moderate">Moderate</option>
+                        <option value="Heavy">Heavy</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Workout Focus</label>
+                      <select
+                        value={workoutLogData.workoutFocus}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, workoutFocus: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white transition-all duration-200"
+                      >
+                        <option value="Strength">Strength</option>
+                        <option value="Hypertrophy">Hypertrophy</option>
+                        <option value="Endurance">Endurance</option>
+                        <option value="Power">Power</option>
+                        <option value="Flexibility">Flexibility</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Nutrition & Wellness */}
+                <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 rounded-2xl border border-blue-400/20">
+                  <h4 className="text-xl font-semibold text-blue-400 mb-4">Nutrition & Wellness</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Pre-Workout Meal</label>
+                      <input
+                        type="text"
+                        placeholder="What did you eat before working out?"
+                        value={workoutLogData.preWorkoutMeal}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, preWorkoutMeal: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Post-Workout Meal</label>
+                      <input
+                        type="text"
+                        placeholder="What did you eat after working out?"
+                        value={workoutLogData.postWorkoutMeal}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, postWorkoutMeal: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Sleep Quality (1-10)</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={workoutLogData.sleepQuality}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, sleepQuality: parseInt(e.target.value) })}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                      />
+                      <div className="text-center text-sm text-gray-400 mt-1">{workoutLogData.sleepQuality}/10</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-gray-300">Hydration (1-10)</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={workoutLogData.hydration}
+                        onChange={(e) => setWorkoutLogData({ ...workoutLogData, hydration: parseInt(e.target.value) })}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                      />
+                      <div className="text-center text-sm text-gray-400 mt-1">{workoutLogData.hydration}/10</div>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium mb-2 text-gray-300">Supplements</label>
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        onClick={() => setShowSupplementModal(true)}
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+                      >
+                        <i className="fas fa-plus mr-2"></i>Add Supplement
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {workoutLogData.supplements.map((supplement, index) => (
+                        <span
+                          key={index}
+                          className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full text-sm flex items-center gap-2"
+                        >
+                          {supplement}
+                          <button
+                            onClick={() => removeSupplement(index)}
+                            className="text-blue-400 hover:text-blue-300 text-xs"
+                          >
+                            <i className="fas fa-times"></i>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Exercise Log */}
+                <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 rounded-2xl border border-blue-400/20">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-xl font-semibold text-blue-400">Exercise Log</h4>
+                    <button
+                      onClick={() => setShowExerciseLog(true)}
+                      className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-green-500/25 hover:shadow-green-500/40"
+                    >
+                      <i className="fas fa-plus mr-2"></i>Add Exercise
+                    </button>
+                  </div>
+                  
+                  {loggedExercises.length > 0 ? (
+                    <div className="space-y-3">
+                      {loggedExercises.map((exercise) => (
+                        <div key={exercise.id} className="bg-gray-800/50 p-4 rounded-xl border border-blue-400/20">
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="font-medium text-white">{exercise.exerciseName}</div>
+                            <button
+                              onClick={() => removeExerciseFromLog(exercise.id)}
+                              className="text-red-400 hover:text-red-300 text-sm bg-red-500/10 hover:bg-red-500/20 p-1 rounded-full transition-all duration-200"
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                          </div>
+                          <div className="text-sm text-gray-400 mb-2">{exercise.muscleGroup}</div>
+                          <div className="space-y-1">
+                            {exercise.sets.map((set, setIndex) => (
+                              <div key={setIndex} className="flex items-center space-x-3 text-xs text-gray-300 bg-gray-700/50 px-2 py-1 rounded">
+                                <span className="font-medium">Set {setIndex + 1}:</span>
+                                <span>Weight: {set.weight}kg</span>
+                                <span>Reps: {set.reps}</span>
+                                <span>Rest: {set.restSeconds}s</span>
+                                <span>RPE: {set.rpe}/10</span>
+                                {set.notes && <span>Notes: {set.notes}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <i className="fas fa-dumbbell text-4xl mb-3"></i>
+                      <p>No exercises logged yet. Click "Add Exercise" to start logging your workout.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Personal Notes */}
+                <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 rounded-2xl border border-blue-400/20">
+                  <h4 className="text-xl font-semibold text-blue-400 mb-4">Personal Notes</h4>
+                  <textarea
+                    placeholder="How did the workout feel? Any notes, achievements, or areas for improvement?"
+                    value={workoutLogData.personalNotes}
+                    onChange={(e) => setWorkoutLogData({ ...workoutLogData, personalNotes: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                    rows={4}
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleLogWorkout}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-4 rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-green-500/25 hover:shadow-green-500/40"
+                  >
+                    <i className="fas fa-save mr-2"></i>Save Workout Log
+                  </button>
+                  <button
+                    onClick={() => setShowWorkoutLog(false)}
+                    className="flex-1 bg-gray-600/50 hover:bg-gray-600 text-white py-4 rounded-xl font-semibold transition-all duration-200 border border-gray-500/30 hover:border-gray-500/50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Remove Muscle Group Confirmation Modal */}
+        {showRemoveConfirmation && muscleGroupToRemove && (
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+            <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
+              <h3 className="text-xl font-bold mb-4 text-red-400">Remove Muscle Group</h3>
+              <div className="space-y-4">
+                <p className="text-gray-300">
+                  Are you sure you want to remove <span className="font-semibold text-white">{muscleGroupToRemove.muscle_group_name}</span> from your workout?
+                </p>
+                <p className="text-sm text-gray-400">
+                  This will also remove all exercises associated with this muscle group.
+                </p>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => {
+                      if (expandedDay !== null) {
+                        handleRemoveMuscleGroup(expandedDay, muscleGroupToRemove.muscle_group_id);
+                      }
+                      setShowRemoveConfirmation(false);
+                      setMuscleGroupToRemove(null);
+                    }}
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Remove
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRemoveConfirmation(false);
+                      setMuscleGroupToRemove(null);
+                    }}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Exercise to Log Modal */}
+        {showExerciseLog && (
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+            <div className="glass-card p-8 rounded-3xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-blue-400/20 shadow-2xl shadow-blue-500/10">
+              <div className="text-center mb-6">
+                <h3 className="text-2xl font-bold text-blue-400 mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>
+                  Add Exercise to Log
+                </h3>
+                <p className="text-gray-400">Log the details of this exercise</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">Exercise Name</label>
+                  <input
+                    type="text"
+                    value={currentExerciseLog.exerciseName}
+                    onChange={(e) => setCurrentExerciseLog(prev => ({ ...prev, exerciseName: e.target.value }))}
+                    placeholder="e.g., Bench Press, Squats"
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">Muscle Group</label>
+                  <input
+                    type="text"
+                    value={currentExerciseLog.muscleGroup}
+                    onChange={(e) => setCurrentExerciseLog(prev => ({ ...prev, muscleGroup: e.target.value }))}
+                    placeholder="e.g., Chest, Legs, Back"
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                  />
+                </div>
+
+                {/* Exercise Sets */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="block text-sm font-medium text-gray-300">Exercise Sets</label>
+                    <button
+                      onClick={addExerciseSetToLog}
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+                    >
+                      <i className="fas fa-plus mr-1"></i>Add Set
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {currentExerciseLog.sets.map((set, index) => (
+                      <div key={index} className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-4 rounded-2xl border border-blue-400/20">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="bg-blue-500/10 px-3 py-1 rounded-full text-sm text-blue-400 font-medium">
+                            Set {index + 1}
+                          </span>
+                          {currentExerciseLog.sets.length > 1 && (
+                            <button
+                              onClick={() => removeExerciseSetFromLog(index)}
+                              className="text-red-400 hover:text-red-300 text-sm bg-red-500/10 hover:bg-red-500/20 p-2 rounded-full transition-all duration-200"
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium mb-1 text-gray-400">Weight (kg)</label>
+                            <input
+                              type="text"
+                              value={set.weight}
+                              onChange={(e) => updateExerciseSetInLog(index, 'weight', e.target.value)}
+                              placeholder="0"
+                              className="w-full px-3 py-2 bg-gray-900/50 border border-blue-400/30 rounded-lg focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1 text-gray-400">Reps</label>
+                            <input
+                              type="text"
+                              value={set.reps}
+                              onChange={(e) => updateExerciseSetInLog(index, 'reps', e.target.value)}
+                              placeholder="8-12"
+                              className="w-full px-3 py-2 bg-gray-900/50 border border-blue-400/30 rounded-lg focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1 text-gray-400">Rest (sec)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={set.restSeconds}
+                              onChange={(e) => updateExerciseSetInLog(index, 'restSeconds', parseInt(e.target.value) || 60)}
+                              className="w-full px-3 py-2 bg-gray-900/50 border border-blue-400/30 rounded-lg focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1 text-gray-400">RPE (1-10)</label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={set.rpe}
+                              onChange={(e) => updateExerciseSetInLog(index, 'rpe', parseInt(e.target.value) || 7)}
+                              className="w-full px-3 py-2 bg-gray-900/50 border border-blue-400/30 rounded-lg focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white transition-all duration-200"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3">
+                          <label className="block text-xs font-medium mb-1 text-gray-400">Notes</label>
+                          <input
+                            type="text"
+                            value={set.notes}
+                            onChange={(e) => updateExerciseSetInLog(index, 'notes', e.target.value)}
+                            placeholder="Optional notes for this set"
+                            className="w-full px-3 py-2 bg-gray-900/50 border border-blue-400/30 rounded-lg focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mt-6">
+                  <button
+                    onClick={addExerciseToLog}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-green-500/25 hover:shadow-green-500/40"
+                    disabled={!currentExerciseLog.exerciseName.trim() || !currentExerciseLog.muscleGroup.trim()}
+                  >
+                    <i className="fas fa-plus mr-2"></i>Add Exercise
+                  </button>
+                  <button
+                    onClick={() => setShowExerciseLog(false)}
+                    className="flex-1 bg-gray-600/50 hover:bg-gray-600 text-white py-3 rounded-xl font-semibold transition-all duration-200 border border-gray-500/30 hover:border-gray-500/50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Supplement Modal */}
+        {showSupplementModal && (
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+            <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4 border border-blue-400/20 shadow-2xl shadow-blue-500/10">
+              <h3 className="text-xl font-bold mb-4 text-blue-400">Add Supplement</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">Supplement Name</label>
+                  <input
+                    type="text"
+                    value={supplementInput}
+                    onChange={(e) => setSupplementInput(e.target.value)}
+                    placeholder="e.g., Protein Powder, Creatine"
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-blue-400/30 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none text-white placeholder-gray-500 transition-all duration-200"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={addSupplement}
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+                    disabled={!supplementInput.trim()}
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => setShowSupplementModal(false)}
+                    className="flex-1 bg-gray-600/50 hover:bg-gray-600 text-white py-3 rounded-xl font-semibold transition-all duration-200 border border-gray-500/30 hover:border-gray-500/50"
                   >
                     Cancel
                   </button>

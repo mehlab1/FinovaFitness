@@ -137,6 +137,22 @@ CREATE TABLE IF NOT EXISTS workout_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Exercise logs (detailed performance tracking)
+CREATE TABLE IF NOT EXISTS exercise_logs (
+    id SERIAL PRIMARY KEY,
+    workout_log_id INTEGER REFERENCES workout_logs(id) ON DELETE CASCADE,
+    exercise_id INTEGER REFERENCES exercises(id) ON DELETE SET NULL, -- Allow NULL for custom exercises
+    exercise_name VARCHAR(255), -- Store custom exercise names
+    muscle_group VARCHAR(100), -- Store muscle group name
+    sets INTEGER NOT NULL,
+    reps VARCHAR(50), -- e.g., "8-12", "to failure"
+    weight DECIMAL(6,2), -- in kg
+    rest_seconds INTEGER DEFAULT 60, -- rest time between sets
+    rpe INTEGER CHECK (rpe BETWEEN 1 AND 10), -- Rate of Perceived Exertion
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Nutrition consultations
 CREATE TABLE IF NOT EXISTS nutrition_consultations (
     id SERIAL PRIMARY KEY,
