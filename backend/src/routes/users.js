@@ -60,10 +60,42 @@ router.post('/register', async (req, res) => {
     try {
       await client.query('BEGIN');
 
+      // If user is a member and has a membership plan, validate the plan
+      let membershipType = null;
+      let membershipStartDate = null;
+      let membershipEndDate = null;
+      let selectedPlanId = null;
+
+      if (role === 'member' && membership_plan_id) {
+        // Get the membership plan details
+        const planResult = await client.query(
+          'SELECT id, name, duration_months, price FROM membership_plans WHERE id = $1 AND is_active = true',
+          [membership_plan_id]
+        );
+
+        if (planResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Invalid or inactive membership plan selected' });
+        }
+
+        const plan = planResult.rows[0];
+        membershipType = plan.name;
+        membershipStartDate = new Date();
+        membershipEndDate = new Date();
+        membershipEndDate.setMonth(membershipEndDate.getMonth() + plan.duration_months);
+        selectedPlanId = plan.id;
+      } else if (role === 'member') {
+        // Default membership for members without plan selection
+        membershipType = 'basic';
+        membershipStartDate = new Date();
+        membershipEndDate = new Date();
+        membershipEndDate.setMonth(membershipEndDate.getMonth() + 1); // 1 month default
+      }
+
       // Insert new user
       const result = await client.query(
-        `INSERT INTO users (email, password_hash, first_name, last_name, role, phone, date_of_birth, gender, address, emergency_contact, membership_type, membership_start_date, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, email, first_name, last_name, role, membership_type, membership_start_date`,
+        `INSERT INTO users (email, password_hash, first_name, last_name, role, phone, date_of_birth, gender, address, emergency_contact, membership_type, membership_start_date, membership_end_date, subscription_status, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, email, first_name, last_name, role, membership_type, membership_start_date, membership_end_date, subscription_status`,
         [
           email, 
           password_hash, 
@@ -75,58 +107,22 @@ router.post('/register', async (req, res) => {
           gender, 
           address, 
           emergency_contact,
-          role === 'member' ? 'basic' : null, // Default membership type for members
-          role === 'member' ? new Date() : null, // Start date for members
+          membershipType,
+          membershipStartDate,
+          membershipEndDate,
+          'active',
           true
         ]
       );
 
       const user = result.rows[0];
 
-      // If user is a member, create member profile and handle membership
+      // If user is a member, create member profile
       if (role === 'member') {
-        // Create member profile
         await client.query(
-          `INSERT INTO member_profiles (user_id, current_plan_id, loyalty_points, streak_days, fitness_goals)
+          `INSERT INTO member_profiles (user_id, current_plan_id, loyalty_points, streak_days, subscription_status)
            VALUES ($1, $2, $3, $4, $5)`,
-          [user.id, membership_plan_id || null, 0, 0, 'Get fit and stay healthy']
-        );
-
-        // If membership plan is provided, set membership details
-        if (membership_plan_id) {
-          const planResult = await client.query(
-            'SELECT duration_months, price FROM membership_plans WHERE id = $1',
-            [membership_plan_id]
-          );
-          
-          if (planResult.rows.length > 0) {
-            const plan = planResult.rows[0];
-            const startDate = new Date();
-            const endDate = new Date();
-            endDate.setMonth(endDate.getMonth() + plan.duration_months);
-            
-            await client.query(
-              `UPDATE users 
-               SET membership_type = (SELECT name FROM membership_plans WHERE id = $1),
-                   membership_start_date = $2,
-                   membership_end_date = $3
-               WHERE id = $4`,
-              [membership_plan_id, startDate, endDate, user.id]
-            );
-          }
-        }
-
-        // Create initial loyalty transaction
-        await client.query(
-          `INSERT INTO loyalty_transactions (user_id, points_change, transaction_type, description)
-           VALUES ($1, $2, $3, $4)`,
-          [user.id, 100, 'bonus', 'Welcome bonus for new member']
-        );
-
-        // Update member profile with initial points
-        await client.query(
-          `UPDATE member_profiles SET loyalty_points = 100 WHERE user_id = $1`,
-          [user.id]
+          [user.id, selectedPlanId, 0, 0, 'active']
         );
       }
 
@@ -163,7 +159,9 @@ router.post('/register', async (req, res) => {
           last_name: user.last_name,
           role: user.role,
           membership_type: user.membership_type,
-          membership_start_date: user.membership_start_date
+          membership_start_date: user.membership_start_date,
+          membership_end_date: user.membership_end_date,
+          subscription_status: user.subscription_status
         }
       });
 
@@ -231,7 +229,8 @@ router.post('/login', async (req, res) => {
         email: user.email,
         first_name: user.first_name,
         last_name: user.last_name,
-        role: user.role
+        role: user.role,
+        is_active: user.is_active
       }
     });
 
@@ -281,7 +280,9 @@ router.get('/', async (req, res) => {
     }
 
     const result = await query(
-      'SELECT id, email, first_name, last_name, role, phone, membership_type, is_active, created_at FROM users ORDER BY created_at DESC'
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.phone, u.membership_type, u.is_active, u.created_at, u.subscription_status
+       FROM users u 
+       ORDER BY u.created_at DESC`
     );
 
     res.json({ users: result.rows });
@@ -289,6 +290,230 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: 'Failed to get users' });
+  }
+});
+
+// Deactivate user (admin only)
+router.put('/:userId/deactivate', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { userId } = req.params;
+
+    // Check if user exists
+    const userCheck = await query('SELECT id, role FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Prevent deactivating admin users
+    if (userCheck.rows[0].role === 'admin') {
+      return res.status(404).json({ error: 'Cannot deactivate admin users' });
+    }
+
+    // Deactivate the user
+    const result = await query(
+      'UPDATE users SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id, email, first_name, last_name, role, is_active',
+      [userId]
+    );
+
+    res.json({ 
+      message: 'User deactivated successfully',
+      user: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Deactivate user error:', error);
+    res.status(500).json({ error: 'Failed to deactivate user' });
+  }
+});
+
+// Reactivate user (admin only)
+router.put('/:userId/reactivate', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { userId } = req.params;
+
+    // Check if user exists
+    const userCheck = await query('SELECT id, role FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Reactivate the user
+    const result = await query(
+      'UPDATE users SET is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id, email, first_name, last_name, role, is_active',
+      [userId]
+    );
+
+    res.json({ 
+      message: 'User reactivated successfully',
+      user: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Reactivate user error:', error);
+    res.status(500).json({ error: 'Failed to reactivate user' });
+  }
+});
+
+// Delete user permanently (admin only)
+router.delete('/:userId', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { userId } = req.params;
+
+    // Check if user exists
+    const userCheck = await query('SELECT id, role FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Prevent deleting admin users
+    if (userCheck.rows[0].role === 'admin') {
+      return res.status(403).json({ error: 'Cannot delete admin users' });
+    }
+
+    // Start transaction for user deletion
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Get user data before deletion for logging
+      const userData = await client.query(
+        'SELECT * FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (userData.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const user = userData.rows[0];
+
+      // Log user data to deleted_users table
+      await client.query(
+        `INSERT INTO deleted_users (
+          original_id, email, first_name, last_name, role, phone, date_of_birth, 
+          gender, address, emergency_contact, membership_type, membership_start_date,
+          deleted_at, deleted_by_admin_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, $13)`,
+        [
+          user.id, user.email, user.first_name, user.last_name, user.role,
+          user.phone, user.date_of_birth, user.gender, user.address,
+          user.emergency_contact, user.membership_type, user.membership_start_date,
+          decoded.userId
+        ]
+      );
+
+      // Delete user from all related tables (only delete from tables that exist)
+      // Delete from member_profiles if exists
+      try {
+        await client.query('DELETE FROM member_profiles WHERE user_id = $1', [userId]);
+        console.log('Deleted from member_profiles');
+      } catch (error) {
+        console.log('member_profiles table does not exist or error:', error.message);
+      }
+      
+      // Delete from trainers if exists
+      try {
+        await client.query('DELETE FROM trainers WHERE user_id = $1', [userId]);
+        console.log('Deleted from trainers');
+      } catch (error) {
+        console.log('trainers table does not exist or error:', error.message);
+      }
+      
+      // Delete from nutritionists if exists
+      try {
+        await client.query('DELETE FROM nutritionists WHERE user_id = $1', [userId]);
+        console.log('Deleted from nutritionists');
+      } catch (error) {
+        console.log('nutritionists table does not exist or error:', error.message);
+      }
+      
+      // Delete from front_desk_staff if exists
+      try {
+        await client.query('DELETE FROM front_desk_staff WHERE user_id = $1', [userId]);
+        console.log('Deleted from front_desk_staff');
+      } catch (error) {
+        console.log('front_desk_staff table does not exist or error:', error.message);
+      }
+      
+      // Delete from other related tables that might exist
+      const relatedTables = [
+        { table: 'weight_tracking', column: 'user_id' },
+        { table: 'workout_logs', column: 'user_id' },
+        { table: 'member_workout_schedules', column: 'user_id' },
+        { table: 'loyalty_transactions', column: 'user_id' },
+        { table: 'member_balance', column: 'user_id' },
+        { table: 'member_balance_transactions', column: 'user_id' },
+        { table: 'bookings', column: 'user_id' },
+        { table: 'training_sessions', column: 'client_id' },
+        { table: 'session_notes', column: 'client_id' },
+        { table: 'client_progress', column: 'client_id' },
+        { table: 'trainer_ratings', column: 'client_id' },
+        { table: 'trainer_schedules', column: 'client_id' }
+      ];
+      
+      for (const { table, column } of relatedTables) {
+        try {
+          const result = await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [userId]);
+          if (result.rowCount > 0) {
+            console.log(`Deleted ${result.rowCount} records from ${table}`);
+          }
+        } catch (error) {
+          // Table doesn't exist or error, skip it
+          console.log(`Skipping ${table}: ${error.message}`);
+        }
+      }
+
+      // Finally delete the user
+      await client.query('DELETE FROM users WHERE id = $1', [userId]);
+
+      await client.query('COMMIT');
+
+      res.json({ 
+        message: 'User deleted successfully',
+        deletedUserId: userId
+      });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
   }
 });
 

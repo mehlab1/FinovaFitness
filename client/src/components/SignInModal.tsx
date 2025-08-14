@@ -21,6 +21,10 @@ export const SignInModal: React.FC<SignInModalProps> = ({ isOpen, onClose, onSig
       const { authApi } = await import('../services/api');
       const data = await authApi.login(email, password);
 
+      console.log('Login response data:', data);
+      console.log('User object:', data.user);
+      console.log('User is_active:', data.user.is_active);
+
       // Store token in localStorage
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));

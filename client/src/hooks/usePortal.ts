@@ -8,7 +8,7 @@ export const usePortal = () => {
 
   useEffect(() => {
     // Check for saved user data and token
-    const savedUser = localStorage.getItem('currentUser');
+    const savedUser = localStorage.getItem('user');
     const savedToken = localStorage.getItem('token');
     
     if (savedUser && savedToken) {
@@ -32,7 +32,7 @@ export const usePortal = () => {
 
     // Save to localStorage
     localStorage.setItem('currentPortal', portal);
-    localStorage.setItem('currentUser', JSON.stringify(user));
+    localStorage.setItem('user', JSON.stringify(user));
     localStorage.setItem('token', userData.token);
 
     return true;
@@ -45,7 +45,7 @@ export const usePortal = () => {
     
     // Clear localStorage
     localStorage.removeItem('currentPortal');
-    localStorage.removeItem('currentUser');
+    localStorage.removeItem('user');
     localStorage.removeItem('token');
   };
 

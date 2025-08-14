@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../database.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { getClient } from '../database.js';
 
 const router = express.Router();
 
@@ -1933,7 +1934,9 @@ router.post('/pause-subscription', verifyMemberToken, async (req, res) => {
     }
 
     if (!membership.membership_end_date) {
-      return res.status(400).json({ error: 'No valid membership end date found' });
+      return res.status(400).json({ 
+        error: 'No valid membership end date found. Please choose a membership plan first.' 
+      });
     }
 
     // Calculate pause dates
@@ -1946,11 +1949,12 @@ router.post('/pause-subscription', verifyMemberToken, async (req, res) => {
     newMembershipEndDate.setDate(newMembershipEndDate.getDate() + pauseDurationDays);
 
     // Begin transaction
-    await query('BEGIN');
-
+    const client = await getClient();
     try {
+      await client.query('BEGIN');
+
       // Insert pause record
-      await query(
+      await client.query(
         `INSERT INTO subscription_pauses 
          (user_id, pause_start_date, pause_end_date, pause_duration_days, reason, status)
          VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -1964,23 +1968,26 @@ router.post('/pause-subscription', verifyMemberToken, async (req, res) => {
         ]
       );
 
-      // Update membership end date
-      await query(
+      // Update membership end date and set subscription status to paused
+      await client.query(
         `UPDATE users 
-         SET membership_end_date = $1, updated_at = CURRENT_TIMESTAMP
+         SET membership_end_date = $1, 
+             subscription_status = 'paused',
+             updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
         [newMembershipEndDate.toISOString().split('T')[0], userId]
       );
 
       // Update member profile status to paused
-      await query(
+      await client.query(
         `UPDATE member_profiles 
-         SET updated_at = CURRENT_TIMESTAMP
+         SET subscription_status = 'paused',
+             updated_at = CURRENT_TIMESTAMP
          WHERE user_id = $1`,
         [userId]
       );
 
-      await query('COMMIT');
+      await client.query('COMMIT');
 
       res.json({
         success: true,
@@ -1992,8 +1999,10 @@ router.post('/pause-subscription', verifyMemberToken, async (req, res) => {
       });
 
     } catch (error) {
-      await query('ROLLBACK');
+      await client.query('ROLLBACK');
       throw error;
+    } finally {
+      client.release();
     }
 
   } catch (error) {
@@ -2047,26 +2056,38 @@ router.post('/resume-subscription', verifyMemberToken, async (req, res) => {
     newEndDate.setDate(newEndDate.getDate() - remainingPauseDays);
 
     // Begin transaction
-    await query('BEGIN');
-
+    const client = await getClient();
     try {
+      await client.query('BEGIN');
+
       // Update pause status to completed
-      await query(
+      await client.query(
         `UPDATE subscription_pauses 
          SET status = 'completed', updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [pause.id]
       );
 
-      // Update membership end date
-      await query(
+      // Update membership end date and reset subscription status to active
+      await client.query(
         `UPDATE users 
-         SET membership_end_date = $1, updated_at = CURRENT_TIMESTAMP
+         SET membership_end_date = $1, 
+             subscription_status = 'active',
+             updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
         [newEndDate.toISOString().split('T')[0], userId]
       );
 
-      await query('COMMIT');
+      // Update member profile status back to active
+      await client.query(
+        `UPDATE member_profiles 
+         SET subscription_status = 'active',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1`,
+        [userId]
+      );
+
+      await client.query('COMMIT');
 
       res.json({
         success: true,
@@ -2076,8 +2097,10 @@ router.post('/resume-subscription', verifyMemberToken, async (req, res) => {
       });
 
     } catch (error) {
-      await query('ROLLBACK');
+      await client.query('ROLLBACK');
       throw error;
+    } finally {
+      client.release();
     }
 
   } catch (error) {
@@ -2332,6 +2355,104 @@ router.post('/session-review', verifyMemberToken, async (req, res) => {
   } catch (error) {
     console.error('Error submitting review:', error);
     res.status(500).json({ error: 'Failed to submit review' });
+  }
+});
+
+// Get available membership plans
+router.get('/membership-plans', verifyMemberToken, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT id, name, description, price, duration_months, features, max_classes_per_month, includes_personal_training, includes_nutrition_consultation FROM membership_plans WHERE is_active = true ORDER BY price ASC'
+    );
+
+    res.json({
+      success: true,
+      plans: result.rows
+    });
+
+  } catch (error) {
+    console.error('Error fetching membership plans:', error);
+    res.status(500).json({ error: 'Failed to fetch membership plans' });
+  }
+});
+
+// Choose membership plan
+router.post('/choose-membership-plan', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { membership_plan_id } = req.body;
+
+    if (!membership_plan_id) {
+      return res.status(400).json({ error: 'Membership plan ID is required' });
+    }
+
+    // Get the membership plan details
+    const planResult = await query(
+      'SELECT id, name, duration_months, price FROM membership_plans WHERE id = $1 AND is_active = true',
+      [membership_plan_id]
+    );
+
+    if (planResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Membership plan not found or inactive' });
+    }
+
+    const plan = planResult.rows[0];
+
+    // Check if user already has an active membership
+    const existingMembership = await query(
+      'SELECT membership_end_date FROM users WHERE id = $1 AND membership_end_date > CURRENT_DATE',
+      [userId]
+    );
+
+    let startDate, endDate;
+
+    if (existingMembership.rows.length > 0) {
+      // If user has existing membership, extend from current end date
+      startDate = new Date(existingMembership.rows[0].membership_end_date);
+      endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + plan.duration_months);
+    } else {
+      // If no existing membership, start from today
+      startDate = new Date();
+      endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + plan.duration_months);
+    }
+
+    // Update user's membership details
+    await query(
+      `UPDATE users 
+       SET membership_type = $1,
+           membership_start_date = $2,
+           membership_end_date = $3,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [plan.name, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0], userId]
+    );
+
+    // Update member profile with current plan
+    await query(
+      `UPDATE member_profiles 
+       SET current_plan_id = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $2`,
+      [plan.id, userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Membership plan chosen successfully',
+      membership: {
+        plan_name: plan.name,
+        start_date: startDate.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+        duration_months: plan.duration_months,
+        price: plan.price
+      }
+    });
+
+  } catch (error) {
+    console.error('Error choosing membership plan:', error);
+    res.status(500).json({ error: 'Failed to choose membership plan' });
   }
 });
 

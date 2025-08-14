@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { trainers, classes, products, blogPosts } from '../data/mockData';
 import { usePortal } from '../hooks/usePortal';
-import { authApi, membershipApi } from '../services/api';
+import { authApi } from '../services/api';
 import { MembershipPlan } from '../types';
 
 interface WebsitePortalProps {
@@ -288,8 +288,28 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
       try {
         setIsLoadingPlans(true);
         setPlansError(null);
-        const plans = await membershipApi.getPlans();
-        setMembershipPlans(plans);
+        
+        // Fetch plans directly from the backend API
+        const response = await fetch('http://localhost:3001/api/members/plans');
+        if (response.ok) {
+          const data = await response.json();
+          // Transform the backend data to match the MembershipPlan interface
+          const transformedPlans = data.plans.map((plan: any) => ({
+            id: plan.id,
+            name: plan.name,
+            price: parseFloat(plan.price) / 100, // Convert from cents to dollars
+            duration: plan.duration_months === 0 ? 'Single Day' : 
+                     plan.duration_months === 1 ? 'Monthly' : 
+                     plan.duration_months === 3 ? 'Quarterly' : 
+                     plan.duration_months === 12 ? 'Yearly' : 
+                     `${plan.duration_months} months`,
+            features: plan.features || [],
+            discount: ''
+          }));
+          setMembershipPlans(transformedPlans);
+        } else {
+          throw new Error('Failed to fetch plans');
+        }
       } catch (error) {
         console.error('Error fetching membership plans:', error);
         setPlansError('Failed to load membership plans. Please try again.');

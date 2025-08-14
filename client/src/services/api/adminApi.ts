@@ -104,8 +104,10 @@ export const adminApi = {
       const members = data.users.filter((user: any) => user.role === 'member');
       console.log('Filtered members:', members);
       
-      const activeMembers = members.filter((member: any) => member.is_active);
+      const activeMembers = members.filter((member: any) => member.is_active && member.subscription_status !== 'paused');
       const inactiveMembers = members.filter((member: any) => !member.is_active);
+      
+
       
       // Calculate new members this month
       const currentDate = new Date();
@@ -148,6 +150,153 @@ export const adminApi = {
       throw error;
     }
   },
+
+  // Get all users (admin only)
+  async getAllUsers(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.users || !Array.isArray(data.users)) {
+        console.error('Invalid response structure:', data);
+        throw new Error('Invalid response structure from users API');
+      }
+      
+      return data.users;
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      throw error;
+    }
+  },
+
+  // Create new staff member (admin only)
+  async createStaffMember(staffData: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+    phone?: string;
+  }): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/register`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(staffData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error creating staff member:', error);
+      throw error;
+    }
+  },
+
+  // Create new member with membership plan (admin only)
+  async createMember(memberData: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+    phone?: string;
+    membership_plan_id?: number;
+  }): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/create-member`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(memberData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error creating member:', error);
+      throw error;
+    }
+  },
+
+  // Deactivate staff member (admin only)
+  async deactivateStaffMember(userId: number): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/deactivate`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error deactivating staff member:', error);
+      throw error;
+    }
+  },
+
+  // Reactivate staff member (admin only)
+  async reactivateStaffMember(userId: number): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/reactivate`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error reactivating staff member:', error);
+      throw error;
+    }
+  },
+
+  // Delete staff member permanently (admin only)
+  async deleteStaffMember(userId: number): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error deleting staff member:', error);
+      throw error;
+    }
+  },
 };
 
 // Revenue Management
@@ -155,9 +304,7 @@ export const getRevenueStats = async (): Promise<RevenueStats> => {
   try {
     const response = await fetch(`${API_BASE_URL}/admin/revenue/stats`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -179,9 +326,7 @@ export const getRevenueDetails = async (period: 'daily' | 'monthly' | 'yearly', 
 
     const response = await fetch(`${API_BASE_URL}/admin/revenue/details?${params}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {

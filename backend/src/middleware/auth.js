@@ -22,6 +22,11 @@ export const verifyToken = async (req, res, next) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
+    // Check if user is active
+    if (!userResult.rows[0].is_active) {
+      return res.status(401).json({ error: 'Account is deactivated' });
+    }
+
     req.user = userResult.rows[0];
     req.userId = decoded.userId;
     next();

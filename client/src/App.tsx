@@ -16,6 +16,7 @@ import { NutritionistPortal } from './components/NutritionistPortal';
 import { AdminPortal } from './components/AdminPortal';
 import { FrontDeskPortal } from './components/FrontDeskPortal';
 import { Toast } from './components/Toast';
+import { DeactivatedPortal } from './components/DeactivatedPortal';
 
 function App() {
   const { currentPortal, currentUser, isAuthenticated, login, logout, switchPortal } = usePortal();
@@ -42,12 +43,34 @@ function App() {
   };
 
   const renderPortal = () => {
+    // Debug logging
+    console.log('renderPortal called with:', { currentPortal, currentUser });
+    if (currentUser) {
+      console.log('Current user details:', {
+        id: currentUser.id,
+        name: `${currentUser.first_name} ${currentUser.last_name}`,
+        role: currentUser.role,
+        is_active: currentUser.is_active
+      });
+    }
+
     // If no portal is selected, default to website portal
     if (!currentPortal) {
       return (
         <WebsitePortal 
           onSignIn={() => setShowSignInModal(true)} 
           onBookClass={() => setShowBookingModal(true)}
+        />
+      );
+    }
+
+    // Check if user is deactivated
+    if (currentUser && !currentUser.is_active) {
+      console.log('User is deactivated, showing DeactivatedPortal');
+      return (
+        <DeactivatedPortal 
+          userName={`${currentUser.first_name} ${currentUser.last_name}`}
+          userRole={currentUser.role}
         />
       );
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User } from '../types';
 import { useToast } from './Toast';
-import { staffMembers } from '../data/mockData';
+
 import { adminApi, MemberStats, SessionStats, getRevenueStats, RevenueStats } from '../services/api/adminApi';
 import { RevenueDashboard } from './RevenueDashboard';
 import { RevenueManagement } from './RevenueManagement';
@@ -442,107 +442,637 @@ const MemberDirectory = ({ showToast }: { showToast: (message: string, type?: 's
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [members, setMembers] = useState<any[]>([]);
+  const [membershipPlans, setMembershipPlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showInactive, setShowInactive] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newMember, setNewMember] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    membership_plan_id: ''
+  });
 
-  const members = [
-    { id: 1, name: 'John Smith', email: 'john@email.com', plan: 'Quarterly', lastVisit: '2024-01-15', status: 'Active' },
-    { id: 2, name: 'Sarah Davis', email: 'sarah@email.com', plan: 'Monthly', lastVisit: '2024-01-14', status: 'Active' },
-    { id: 3, name: 'Mike Johnson', email: 'mike@email.com', plan: 'Yearly', lastVisit: '2024-01-13', status: 'Active' },
-    { id: 4, name: 'Emma Wilson', email: 'emma@email.com', plan: 'Monthly', lastVisit: '2024-01-10', status: 'Paused' },
-    { id: 5, name: 'David Brown', email: 'david@email.com', plan: 'Quarterly', lastVisit: '2024-01-12', status: 'Active' }
-  ];
+  // Fetch members and membership plans from database
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch members
+        const allUsers = await adminApi.getAllUsers();
+        const memberUsers = allUsers.filter((user: any) => user.role === 'member');
+        setMembers(memberUsers);
+        
+        // Fetch membership plans
+        try {
+          const plansResponse = await fetch('http://localhost:3001/api/members/plans');
+          if (plansResponse.ok) {
+            const plansData = await plansResponse.json();
+            setMembershipPlans(plansData.plans || []);
+          }
+        } catch (error) {
+          console.error('Error fetching membership plans:', error);
+          setMembershipPlans([]);
+        }
+        
+      } catch (error) {
+        console.error('Error fetching members:', error);
+        showToast('Failed to load members', 'error');
+        setMembers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [showToast]);
+
+  // Handle escape key to close modal
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showAddModal) {
+        setShowAddModal(false);
+        setNewMember({ first_name: '', last_name: '', email: '', phone: '', membership_plan_id: '' });
+      }
+    };
+
+    if (showAddModal) {
+      document.addEventListener('keydown', handleEscape);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showAddModal]);
+
+  const handleAddMember = async () => {
+    if (newMember.first_name && newMember.last_name && newMember.email) {
+      try {
+        // Create member data
+        const memberData = {
+          email: newMember.email,
+          password: 'defaultPassword123', // Default password that member can change later
+          first_name: newMember.first_name,
+          last_name: newMember.last_name,
+          phone: newMember.phone,
+          membership_plan_id: newMember.membership_plan_id ? parseInt(newMember.membership_plan_id) : undefined
+        };
+        
+        // Create the member in the database
+        await adminApi.createMember(memberData);
+        
+        // Refresh the members list
+        const allUsers = await adminApi.getAllUsers();
+        const memberUsers = allUsers.filter((user: any) => user.role === 'member');
+        setMembers(memberUsers);
+        
+        // Reset form and close modal
+        setNewMember({ first_name: '', last_name: '', email: '', phone: '', membership_plan_id: '' });
+        setShowAddModal(false);
+        
+        showToast(`${newMember.first_name} ${newMember.last_name} added successfully`, 'success');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        showToast(`Failed to add member: ${errorMessage}`, 'error');
+      }
+    } else {
+      showToast('Please fill in all required fields', 'error');
+    }
+  };
+
+  const handleDeactivateMember = async (memberId: number, memberName: string) => {
+    try {
+      await adminApi.deactivateStaffMember(memberId);
+      
+      // Refresh the members list
+      const allUsers = await adminApi.getAllUsers();
+      const memberUsers = allUsers.filter((user: any) => user.role === 'member');
+      setMembers(memberUsers);
+      
+      showToast(`${memberName} deactivated successfully`, 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      showToast(`Failed to deactivate member: ${errorMessage}`, 'error');
+    }
+  };
+
+  const handleReactivateMember = async (memberId: number, memberName: string) => {
+    try {
+      await adminApi.reactivateStaffMember(memberId);
+      
+      // Refresh the members list
+      const allUsers = await adminApi.getAllUsers();
+      const memberUsers = allUsers.filter((user: any) => user.role === 'member');
+      setMembers(memberUsers);
+      
+      showToast(`${memberName} reactivated successfully`, 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      showToast(`Failed to reactivate member: ${errorMessage}`, 'error');
+    }
+  };
+
+  const handleDeleteMember = async (memberId: number, memberName: string) => {
+    if (window.confirm(`Are you sure you want to PERMANENTLY DELETE ${memberName}? This action cannot be undone and will remove all their data from the system.`)) {
+      try {
+        await adminApi.deleteStaffMember(memberId);
+        
+        // Refresh the members list
+        const allUsers = await adminApi.getAllUsers();
+        const memberUsers = allUsers.filter((user: any) => user.role === 'member');
+        setMembers(memberUsers);
+        
+        showToast(`${memberName} deleted permanently`, 'success');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        showToast(`Failed to delete member: ${errorMessage}`, 'error');
+      }
+    }
+  };
 
   const filteredMembers = members.filter(member => {
-    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = `${member.first_name} ${member.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          member.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPlan = !filterPlan || member.plan === filterPlan;
-    const matchesStatus = !filterStatus || member.status === filterStatus;
+    const matchesPlan = !filterPlan || 
+      (filterPlan === 'no_plan' ? !member.membership_type : member.membership_type === filterPlan);
+    const matchesStatus = !filterStatus || 
+      (filterStatus === 'Active' ? (member.is_active && member.subscription_status !== 'paused') : 
+       filterStatus === 'Paused' ? member.subscription_status === 'paused' :
+       filterStatus === 'Inactive' ? !member.is_active : true);
     return matchesSearch && matchesPlan && matchesStatus;
   });
 
+
+
+  // Get unique membership types for filter
+  const membershipTypes = Array.from(new Set(members.map(member => member.membership_type).filter(Boolean)));
+
   return (
     <div className="animate-fade-in">
-      {/* Filters */}
-      <div className="glass-card p-6 rounded-2xl mb-6">
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex-1 min-w-64">
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
-            />
+      {/* Enhanced Header with Stats Cards */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">Member Directory</h1>
+            <p className="text-gray-400">Manage and monitor all gym members</p>
           </div>
-          <select
-            value={filterPlan}
-            onChange={(e) => setFilterPlan(e.target.value)}
-            className="px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center space-x-3"
           >
-            <option value="">All Plans</option>
-            <option value="Monthly">Monthly</option>
-            <option value="Quarterly">Quarterly</option>
-            <option value="Yearly">Yearly</option>
-          </select>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
-          >
-            <option value="">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Paused">Paused</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
+            <i className="fas fa-plus-circle text-lg"></i>
+            <span>Add New Member</span>
+          </button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="glass-card p-6 rounded-2xl border-l-4 border-blue-500 hover:border-blue-400 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">Total Members</p>
+                <p className="text-3xl font-bold text-white">{members.length}</p>
+              </div>
+              <div className="bg-blue-500 bg-opacity-20 p-3 rounded-full">
+                <i className="fas fa-users text-2xl text-blue-400"></i>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-6 rounded-2xl border-l-4 border-green-500 hover:border-green-400 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">Active Members</p>
+                <p className="text-3xl font-bold text-white">{members.filter(m => m.is_active && m.subscription_status !== 'paused').length}</p>
+              </div>
+              <div className="bg-green-500 bg-opacity-20 p-3 rounded-full">
+                <i className="fas fa-user-check text-2xl text-green-400"></i>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-6 rounded-2xl border-l-4 border-yellow-500 hover:border-yellow-400 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">Paused Members</p>
+                <p className="text-3xl font-bold text-white">{members.filter(m => m.subscription_status === 'paused').length}</p>
+              </div>
+              <div className="bg-yellow-500 bg-opacity-20 p-3 rounded-full">
+                <i className="fas fa-pause text-2xl text-yellow-400"></i>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-6 rounded-2xl border-l-4 border-red-500 hover:border-red-400 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">Inactive Members</p>
+                <p className="text-3xl font-bold text-white">{members.filter(m => !m.is_active).length}</p>
+              </div>
+              <div className="bg-red-500 bg-opacity-20 p-3 rounded-full">
+                <i className="fas fa-user-times text-2xl text-red-400"></i>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Members Table */}
-      <div className="glass-card p-6 rounded-2xl">
-        <h3 className="text-xl font-bold text-orange-400 mb-4">Member Directory</h3>
-        <div className="overflow-x-auto minimal-scroll">
-          <table className="w-full">
-            <thead>
-              <tr className="table-header">
-                <th className="text-left p-3">Name</th>
-                <th className="text-left p-3">Email</th>
-                <th className="text-left p-3">Plan</th>
-                <th className="text-left p-3">Last Visit</th>
-                <th className="text-left p-3">Status</th>
-                <th className="text-left p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredMembers.map((member) => (
-                <tr key={member.id} className="table-row">
-                  <td className="p-3 font-semibold">{member.name}</td>
-                  <td className="p-3 text-gray-300">{member.email}</td>
-                  <td className="p-3">{member.plan}</td>
-                  <td className="p-3 text-gray-300">{member.lastVisit}</td>
-                  <td className="p-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      member.status === 'Active' 
-                        ? 'bg-green-600 text-white' 
-                        : member.status === 'Paused'
-                        ? 'bg-yellow-600 text-white'
-                        : 'bg-red-600 text-white'
-                    }`}>
-                      {member.status}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <button
-                      onClick={() => showToast(`Viewing ${member.name}'s profile`, 'info')}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors mr-2"
-                    >
-                      View/Edit
-                    </button>
-                  </td>
-                </tr>
+      {/* Enhanced Filters and Controls */}
+      <div className="glass-card p-6 rounded-2xl mb-6 border border-gray-700/50">
+        <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            {/* Search Bar */}
+            <div className="relative flex-1 min-w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i className="fas fa-search text-gray-400"></i>
+              </div>
+              <input
+                type="text"
+                placeholder="Search members by name or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-600/50 rounded-xl focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300"
+              />
+            </div>
+
+            {/* Filters */}
+            <div className="flex gap-3">
+                          <select
+              value={filterPlan}
+              onChange={(e) => setFilterPlan(e.target.value)}
+              className="px-4 py-3 bg-gray-800/50 border border-gray-600/50 rounded-xl focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 min-w-32"
+            >
+              <option value="">All Plans</option>
+              <option value="no_plan">No Plan</option>
+              {membershipTypes.map(type => (
+                <option key={type} value={type}>{type}</option>
               ))}
-            </tbody>
-          </table>
+            </select>
+              
+                          <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-4 py-3 bg-gray-800/50 border border-gray-600/50 rounded-xl focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 min-w-32"
+            >
+              <option value="">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Paused">Paused</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-4">
+            <label className="flex items-center space-x-3 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={showInactive}
+                  onChange={(e) => setShowInactive(e.target.checked)}
+                  className="sr-only"
+                />
+                <div className={`w-12 h-6 rounded-full transition-all duration-300 ${
+                  showInactive ? 'bg-orange-500' : 'bg-gray-600'
+                }`}>
+                  <div className={`w-5 h-5 bg-white rounded-full transition-all duration-300 transform ${
+                    showInactive ? 'translate-x-6' : 'translate-x-1'
+                  }`}></div>
+                </div>
+              </div>
+              <span className="text-sm text-gray-300 group-hover:text-white transition-colors">Show Inactive & Paused</span>
+            </label>
+            
+            <button
+              onClick={async () => {
+                try {
+                  const allUsers = await adminApi.getAllUsers();
+                  const memberUsers = allUsers.filter((user: any) => user.role === 'member');
+                  setMembers(memberUsers);
+                  showToast('Member list refreshed', 'success');
+                } catch (error) {
+                  showToast('Failed to refresh member list', 'error');
+                }
+              }}
+              className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center space-x-3"
+            >
+              <i className="fas fa-sync-alt"></i>
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Enhanced Members Table */}
+      <div className="glass-card p-6 rounded-2xl border border-gray-700/50">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-white">Member Directory</h3>
+          <div className="text-sm text-gray-400">
+            Showing {filteredMembers.filter(member => showInactive || (member.is_active && member.subscription_status !== 'paused')).length} of {filteredMembers.length} members
+          </div>
+        </div>
+        
+        {loading ? (
+          <div className="flex flex-col justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-orange-400 border-t-transparent mb-4"></div>
+            <p className="text-gray-400 text-lg">Loading members...</p>
+          </div>
+        ) : filteredMembers.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <div className="bg-gray-800/50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+              <i className="fas fa-users text-3xl text-gray-500"></i>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-300 mb-2">No members found</h3>
+            <p className="text-gray-500 mb-6">Try adjusting your filters or add a new member to get started</p>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
+            >
+              <i className="fas fa-plus mr-2"></i>
+              Add First Member
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-gray-700/50">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-800/50 border-b border-gray-700/50">
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Member</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Contact</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Membership</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700/50">
+                                  {filteredMembers
+                  .filter(member => showInactive || (member.is_active && member.subscription_status !== 'paused'))
+                  .map((member, index) => (
+                    <tr key={member.id} className={`hover:bg-gray-800/30 transition-all duration-200 ${index % 2 === 0 ? 'bg-gray-900/20' : 'bg-gray-900/10'}`}>
+                      {/* Member Info */}
+                      <td className="p-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+                              {member.first_name.charAt(0)}{member.last_name.charAt(0)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-white">
+                              {member.first_name} {member.last_name}
+                            </div>
+                            <div className="text-xs text-gray-400">ID: {member.id}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Contact Info */}
+                      <td className="p-4">
+                        <div className="space-y-1">
+                          <div className="text-sm text-white">{member.email}</div>
+                          <div className="text-xs text-gray-400">
+                            {member.phone ? (
+                              <span className="flex items-center">
+                                <i className="fas fa-phone mr-2 text-gray-500"></i>
+                                {member.phone}
+                              </span>
+                            ) : (
+                              <span className="text-gray-500">No phone</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Membership */}
+                      <td className="p-4">
+                        <div className="flex items-center space-x-2">
+                          {member.membership_type ? (
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              member.membership_type === 'vip' 
+                                ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white'
+                                : member.membership_type === 'premium'
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
+                            }`}>
+                              {member.membership_type}
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                              No Plan
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="p-4">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            member.subscription_status === 'paused' ? 'bg-yellow-400' :
+                            member.is_active ? 'bg-green-400' : 'bg-red-400'
+                          }`}></div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            member.subscription_status === 'paused'
+                              ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                              : member.is_active 
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          }`}>
+                            {member.subscription_status === 'paused' ? 'Paused' :
+                             member.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="p-4">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => showToast(`Editing ${member.first_name} ${member.last_name}'s details`, 'info')}
+                            className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 hover:border-blue-500/50 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center space-x-2"
+                          >
+                            <i className="fas fa-edit"></i>
+                            <span>Edit</span>
+                          </button>
+                          
+                          {member.is_active ? (
+                            <button
+                              onClick={() => handleDeactivateMember(member.id, `${member.first_name} ${member.last_name}`)}
+                              className="bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 hover:text-orange-300 border border-orange-500/30 hover:border-orange-500/50 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center space-x-2"
+                            >
+                              <i className="fas fa-pause"></i>
+                              <span>Deactivate</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleReactivateMember(member.id, `${member.first_name} ${member.last_name}`)}
+                              className="bg-green-500/20 hover:bg-green-500/30 text-green-400 hover:text-green-300 border border-green-500/30 hover:border-green-500/50 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center space-x-2"
+                            >
+                              <i className="fas fa-play"></i>
+                              <span>Reactivate</span>
+                            </button>
+                          )}
+                          
+                          <button
+                            onClick={() => handleDeleteMember(member.id, `${member.first_name} ${member.last_name}`)}
+                            className="bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-500/50 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center space-x-2"
+                            title="Permanently delete member"
+                          >
+                            <i className="fas fa-trash"></i>
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Enhanced Add Member Modal - Mobile Friendly */}
+      {showAddModal && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4"
+          onClick={() => {
+            setShowAddModal(false);
+            setNewMember({ first_name: '', last_name: '', email: '', phone: '', membership_plan_id: '' });
+          }}
+        >
+          <div 
+            className="glass-card p-4 sm:p-6 rounded-2xl w-full max-w-sm sm:max-w-md border border-gray-700/50 shadow-2xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i className="fas fa-user-plus text-lg sm:text-xl text-white"></i>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">Add New Member</h3>
+              <p className="text-sm text-gray-400">Create a new gym membership account</p>
+            </div>
+            
+            {/* Form */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                    <i className="fas fa-user mr-2 text-orange-400 text-xs"></i>
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newMember.first_name}
+                    onChange={(e) => setNewMember({...newMember, first_name: e.target.value})}
+                    className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-600/50 rounded-lg focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 text-sm"
+                    placeholder="Enter first name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                    <i className="fas fa-user mr-2 text-orange-400 text-xs"></i>
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newMember.last_name}
+                    onChange={(e) => setNewMember({...newMember, last_name: e.target.value})}
+                    className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-600/50 rounded-lg focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 text-sm"
+                    placeholder="Enter last name"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                  <i className="fas fa-envelope mr-2 text-blue-400 text-xs"></i>
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  value={newMember.email}
+                  onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                  className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-600/50 rounded-lg focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 text-sm"
+                  placeholder="Enter email address"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                  <i className="fas fa-phone mr-2 text-green-400 text-xs"></i>
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={newMember.phone}
+                  onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
+                  className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-600/50 rounded-lg focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 text-sm"
+                  placeholder="Enter phone number (optional)"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                  <i className="fas fa-crown mr-2 text-yellow-400 text-xs"></i>
+                  Membership Plan
+                </label>
+                <select
+                  value={newMember.membership_plan_id}
+                  onChange={(e) => setNewMember({...newMember, membership_plan_id: e.target.value})}
+                  className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-600/50 rounded-lg focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 text-sm"
+                >
+                  <option value="">Select a membership plan</option>
+                  {membershipPlans.map(plan => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.name} - ${(parseFloat(plan.price) / 100).toFixed(2)} ({plan.duration_months === 0 ? 'Single Day' : plan.duration_months === 1 ? 'Monthly' : plan.duration_months === 3 ? 'Quarterly' : plan.duration_months === 12 ? 'Yearly' : `${plan.duration_months} months`})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setNewMember({ first_name: '', last_name: '', email: '', phone: '', membership_plan_id: '' });
+                }}
+                className="w-full sm:w-auto px-6 py-2.5 text-gray-300 hover:text-white transition-colors font-medium text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddMember}
+                className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-2.5 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg text-sm"
+              >
+                <i className="fas fa-plus mr-2"></i>
+                Create Member
+              </button>
+            </div>
+            
+            {/* Info */}
+            <div className="mt-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+              <div className="flex items-start space-x-2">
+                <i className="fas fa-info-circle text-blue-400 mt-0.5 text-xs"></i>
+                <div className="text-xs text-gray-400">
+                  <p className="font-medium text-gray-300 mb-1">Default Password:</p>
+                  <p><code className="bg-gray-700 px-1.5 py-0.5 rounded text-orange-400 text-xs">defaultPassword123</code></p>
+                  <p className="mt-1">Member can change this after first login</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -550,119 +1080,463 @@ const MemberDirectory = ({ showToast }: { showToast: (message: string, type?: 's
 const StaffManagement = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newStaff, setNewStaff] = useState({ name: '', role: '', contact: '' });
+  const [staffMembers, setStaffMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showInactive, setShowInactive] = useState(false);
 
-  const handleAddStaff = () => {
+  // Fetch staff members from database
+  useEffect(() => {
+    const fetchStaffMembers = async () => {
+      try {
+        setLoading(true);
+        const allUsers = await adminApi.getAllUsers();
+        
+        // Filter users to show only staff members (excluding members and admin)
+        const staffUsers = allUsers.filter((user: any) => 
+          user.role !== 'member' && user.role !== 'admin'
+        );
+        
+        setStaffMembers(staffUsers);
+      } catch (error) {
+        console.error('Error fetching staff members:', error);
+        showToast('Failed to load staff members', 'error');
+        setStaffMembers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStaffMembers();
+  }, [showToast]);
+
+  const handleAddStaff = async () => {
     if (newStaff.name && newStaff.role && newStaff.contact) {
+      try {
+        // Parse the name into first and last name
+        const [firstName, ...lastNameParts] = newStaff.name.trim().split(' ');
+        const lastName = lastNameParts.join(' ') || firstName;
+        
+        // Create staff member data
+        const staffData = {
+          email: newStaff.contact,
+          password: 'defaultPassword123', // Default password that staff can change later
+          first_name: firstName,
+          last_name: lastName,
+          role: newStaff.role,
+          phone: '', // Could be added to the form if needed
+        };
+        
+        // Create the staff member in the database
+        await adminApi.createStaffMember(staffData);
+        
+        // Refresh the staff members list
+        const allUsers = await adminApi.getAllUsers();
+        const staffUsers = allUsers.filter((user: any) => 
+          user.role !== 'member' && user.role !== 'admin'
+        );
+        setStaffMembers(staffUsers);
+        
       showToast(`${newStaff.name} added as ${newStaff.role}`, 'success');
       setNewStaff({ name: '', role: '', contact: '' });
       setShowAddModal(false);
+      } catch (error) {
+        console.error('Error creating staff member:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        showToast(`Failed to create staff member: ${errorMessage}`, 'error');
+      }
     }
   };
 
   return (
     <div className="animate-fade-in">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold text-orange-400">Staff Management</h3>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-        >
-          Add Staff Member
-        </button>
-      </div>
+      {/* Enhanced Header with Stats Cards */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">Staff Management</h1>
+            <p className="text-gray-400">Manage and monitor all gym staff members</p>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center space-x-3"
+          >
+            <i className="fas fa-user-plus text-lg"></i>
+            <span>Add Staff Member</span>
+          </button>
+        </div>
 
-      <div className="glass-card p-6 rounded-2xl">
-        <div className="overflow-x-auto minimal-scroll">
-          <table className="w-full">
-            <thead>
-              <tr className="table-header">
-                <th className="text-left p-3">Name</th>
-                <th className="text-left p-3">Role</th>
-                <th className="text-left p-3">Contact</th>
-                <th className="text-left p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {staffMembers.map((staff) => (
-                <tr key={staff.id} className="table-row">
-                  <td className="p-3 font-semibold">{staff.name}</td>
-                  <td className="p-3">{staff.role}</td>
-                  <td className="p-3 text-gray-300">{staff.contact}</td>
-                  <td className="p-3">
-                    <button
-                      onClick={() => showToast(`Editing ${staff.name}'s details`, 'info')}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors mr-2"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => showToast(`${staff.name} removed from staff`, 'info')}
-                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors"
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="glass-card p-6 rounded-2xl border-l-4 border-blue-500 hover:border-blue-400 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">Total Staff</p>
+                <p className="text-3xl font-bold text-white">{staffMembers.length}</p>
+              </div>
+              <div className="bg-blue-500 bg-opacity-20 p-3 rounded-full">
+                <i className="fas fa-users text-2xl text-blue-400"></i>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-6 rounded-2xl border-l-4 border-green-500 hover:border-green-400 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">Active Staff</p>
+                <p className="text-3xl font-bold text-white">{staffMembers.filter(staff => staff.is_active).length}</p>
+              </div>
+              <div className="bg-green-500 bg-opacity-20 p-3 rounded-full">
+                <i className="fas fa-user-check text-2xl text-green-400"></i>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-6 rounded-2xl border-l-4 border-red-500 hover:border-red-400 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">Inactive Staff</p>
+                <p className="text-3xl font-bold text-white">{staffMembers.filter(staff => !staff.is_active).length}</p>
+              </div>
+              <div className="bg-red-500 bg-opacity-20 p-3 rounded-full">
+                <i className="fas fa-user-times text-2xl text-red-400"></i>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Add Staff Modal */}
+      {/* Enhanced Controls */}
+      <div className="glass-card p-6 rounded-2xl mb-6 border border-gray-700/50">
+        <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
+          <div className="flex items-center gap-4">
+            <label className="flex items-center space-x-3 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={showInactive}
+                  onChange={(e) => setShowInactive(e.target.checked)}
+                  className="sr-only"
+                />
+                <div className={`w-12 h-6 rounded-full transition-all duration-300 ${
+                  showInactive ? 'bg-orange-500' : 'bg-gray-600'
+                }`}>
+                  <div className={`w-5 h-5 bg-white rounded-full transition-all duration-300 transform ${
+                    showInactive ? 'translate-x-6' : 'translate-x-1'
+                  }`}></div>
+                </div>
+              </div>
+              <span className="text-sm text-gray-300 group-hover:text-white transition-colors">Show Inactive Staff</span>
+            </label>
+          </div>
+          
+          <button
+            onClick={async () => {
+              try {
+                setLoading(true);
+                const allUsers = await adminApi.getAllUsers();
+                const staffUsers = allUsers.filter((user: any) => 
+                  user.role !== 'member' && user.role !== 'admin'
+                );
+                setStaffMembers(staffUsers);
+                showToast('Staff list refreshed', 'success');
+              } catch (error) {
+                showToast('Failed to refresh staff list', 'error');
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center space-x-3"
+          >
+            <i className="fas fa-sync-alt"></i>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Enhanced Staff Table */}
+      <div className="glass-card p-6 rounded-2xl border border-gray-700/50">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-white">Staff Directory</h3>
+          <div className="text-sm text-gray-400">
+            Showing {staffMembers.filter(staff => showInactive || staff.is_active).length} of {staffMembers.length} staff members
+          </div>
+        </div>
+        
+        {loading ? (
+          <div className="flex flex-col justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-orange-400 border-t-transparent mb-4"></div>
+            <p className="text-gray-400 text-lg">Loading staff members...</p>
+          </div>
+        ) : staffMembers.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <div className="bg-gray-800/50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+              <i className="fas fa-user-tie text-3xl text-gray-500"></i>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-300 mb-2">No staff members found</h3>
+            <p className="text-gray-500 mb-6">Add your first staff member to get started</p>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
+            >
+              <i className="fas fa-plus mr-2"></i>
+              Add First Staff Member
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-gray-700/50">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-800/50 border-b border-gray-700/50">
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Staff Member</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Role</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Contact</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="text-left p-4 text-sm font-semibold text-gray-300 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700/50">
+                  {staffMembers
+                    .filter((staff) => showInactive || staff.is_active)
+                    .map((staff, index) => (
+                    <tr key={staff.id} className={`hover:bg-gray-800/30 transition-all duration-200 ${index % 2 === 0 ? 'bg-gray-900/20' : 'bg-gray-900/10'} ${!staff.is_active ? 'opacity-75' : ''}`}>
+                      {/* Staff Info */}
+                      <td className="p-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white font-semibold text-sm">
+                              {staff.first_name.charAt(0)}{staff.last_name.charAt(0)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-white">
+                              {staff.first_name} {staff.last_name}
+                            </div>
+                            <div className="text-xs text-gray-400">ID: {staff.id}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Role */}
+                      <td className="p-4">
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            staff.role === 'trainer' 
+                              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
+                              : staff.role === 'nutritionist'
+                              ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
+                              : staff.role === 'front_desk'
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                              : 'bg-gradient-to-r from-gray-500 to-slate-500 text-white'
+                          }`}>
+                            {staff.role.replace('_', ' ')}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Contact */}
+                      <td className="p-4">
+                        <div className="text-sm text-white">{staff.email}</div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="p-4">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            staff.is_active ? 'bg-green-400' : 'bg-red-400'
+                          }`}></div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            staff.is_active 
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          }`}>
+                            {staff.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="p-4">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => showToast(`Editing ${staff.first_name} ${staff.last_name}'s details`, 'info')}
+                            className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 border border-blue-500/30 hover:border-blue-500/50 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center space-x-2"
+                          >
+                            <i className="fas fa-edit"></i>
+                            <span>Edit</span>
+                          </button>
+                          
+                          {staff.is_active ? (
+                            <button
+                              onClick={async () => {
+                                if (window.confirm(`Are you sure you want to deactivate ${staff.first_name} ${staff.last_name}?`)) {
+                                  try {
+                                    await adminApi.deactivateStaffMember(staff.id);
+                                    // Refresh the staff list
+                                    const allUsers = await adminApi.getAllUsers();
+                                    const staffUsers = allUsers.filter((user: any) => 
+                                      user.role !== 'member' && user.role !== 'admin'
+                                    );
+                                    setStaffMembers(staffUsers);
+                                    showToast(`${staff.first_name} ${staff.last_name} deactivated successfully`, 'success');
+                                  } catch (error) {
+                                    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                                    showToast(`Failed to deactivate staff member: ${errorMessage}`, 'error');
+                                  }
+                                }
+                              }}
+                              className="bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 hover:text-orange-300 border border-orange-500/30 hover:border-orange-500/50 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center space-x-2"
+                            >
+                              <i className="fas fa-pause"></i>
+                              <span>Deactivate</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await adminApi.reactivateStaffMember(staff.id);
+                                  // Refresh the staff list
+                                  const allUsers = await adminApi.getAllUsers();
+                                  const staffUsers = allUsers.filter((user: any) => 
+                                    user.role !== 'member' && user.role !== 'admin'
+                                  );
+                                  setStaffMembers(staffUsers);
+                                  showToast(`${staff.first_name} ${staff.last_name} reactivated successfully`, 'success');
+                                } catch (error) {
+                                  const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                                  showToast(`Failed to reactivate staff member: ${errorMessage}`, 'error');
+                                }
+                              }}
+                              className="bg-green-500/20 hover:bg-green-500/30 text-green-400 hover:text-green-300 border border-green-500/30 hover:border-green-500/50 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center space-x-2"
+                            >
+                              <i className="fas fa-play"></i>
+                              <span>Reactivate</span>
+                            </button>
+                          )}
+                          
+                          <button
+                            onClick={async () => {
+                              if (window.confirm(`Are you sure you want to PERMANENTLY DELETE ${staff.first_name} ${staff.last_name}? This action cannot be undone and will remove all their data from the system.`)) {
+                                try {
+                                  await adminApi.deleteStaffMember(staff.id);
+                                  // Refresh the staff list
+                                  const allUsers = await adminApi.getAllUsers();
+                                  const staffUsers = allUsers.filter((user: any) => 
+                                    user.role !== 'member' && user.role !== 'admin'
+                                  );
+                                  setStaffMembers(staffUsers);
+                                  showToast(`${staff.first_name} ${staff.last_name} deleted permanently`, 'success');
+                                } catch (error) {
+                                  const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                                  showToast(`Failed to delete staff member: ${errorMessage}`, 'error');
+                                }
+                              }
+                            }}
+                            className="bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-500/50 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center space-x-2"
+                            title="Permanently delete staff member"
+                          >
+                            <i className="fas fa-trash"></i>
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Enhanced Add Staff Modal - Mobile Friendly */}
       {showAddModal && (
-        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50" onClick={() => setShowAddModal(false)}>
-          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-orange-400">Add Staff Member</h3>
-              <button 
-                onClick={() => setShowAddModal(false)} 
-                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
-                title="Close"
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4" onClick={() => setShowAddModal(false)}>
+          <div className="glass-card p-4 sm:p-6 rounded-2xl max-w-sm sm:max-w-md w-full border border-gray-700/50 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i className="fas fa-user-tie text-lg sm:text-xl text-white"></i>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">Add New Staff Member</h3>
+              <p className="text-sm text-gray-400">Create a new gym staff account</p>
+            </div>
+            
+            {/* Form */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                  <i className="fas fa-user mr-2 text-orange-400 text-xs"></i>
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter first and last name"
+                  value={newStaff.name}
+                  onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-600/50 rounded-lg focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 text-sm"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                  <i className="fas fa-briefcase mr-2 text-blue-400 text-xs"></i>
+                  Staff Role *
+                </label>
+                <select
+                  value={newStaff.role}
+                  onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-600/50 rounded-lg focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 text-sm"
+                >
+                  <option value="">Select a role</option>
+                  <option value="trainer">Personal Trainer</option>
+                  <option value="nutritionist">Nutritionist</option>
+                  <option value="front_desk">Front Desk Staff</option>
+                  <option value="public">Public User</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                  <i className="fas fa-envelope mr-2 text-green-400 text-xs"></i>
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  placeholder="Enter email address"
+                  value={newStaff.contact}
+                  onChange={(e) => setNewStaff({ ...newStaff, contact: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-600/50 rounded-lg focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-all duration-300 text-sm"
+                />
+              </div>
+            </div>
+            
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="w-full sm:w-auto px-6 py-2.5 text-gray-300 hover:text-white transition-colors font-medium text-sm"
               >
-                <i className="fas fa-times text-xl"></i>
+                Cancel
+              </button>
+              <button
+                onClick={handleAddStaff}
+                className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-2.5 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg text-sm"
+              >
+                <i className="fas fa-plus mr-2"></i>
+                Create Staff Member
               </button>
             </div>
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Staff name"
-                value={newStaff.name}
-                onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
-              />
-              <select
-                value={newStaff.role}
-                onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
-              >
-                <option value="">Select role</option>
-                <option value="Personal Trainer">Personal Trainer</option>
-                <option value="Nutritionist">Nutritionist</option>
-                <option value="Receptionist">Receptionist</option>
-                <option value="Maintenance">Maintenance</option>
-                <option value="Manager">Manager</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Contact (email or phone)"
-                value={newStaff.contact}
-                onChange={(e) => setNewStaff({ ...newStaff, contact: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-orange-400 focus:outline-none"
-              />
-              <div className="flex space-x-4">
-                <button
-                  onClick={handleAddStaff}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Add Staff
-                </button>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
+            
+            {/* Info */}
+            <div className="mt-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+              <div className="flex items-start space-x-2">
+                <i className="fas fa-info-circle text-orange-400 mt-0.5 text-xs"></i>
+                <div className="text-xs text-gray-400">
+                  <p className="font-medium text-gray-300 mb-1">Default Password:</p>
+                  <p><code className="bg-gray-700 px-1.5 py-0.5 rounded text-orange-400 text-xs">defaultPassword123</code></p>
+                  <p className="mt-1">Staff member should change this after first login</p>
+                </div>
               </div>
             </div>
           </div>
