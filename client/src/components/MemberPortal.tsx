@@ -3,6 +3,7 @@ import { User } from '../types';
 import { facilities, exercises } from '../data/mockData';
 import { useToast } from './Toast';
 import { memberApi } from '../services/api/memberApi';
+import { TrainersTab } from './member/TrainersTab';
 
 interface MemberPortalProps {
   user: User | null;
@@ -4699,117 +4700,8 @@ const Reviews = ({ showToast }: { showToast: (message: string, type?: 'success' 
   );
 };
 
-const TrainersTab = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [selectedTrainer, setSelectedTrainer] = useState<any>(null);
-  const [trainers, setTrainers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchTrainers = async () => {
-      try {
-        const data = await memberApi.getTrainers();
-        setTrainers(data);
-      } catch (error) {
-        console.error('Failed to fetch trainers:', error);
-        showToast('Failed to load trainers', 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchTrainers();
-  }, []); // Remove showToast dependency to prevent infinite loop
-
-  if (loading) {
-    return (
-      <div className="animate-fade-in flex items-center justify-center h-64">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-blue-400 mb-4"></i>
-          <p className="text-gray-300">Loading trainers...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="animate-fade-in">
-      <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Our Trainers
-      </h2>
-      
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {trainers.length === 0 ? (
-          <p className="text-gray-400 text-center py-4 col-span-full">No trainers available</p>
-        ) : (
-          trainers.map((trainer) => (
-            <div key={trainer.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
-              <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-blue-400">
-                <img 
-                  src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" 
-                  alt={`${trainer.first_name} ${trainer.last_name}`} 
-                  className="w-full h-full object-cover" 
-                />
-              </div>
-              <h3 className="text-xl font-bold text-blue-400 mb-2">
-                {trainer.first_name} {trainer.last_name}
-              </h3>
-              <p className="text-green-400 mb-2">
-                {trainer.specialization?.[0] || 'Personal Trainer'}
-              </p>
-              <p className="text-gray-300 text-sm mb-2">
-                {trainer.bio || 'Experienced fitness professional'}
-              </p>
-              <p className="text-yellow-400 text-sm mb-4">
-                ⭐ {trainer.average_rating ? parseFloat(trainer.average_rating).toFixed(1) : '5.0'} 
-                ({trainer.total_ratings || 0} reviews)
-              </p>
-              <button
-                onClick={() => setSelectedTrainer(trainer)}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors"
-              >
-                Book Session
-              </button>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Trainer Schedule Modal */}
-      {selectedTrainer && (
-        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-blue-400">{selectedTrainer.name}'s Schedule</h3>
-              <button onClick={() => setSelectedTrainer(null)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
-                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
-              </button>
-            </div>
-            <div className="space-y-4">
-              <p className="text-gray-300 mb-4">{selectedTrainer.bio}</p>
-              <div>
-                <h4 className="font-bold text-green-400 mb-2">Available Times:</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {selectedTrainer.schedule.map((time: string, index: number) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        showToast(`Booked session with ${selectedTrainer.name} at ${time}`, 'success');
-                        setSelectedTrainer(null);
-                      }}
-                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded text-sm transition-colors"
-                    >
-                      {time}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const MemberAnnouncements = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const announcements = [

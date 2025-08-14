@@ -12,8 +12,15 @@ const getAuthHeaders = () => {
 // Handle API responses
 const handleResponse = async (response: Response) => {
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Network error' }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+    
+    // For 400 responses, preserve the error message from the backend
+    if (response.status === 400 && errorData.error) {
+      throw new Error(errorData.error);
+    }
+    
+    // For other error responses, use the error message or status
+    throw new Error(errorData.error || `HTTP ${response.status}`);
   }
   return response.json();
 };
@@ -39,6 +46,57 @@ export const memberApi = {
   getTrainers: async () => {
     const response = await fetch(`${BASE_URL}/members/trainers`, {
       headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Book training session
+  bookTrainingSession: async (sessionData: {
+    trainer_id: number;
+    session_date: string;
+    start_time: string;
+    end_time: string;
+    session_type: string;
+    notes?: string;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/book-training-session`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(sessionData),
+    });
+    return handleResponse(response);
+  },
+
+  // Get upcoming training sessions
+  getUpcomingSessions: async () => {
+    const response = await fetch(`${BASE_URL}/members/upcoming-sessions`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get completed training sessions
+  getCompletedSessions: async () => {
+    const response = await fetch(`${BASE_URL}/members/completed-sessions`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Submit session review
+  submitSessionReview: async (reviewData: {
+    session_id: number;
+    rating: number;
+    review_text: string;
+    training_effectiveness: number;
+    communication: number;
+    punctuality: number;
+    professionalism: number;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/session-review`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reviewData),
     });
     return handleResponse(response);
   },
@@ -356,6 +414,22 @@ export const memberApi = {
   // Get exercises
   getExercises: async () => {
     const response = await fetch(`${BASE_URL}/members/exercises`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get trainer's booked slots
+  getTrainerBookedSlots: async (trainerId: number) => {
+    const response = await fetch(`${BASE_URL}/members/trainers/${trainerId}/booked-slots`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get trainer's schedule
+  getTrainerSchedule: async (trainerId: number, date: string) => {
+    const response = await fetch(`${BASE_URL}/members/trainers/${trainerId}/schedule/${date}`, {
       headers: getAuthHeaders(),
     });
     return handleResponse(response);

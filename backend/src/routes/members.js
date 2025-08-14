@@ -1020,6 +1020,93 @@ router.post('/training-request', verifyMemberToken, async (req, res) => {
   }
 });
 
+// Book training session directly
+router.post('/book-training-session', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const {
+      trainer_id,
+      session_date,
+      start_time,
+      end_time,
+      session_type,
+      notes
+    } = req.body;
+
+    // Check if the time slot is available using the new trainer_schedules table
+    const availabilityCheck = await query(
+      `SELECT ts.* FROM trainer_schedules ts
+       WHERE ts.trainer_id = $1 
+       AND ts.day_of_week = EXTRACT(DOW FROM $2::date)
+       AND ts.time_slot = $3
+       AND ts.status = 'available'`,
+      [trainer_id, session_date, start_time]
+    );
+
+    if (availabilityCheck.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Selected time slot is not available' 
+      });
+    }
+
+    // Check if the slot is already booked
+    const existingBooking = await query(
+      `SELECT * FROM training_sessions 
+       WHERE trainer_id = $1 
+       AND session_date = $2 
+       AND start_time = $3 
+       AND status IN ('scheduled', 'confirmed')`,
+      [trainer_id, session_date, start_time]
+    );
+
+    if (existingBooking.rows.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'This time slot is already booked' 
+      });
+    }
+
+    // Get trainer's hourly rate
+    const trainerResult = await query(
+      'SELECT hourly_rate FROM trainers WHERE id = $1',
+      [trainer_id]
+    );
+
+    const hourlyRate = trainerResult.rows[0]?.hourly_rate || 75.00;
+    const sessionDuration = (new Date(`2000-01-01 ${end_time}`) - new Date(`2000-01-01 ${start_time}`)) / (1000 * 60 * 60);
+    const sessionPrice = hourlyRate * sessionDuration;
+
+    // Create the training session
+    const result = await query(
+      `INSERT INTO training_sessions 
+       (trainer_id, client_id, session_date, start_time, end_time, session_type, status, price, notes, payment_status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, $8, 'pending')
+       RETURNING *`,
+      [trainer_id, userId, session_date, start_time, end_time, session_type, sessionPrice, notes]
+    );
+
+    // Update trainer's total sessions count
+    await query(
+      'UPDATE trainers SET total_sessions = total_sessions + 1 WHERE id = $1',
+      [trainer_id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Training session booked successfully!',
+      session: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Training session booking error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to book training session' 
+    });
+  }
+});
+
 // Book facility
 router.post('/book-facility', verifyMemberToken, async (req, res) => {
   try {
@@ -1944,6 +2031,255 @@ router.post('/resume-subscription', verifyMemberToken, async (req, res) => {
   } catch (error) {
     console.error('Resume subscription error:', error);
     res.status(500).json({ error: 'Failed to resume subscription' });
+  }
+});
+
+// Get trainer availability
+router.get('/trainers/:trainerId/availability', verifyMemberToken, async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+    
+    // Get trainer's availability schedule
+    const result = await query(
+      `SELECT day_of_week, start_time, end_time, is_available, session_duration_minutes, max_sessions_per_day
+       FROM trainer_availability 
+       WHERE trainer_id = $1 AND is_available = true
+       ORDER BY day_of_week, start_time`,
+      [trainerId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching trainer availability:', error);
+    res.status(500).json({ error: 'Failed to fetch trainer availability' });
+  }
+});
+
+// Get booked slots for a specific trainer
+router.get('/trainers/:trainerId/booked-slots', verifyMemberToken, async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+    
+    // Get all booked sessions for this trainer (including pending bookings)
+    const bookedSessions = await query(
+      `SELECT ts.session_date, ts.start_time, ts.end_time, ts.status
+       FROM training_sessions ts
+       WHERE ts.trainer_id = $1 
+       AND ts.status IN ('scheduled', 'confirmed')
+       AND ts.session_date >= CURRENT_DATE
+       ORDER BY ts.session_date, ts.start_time`,
+      [trainerId]
+    );
+
+    // Also get general bookings that might block time slots
+    const generalBookings = await query(
+      `SELECT b.booking_date as session_date, b.start_time, b.end_time, b.status
+       FROM bookings b
+       WHERE b.trainer_id = $1 
+       AND b.status IN ('confirmed', 'pending')
+       AND b.booking_date >= CURRENT_DATE
+       ORDER BY b.booking_date, b.start_time`,
+      [trainerId]
+    );
+
+    // Combine both results and remove duplicates
+    const allBookedSlots = [...bookedSessions.rows, ...generalBookings.rows];
+    
+    // Remove duplicates based on date, start_time, and end_time
+    const uniqueBookedSlots = allBookedSlots.filter((slot, index, self) => 
+      index === self.findIndex(s => 
+        s.session_date === slot.session_date && 
+        s.start_time === slot.start_time && 
+        s.end_time === slot.end_time
+      )
+    );
+
+    res.json(uniqueBookedSlots);
+  } catch (error) {
+    console.error('Error fetching booked slots:', error);
+    res.status(500).json({ error: 'Failed to fetch booked slots' });
+  }
+});
+
+// Get member's upcoming training sessions
+router.get('/upcoming-sessions', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const result = await query(
+      `SELECT 
+         ts.*,
+         t.id as trainer_id,
+         u.first_name as trainer_first_name,
+         u.last_name as trainer_last_name,
+         u.email as trainer_email
+       FROM training_sessions ts
+       JOIN trainers t ON ts.trainer_id = t.id
+       JOIN users u ON t.user_id = u.id
+       WHERE ts.client_id = $1 
+       AND ts.status IN ('scheduled', 'confirmed')
+       AND ts.session_date >= CURRENT_DATE
+       ORDER BY ts.session_date, ts.start_time`,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching upcoming sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch upcoming sessions' });
+  }
+});
+
+// Get member's completed training sessions
+router.get('/completed-sessions', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const result = await query(
+      `SELECT 
+         ts.*,
+         t.id as trainer_id,
+         u.first_name as trainer_first_name,
+         u.last_name as trainer_last_name,
+         u.email as trainer_email
+       FROM training_sessions ts
+       JOIN trainers t ON ts.trainer_id = t.id
+       JOIN users u ON t.user_id = u.id
+       WHERE ts.client_id = $1 
+       AND ts.status = 'completed'
+       ORDER BY ts.session_date DESC, ts.start_time DESC`,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching completed sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch completed sessions' });
+  }
+});
+
+// Get trainer's availability and schedule
+router.get('/trainers/:trainerId/schedule', verifyMemberToken, async (req, res) => {
+  try {
+    const { trainerId } = req.params;
+    
+    const result = await query(
+      `SELECT 
+         ts.day_of_week,
+         ts.time_slot,
+         ts.status,
+         ts.booking_id,
+         ts.client_id,
+         ts.session_date,
+         ts.notes,
+         CASE 
+           WHEN ts.client_id IS NOT NULL THEN 
+             CONCAT(u.first_name, ' ', u.last_name)
+           ELSE NULL
+         END as client_name
+       FROM trainer_schedules ts
+       LEFT JOIN users u ON ts.client_id = u.id
+       WHERE ts.trainer_id = $1
+       ORDER BY ts.day_of_week, ts.time_slot`,
+      [trainerId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching trainer schedule:', error);
+    res.status(500).json({ error: 'Failed to fetch trainer schedule' });
+  }
+});
+
+// Get trainer's schedule for a specific date
+router.get('/trainers/:trainerId/schedule/:date', verifyMemberToken, async (req, res) => {
+  try {
+    const { trainerId, date } = req.params;
+    
+    const result = await query(
+      `SELECT 
+         ts.time_slot,
+         ts.status,
+         ts.booking_id,
+         ts.client_id,
+         ts.session_date,
+         ts.notes,
+         CASE 
+           WHEN ts.client_id IS NOT NULL THEN 
+             CONCAT(u.first_name, ' ', u.last_name)
+           ELSE NULL
+         END as client_name
+       FROM trainer_schedules ts
+       LEFT JOIN users u ON ts.client_id = u.id
+       WHERE ts.trainer_id = $1
+         AND ts.day_of_week = EXTRACT(DOW FROM $2::date)
+       ORDER BY ts.time_slot`,
+      [trainerId, date]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching trainer schedule for date:', error);
+    res.status(500).json({ error: 'Failed to fetch trainer schedule for date' });
+  }
+});
+
+// Submit session review
+router.post('/session-review', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { session_id, rating, review_text, training_effectiveness, communication, punctuality, professionalism } = req.body;
+    
+    // Check if session exists and belongs to user
+    const sessionCheck = await query(
+      'SELECT * FROM training_sessions WHERE id = $1 AND client_id = $2 AND status = $3',
+      [session_id, userId, 'completed']
+    );
+    
+    if (sessionCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found or not completed' });
+    }
+    
+    // Check if review already exists
+    const existingReview = await query(
+      'SELECT * FROM trainer_ratings WHERE trainer_id = $1 AND client_id = $2 AND training_session_id = $3',
+      [sessionCheck.rows[0].trainer_id, userId, session_id]
+    );
+    
+    if (existingReview.rows.length > 0) {
+      return res.status(400).json({ error: 'Review already submitted for this session' });
+    }
+    
+    // Insert review
+    const result = await query(
+      `INSERT INTO trainer_ratings 
+       (trainer_id, client_id, training_session_id, rating, review_text, training_effectiveness, communication, punctuality, professionalism)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [sessionCheck.rows[0].trainer_id, userId, session_id, rating, review_text, training_effectiveness, communication, punctuality, professionalism]
+    );
+    
+    // Update trainer's average rating
+    await query(
+      `UPDATE trainers 
+       SET rating = (
+         SELECT AVG(rating) 
+         FROM trainer_ratings 
+         WHERE trainer_id = $1
+       )
+       WHERE id = $1`,
+      [sessionCheck.rows[0].trainer_id]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Review submitted successfully',
+      review: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Error submitting review:', error);
+    res.status(500).json({ error: 'Failed to submit review' });
   }
 });
 
