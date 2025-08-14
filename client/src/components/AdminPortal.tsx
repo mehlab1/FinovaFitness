@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { User } from '../types';
 import { useToast } from './Toast';
 import { staffMembers } from '../data/mockData';
-import { adminApi, MemberStats, SessionStats } from '../services/api/adminApi';
+import { adminApi, MemberStats, SessionStats, getRevenueStats, RevenueStats } from '../services/api/adminApi';
+import { RevenueDashboard } from './RevenueDashboard';
+import { RevenueManagement } from './RevenueManagement';
 
 interface AdminPortalProps {
   user: User | null;
@@ -25,6 +27,8 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
         return <BookingsManagement showToast={showToast} />;
       case 'plans':
         return <PlansManagement showToast={showToast} />;
+      case 'revenue':
+        return <RevenueManagement showToast={showToast} />;
       case 'loyalty':
         return <LoyaltyManagement showToast={showToast} />;
       case 'rewards':
@@ -60,6 +64,7 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
                 { id: 'staff', icon: 'fas fa-user-tie', label: 'Staff Management', color: 'text-green-400' },
                 { id: 'bookings', icon: 'fas fa-calendar-alt', label: 'Bookings & Facilities', color: 'text-pink-400' },
                 { id: 'plans', icon: 'fas fa-tags', label: 'Plans & Pricing', color: 'text-purple-400' },
+                { id: 'revenue', icon: 'fas fa-dollar-sign', label: 'Revenue Management', color: 'text-green-400' },
                 { id: 'loyalty', icon: 'fas fa-gift', label: 'Loyalty & Referrals', color: 'text-blue-400' },
                 { id: 'rewards', icon: 'fas fa-trophy', label: 'Consistency Rewards', color: 'text-green-400' },
                 { id: 'analytics', icon: 'fas fa-chart-line', label: 'Analytics', color: 'text-pink-400' },
@@ -134,18 +139,22 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
     sessionTypeBreakdown: [],
     recentSessions: [],
   });
+  const [revenueStats, setRevenueStats] = useState<RevenueStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
+  const [showRevenueDashboard, setShowRevenueDashboard] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [memberStatsData, sessionStatsData] = await Promise.all([
+        const [memberStatsData, sessionStatsData, revenueStatsData] = await Promise.all([
           adminApi.getMemberStats(),
-          adminApi.getSessionStats()
+          adminApi.getSessionStats(),
+          getRevenueStats()
         ]);
         setMemberStats(memberStatsData);
         setSessionStats(sessionStatsData);
+        setRevenueStats(revenueStatsData);
       } catch (error) {
         console.error('Error fetching stats:', error);
         showToast('Failed to load dashboard statistics', 'error');
@@ -210,13 +219,20 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
           </p>
         </div>
         
-        <div className="metric-card p-6 rounded-xl border-pink-400">
+        <div 
+          className="metric-card p-6 rounded-xl border-pink-400 cursor-pointer hover:scale-105 transition-all duration-300 hover:shadow-2xl hover:shadow-pink-500/20"
+          onClick={() => setShowRevenueDashboard(true)}
+        >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>Revenue Today</h3>
             <i className="fas fa-dollar-sign text-pink-400 text-2xl"></i>
           </div>
-          <p className="text-2xl font-bold text-white">-</p>
-          <p className="text-gray-300">-</p>
+          <p className="text-2xl font-bold text-white">
+            {loading ? '...' : revenueStats ? `$${revenueStats.todayRevenue.toFixed(2)}` : '$0.00'}
+          </p>
+          <p className="text-gray-300">
+            {loading ? 'Loading...' : revenueStats ? `${revenueStats.todayTransactions} transactions` : '0 transactions'}
+          </p>
         </div>
         
         <div className="metric-card p-6 rounded-xl border-purple-400">
@@ -300,208 +316,119 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
       ))}
     </div>
 
+    {/* Revenue Dashboard Modal */}
+    {showRevenueDashboard && (
+      <RevenueDashboard onClose={() => setShowRevenueDashboard(false)} />
+    )}
+
     {/* Sessions Modal */}
     {showSessionsModal && (
-      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50" onClick={() => setShowSessionsModal(false)}>
-        <div className="glass-card p-8 rounded-2xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-3xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-              <i className="fas fa-calendar-day mr-3"></i>
-              Sessions Analytics
-            </h2>
-            <button 
-              onClick={() => setShowSessionsModal(false)} 
-              className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
-              title="Close"
-            >
-              <i className="fas fa-times text-2xl"></i>
-            </button>
-          </div>
-
-          {/* Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-xl text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm">Today</p>
-                  <p className="text-3xl font-bold">{sessionStats.sessionsToday}</p>
-                </div>
-                <i className="fas fa-calendar-day text-4xl text-blue-200"></i>
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div className="bg-gray-900 w-full max-w-4xl max-h-[80vh] rounded-2xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Orbitron, monospace' }}>
+                  SESSIONS OVERVIEW
+                </h2>
+                <p className="text-blue-100 mt-1">Detailed session statistics and breakdown</p>
               </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-xl text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm">This Month</p>
-                  <p className="text-3xl font-bold">{sessionStats.sessionsThisMonth}</p>
-                </div>
-                <i className="fas fa-calendar-alt text-4xl text-green-200"></i>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-xl text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-purple-100 text-sm">This Year</p>
-                  <p className="text-3xl font-bold">{sessionStats.sessionsThisYear}</p>
-                </div>
-                <i className="fas fa-calendar-check text-4xl text-purple-200"></i>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-6 rounded-xl text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-orange-100 text-sm">Total</p>
-                  <p className="text-3xl font-bold">{sessionStats.totalSessions}</p>
-                </div>
-                <i className="fas fa-chart-line text-4xl text-orange-200"></i>
-              </div>
+              <button
+                onClick={() => setShowSessionsModal(false)}
+                className="text-white hover:text-blue-200 text-2xl transition-colors"
+              >
+                <i className="fas fa-times"></i>
+              </button>
             </div>
           </div>
 
-          {/* Trainer Performance */}
-          <div className="glass-card p-6 rounded-2xl mb-8">
-            <h3 className="text-xl font-bold text-blue-400 mb-4">
-              <i className="fas fa-user-tie mr-2"></i>
-              Trainer Performance
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left p-3 text-gray-300">Trainer</th>
-                    <th className="text-left p-3 text-gray-300">Sessions</th>
-                    <th className="text-left p-3 text-gray-300">Completion Rate</th>
-                    <th className="text-left p-3 text-gray-300">Performance</th>
-                    </tr>
-                </thead>
-                <tbody>
-                  {sessionStats.trainerSessionBreakdown.map((trainer, index) => (
-                    <tr key={index} className="border-b border-gray-700 hover:bg-gray-800/50">
-                      <td className="p-3 font-semibold">{trainer.trainerName}</td>
-                      <td className="p-3 text-blue-400 font-bold">{trainer.sessionsCount}</td>
-                      <td className="p-3">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-20 bg-gray-700 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full ${
-                                trainer.completionRate >= 80 ? 'bg-green-500' : 
-                                trainer.completionRate >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                              }`}
-                              style={{ width: `${trainer.completionRate}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-sm">{trainer.completionRate}%</span>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          trainer.completionRate >= 80 ? 'bg-green-600 text-white' : 
-                          trainer.completionRate >= 60 ? 'bg-yellow-600 text-white' : 'bg-red-600 text-white'
-                        }`}>
-                          {trainer.completionRate >= 80 ? 'Excellent' : 
-                           trainer.completionRate >= 60 ? 'Good' : 'Needs Improvement'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Content */}
+          <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+            {/* Session Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="glass-card p-6 rounded-xl border-blue-400">
+                <h3 className="text-lg font-bold text-blue-400 mb-2">Today</h3>
+                <p className="text-3xl font-bold text-white">{sessionStats.sessionsToday}</p>
+                <p className="text-gray-300">sessions</p>
+              </div>
+              <div className="glass-card p-6 rounded-xl border-green-400">
+                <h3 className="text-lg font-bold text-green-400 mb-2">This Month</h3>
+                <p className="text-3xl font-bold text-white">{sessionStats.sessionsThisMonth}</p>
+                <p className="text-gray-300">sessions</p>
+              </div>
+              <div className="glass-card p-6 rounded-xl border-purple-400">
+                <h3 className="text-lg font-bold text-purple-400 mb-2">This Year</h3>
+                <p className="text-3xl font-bold text-white">{sessionStats.sessionsThisYear}</p>
+                <p className="text-gray-300">sessions</p>
+              </div>
+              <div className="glass-card p-6 rounded-xl border-orange-400">
+                <h3 className="text-lg font-bold text-orange-400 mb-2">Total</h3>
+                <p className="text-3xl font-bold text-white">{sessionStats.totalSessions}</p>
+                <p className="text-gray-300">sessions</p>
+              </div>
             </div>
-          </div>
 
-          {/* Session Types */}
-          <div className="glass-card p-6 rounded-2xl mb-8">
-            <h3 className="text-xl font-bold text-green-400 mb-4">
-              <i className="fas fa-chart-pie mr-2"></i>
-              Session Types Distribution
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                {sessionStats.sessionTypeBreakdown.map((type, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <span className="text-gray-300">{type.type}</span>
+            {/* Trainer Breakdown */}
+            <div className="glass-card p-6 rounded-2xl mb-8">
+              <h3 className="text-xl font-bold text-blue-400 mb-4">Sessions by Trainer</h3>
+              <div className="space-y-3">
+                {sessionStats.trainerSessionBreakdown.map((trainer, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
                     <div className="flex items-center space-x-3">
-                      <div className="w-24 bg-gray-700 rounded-full h-3">
-                        <div 
-                          className="bg-gradient-to-r from-green-400 to-blue-400 h-3 rounded-full"
-                          style={{ width: `${type.percentage}%` }}
-                        ></div>
+                      <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                        <i className="fas fa-user-tie text-white"></i>
                       </div>
-                      <span className="text-sm font-semibold text-green-400 w-12 text-right">
-                        {type.count}
-                      </span>
+                      <span className="text-white font-medium">{trainer.trainerName}</span>
+                    </div>
+                    <span className="text-xl font-bold text-blue-400">{trainer.sessionsCount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Session Type Breakdown */}
+            <div className="glass-card p-6 rounded-2xl mb-8">
+              <h3 className="text-xl font-bold text-green-400 mb-4">Sessions by Type</h3>
+              <div className="space-y-3">
+                {sessionStats.sessionTypeBreakdown.map((type, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
+                        <i className="fas fa-dumbbell text-white"></i>
+                      </div>
+                      <span className="text-white font-medium">{type.type}</span>
+                    </div>
+                    <span className="text-xl font-bold text-green-400">{type.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent Sessions */}
+            <div className="glass-card p-6 rounded-2xl">
+              <h3 className="text-xl font-bold text-purple-400 mb-4">Recent Sessions</h3>
+              <div className="space-y-3">
+                {sessionStats.recentSessions.map((session, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+                        <i className="fas fa-calendar-check text-white"></i>
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{session.clientName}</p>
+                        <p className="text-gray-400 text-sm">
+                          {session.sessionDate} • {session.sessionType}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white font-medium">{session.trainerName}</p>
+                      <p className="text-gray-400 text-sm">{session.startTime} - {session.endTime}</p>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="bg-gray-900 p-6 rounded-lg">
-                <h4 className="text-lg font-semibold text-center mb-4">Quick Stats</h4>
-                <div className="space-y-3 text-center">
-                  <div>
-                    <p className="text-2xl font-bold text-blue-400">{sessionStats.sessionsToday}</p>
-                    <p className="text-sm text-gray-400">Sessions Today</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-green-400">{sessionStats.sessionsThisMonth}</p>
-                    <p className="text-sm text-gray-400">This Month</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-purple-400">{sessionStats.sessionsThisYear}</p>
-                    <p className="text-sm text-gray-400">This Year</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Sessions */}
-          <div className="glass-card p-6 rounded-2xl">
-            <h3 className="text-xl font-bold text-purple-400 mb-4">
-              <i className="fas fa-history mr-2"></i>
-              Recent Sessions
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left p-3 text-gray-300">Client</th>
-                    <th className="text-left p-3 text-gray-300">Trainer</th>
-                    <th className="text-left p-3 text-gray-300">Type</th>
-                    <th className="text-left p-3 text-gray-300">Date</th>
-                    <th className="text-left p-3 text-gray-300">Time</th>
-                    <th className="text-left p-3 text-gray-300">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sessionStats.recentSessions.map((session, index) => (
-                    <tr key={index} className="border-b border-gray-700 hover:bg-gray-800/50">
-                      <td className="p-3 font-semibold">{session.clientName}</td>
-                      <td className="p-3 text-blue-400">{session.trainerName}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
-                          {session.sessionType}
-                        </span>
-                        </td>
-                      <td className="p-3 text-gray-300">{new Date(session.sessionDate).toLocaleDateString()}</td>
-                      <td className="p-3 text-gray-300">
-                        {session.startTime} - {session.endTime}
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          session.status === 'completed' ? 'bg-green-600 text-white' : 
-                          session.status === 'scheduled' ? 'bg-blue-600 text-white' : 
-                          session.status === 'cancelled' ? 'bg-red-600 text-white' : 'bg-yellow-600 text-white'
-                        }`}>
-                          {session.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>

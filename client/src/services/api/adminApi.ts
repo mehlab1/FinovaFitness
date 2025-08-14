@@ -54,6 +54,30 @@ export interface SessionStats {
   }[];
 }
 
+export interface RevenueStats {
+  todayRevenue: number;
+  todayTransactions: number;
+  monthRevenue: number;
+  monthTransactions: number;
+  yearRevenue: number;
+  yearTransactions: number;
+  revenueBreakdown: {
+    membership_fees: number;
+    personal_training: number;
+    group_classes: number;
+    other: number;
+  };
+  recentTransactions: Array<{
+    id: number;
+    revenue_date: string;
+    revenue_source: string;
+    amount: number;
+    payment_method: string;
+    user_id: number;
+    notes: string;
+  }>;
+}
+
 export const adminApi = {
   // Get member statistics (admin only)
   async getMemberStats(): Promise<MemberStats> {
@@ -124,4 +148,49 @@ export const adminApi = {
       throw error;
     }
   },
+};
+
+// Revenue Management
+export const getRevenueStats = async (): Promise<RevenueStats> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/revenue/stats`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch revenue stats');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching revenue stats:', error);
+    throw error;
+  }
+};
+
+export const getRevenueDetails = async (period: 'daily' | 'monthly' | 'yearly', startDate?: string, endDate?: string): Promise<any> => {
+  try {
+    const params = new URLSearchParams({ period });
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const response = await fetch(`${API_BASE_URL}/admin/revenue/details?${params}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch revenue details');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching revenue details:', error);
+    throw error;
+  }
 };
