@@ -7,6 +7,7 @@ import { testConnection } from './database.js';
 import userRoutes from './routes/users.js';
 import trainerRoutes from './routes/trainers.js';
 import memberRoutes from './routes/members.js';
+import adminRoutes from './routes/admin.js';
 
 // Load environment variables
 dotenv.config();
@@ -45,6 +46,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/users', userRoutes);
 app.use('/api/trainers', trainerRoutes);
 app.use('/api/members', memberRoutes);
+app.use('/api/admin', adminRoutes);
 
 // API routes will be added here
 app.get('/api', (req, res) => {

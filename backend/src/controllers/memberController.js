@@ -218,3 +218,142 @@ export const createTrainingRequest = async (req, res) => {
     res.status(500).json({ error: 'Failed to create training request' });
   }
 };
+
+// Book training session directly
+export const bookTrainingSession = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const {
+      trainer_id,
+      session_date,
+      start_time,
+      end_time,
+      session_type,
+      notes
+    } = req.body;
+
+    // Start a transaction to ensure data consistency
+    await query('BEGIN');
+
+    try {
+      // Check if the time slot is available using the new database function
+      const availabilityCheck = await query(
+        'SELECT is_slot_available($1, $2, $3) as is_available',
+        [trainer_id, session_date, start_time]
+      );
+
+      if (!availabilityCheck.rows[0]?.is_available) {
+        await query('ROLLBACK');
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Selected time slot is not available or already booked' 
+        });
+      }
+
+      // Double-check by looking at the actual schedule status
+      const scheduleCheck = await query(
+        `SELECT status FROM trainer_schedules 
+         WHERE trainer_id = $1 
+         AND day_of_week = EXTRACT(DOW FROM $2::date)
+         AND time_slot = $3`,
+        [trainer_id, session_date, start_time]
+      );
+
+      if (scheduleCheck.rows.length === 0 || scheduleCheck.rows[0].status !== 'available') {
+        await query('ROLLBACK');
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Selected time slot is not available' 
+        });
+      }
+
+      // Check if there's already a booking for this slot
+      const existingBooking = await query(
+        `SELECT * FROM training_sessions 
+         WHERE trainer_id = $1 
+         AND session_date = $2 
+         AND start_time = $3 
+         AND status IN ('scheduled', 'confirmed')`,
+        [trainer_id, session_date, start_time]
+      );
+
+      if (existingBooking.rows.length > 0) {
+        await query('ROLLBACK');
+        return res.status(400).json({ 
+          success: false, 
+          error: 'This time slot is already booked' 
+        });
+      }
+
+      // Get trainer's hourly rate
+      const trainerResult = await query(
+        'SELECT hourly_rate FROM trainers WHERE id = $1',
+        [trainer_id]
+      );
+
+      const hourlyRate = trainerResult.rows[0]?.hourly_rate || 75.00;
+      const sessionDuration = (new Date(`2000-01-01 ${end_time}`) - new Date(`2000-01-01 ${start_time}`)) / (1000 * 60 * 60);
+      const sessionPrice = hourlyRate * sessionDuration;
+
+      // Create the training session
+      const result = await query(
+        `INSERT INTO training_sessions 
+         (trainer_id, client_id, session_date, start_time, end_time, session_type, status, price, notes, payment_status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, $8, 'pending')
+         RETURNING *`,
+        [trainer_id, userId, session_date, start_time, end_time, session_type, sessionPrice, notes]
+      );
+
+      // The trigger should automatically update the trainer_schedules table
+      // But let's also manually verify the update
+      const scheduleUpdateCheck = await query(
+        `SELECT status FROM trainer_schedules 
+         WHERE trainer_id = $1 
+         AND day_of_week = EXTRACT(DOW FROM $2::date)
+         AND time_slot = $3`,
+        [trainer_id, session_date, start_time]
+      );
+
+      if (scheduleUpdateCheck.rows.length === 0 || scheduleUpdateCheck.rows[0].status !== 'booked') {
+        // If the trigger didn't work, manually update the schedule
+        await query(
+          `UPDATE trainer_schedules 
+           SET status = 'booked',
+               booking_id = $1,
+               client_id = $2,
+               session_date = $3,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE trainer_id = $4 
+             AND day_of_week = EXTRACT(DOW FROM $3::date)
+             AND time_slot = $5`,
+          [result.rows[0].id, userId, session_date, trainer_id, start_time]
+        );
+      }
+
+      // Update trainer's total sessions count
+      await query(
+        'UPDATE trainers SET total_sessions = total_sessions + 1 WHERE id = $1',
+        [trainer_id]
+      );
+
+      await query('COMMIT');
+
+      res.json({
+        success: true,
+        message: 'Training session booked successfully!',
+        session: result.rows[0]
+      });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Training session booking error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to book training session' 
+    });
+  }
+};

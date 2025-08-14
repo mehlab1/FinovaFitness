@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User } from '../types';
 import { useToast } from './Toast';
-import { memberStats, staffMembers } from '../data/mockData';
+import { staffMembers } from '../data/mockData';
+import { adminApi, MemberStats, SessionStats } from '../services/api/adminApi';
 
 interface AdminPortalProps {
   user: User | null;
@@ -117,62 +118,116 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
   );
 };
 
-const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => (
-  <div className="animate-fade-in">
-    <div className="mb-8">
-      <h1 className="text-4xl font-bold text-orange-400 mb-2 neon-glow" style={{ fontFamily: 'Orbitron, monospace' }}>
-        ADMIN DASHBOARD
-      </h1>
-      <p className="text-gray-300">Welcome back, {user?.name}! Here's your gym overview.</p>
-    </div>
+const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const [memberStats, setMemberStats] = useState<MemberStats>({
+    totalMembers: 0,
+    activeMembers: 0,
+    inactiveMembers: 0,
+    newMembersThisMonth: 0,
+  });
+  const [sessionStats, setSessionStats] = useState<SessionStats>({
+    sessionsToday: 0,
+    sessionsThisMonth: 0,
+    sessionsThisYear: 0,
+    totalSessions: 0,
+    trainerSessionBreakdown: [],
+    sessionTypeBreakdown: [],
+    recentSessions: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [showSessionsModal, setShowSessionsModal] = useState(false);
 
-    {/* Metric Cards */}
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-      <div className="metric-card p-6 rounded-xl border-orange-400">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-orange-400" style={{ fontFamily: 'Orbitron, monospace' }}>Total Members</h3>
-          <i className="fas fa-users text-orange-400 text-2xl"></i>
-        </div>
-        <p className="text-2xl font-bold text-white">{memberStats.totalMembers}</p>
-        <p className="text-gray-300">+5% this month</p>
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [memberStatsData, sessionStatsData] = await Promise.all([
+          adminApi.getMemberStats(),
+          adminApi.getSessionStats()
+        ]);
+        setMemberStats(memberStatsData);
+        setSessionStats(sessionStatsData);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        showToast('Failed to load dashboard statistics', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [showToast]);
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-orange-400 mb-2 neon-glow" style={{ fontFamily: 'Orbitron, monospace' }}>
+          ADMIN DASHBOARD
+        </h1>
+        <p className="text-gray-300">Welcome back, {user?.name}! Here's your gym overview.</p>
       </div>
-      
-      <div className="metric-card p-6 rounded-xl border-green-400">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Active Plans</h3>
-          <i className="fas fa-id-card text-green-400 text-2xl"></i>
+
+      {/* Metric Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="metric-card p-6 rounded-xl border-orange-400">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-orange-400" style={{ fontFamily: 'Orbitron, monospace' }}>Total Members</h3>
+            <i className="fas fa-users text-orange-400 text-2xl"></i>
+          </div>
+          <p className="text-2xl font-bold text-white">
+            {loading ? '...' : memberStats.totalMembers}
+          </p>
+          <p className="text-gray-300">
+            {loading ? 'Loading...' : `${memberStats.newMembersThisMonth} new this month`}
+          </p>
         </div>
-        <p className="text-2xl font-bold text-white">{memberStats.activePlans}</p>
-        <p className="text-gray-300">93% retention</p>
-      </div>
-      
-      <div className="metric-card p-6 rounded-xl border-blue-400">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Sessions Today</h3>
-          <i className="fas fa-calendar-day text-blue-400 text-2xl"></i>
+        
+        <div className="metric-card p-6 rounded-xl border-green-400">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-green-400" style={{ fontFamily: 'Orbitron, monospace' }}>Active Members</h3>
+            <i className="fas fa-id-card text-green-400 text-2xl"></i>
+          </div>
+          <p className="text-2xl font-bold text-white">
+            {loading ? '...' : memberStats.activeMembers}
+          </p>
+          <p className="text-gray-300">
+            {loading ? 'Loading...' : `${Math.round((memberStats.activeMembers / memberStats.totalMembers) * 100)}% active`}
+          </p>
         </div>
-        <p className="text-2xl font-bold text-white">{memberStats.sessionsToday}</p>
-        <p className="text-gray-300">+12% vs yesterday</p>
-      </div>
-      
-      <div className="metric-card p-6 rounded-xl border-pink-400">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>Revenue Today</h3>
-          <i className="fas fa-dollar-sign text-pink-400 text-2xl"></i>
+        
+        <div 
+          className="metric-card p-6 rounded-xl border-blue-400 cursor-pointer hover:scale-105 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20"
+          onClick={() => setShowSessionsModal(true)}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>Sessions Today</h3>
+            <i className="fas fa-calendar-day text-blue-400 text-2xl"></i>
+          </div>
+          <p className="text-2xl font-bold text-white">
+            {loading ? '...' : sessionStats.sessionsToday}
+          </p>
+          <p className="text-gray-300">
+            {loading ? 'Loading...' : `${sessionStats.sessionsThisMonth} this month`}
+          </p>
         </div>
-        <p className="text-2xl font-bold text-white">${memberStats.revenueToday}</p>
-        <p className="text-gray-300">+8% vs avg</p>
-      </div>
-      
-      <div className="metric-card p-6 rounded-xl border-purple-400">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-purple-400" style={{ fontFamily: 'Orbitron, monospace' }}>Points Redeemed</h3>
-          <i className="fas fa-star text-purple-400 text-2xl"></i>
+        
+        <div className="metric-card p-6 rounded-xl border-pink-400">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>Revenue Today</h3>
+            <i className="fas fa-dollar-sign text-pink-400 text-2xl"></i>
+          </div>
+          <p className="text-2xl font-bold text-white">-</p>
+          <p className="text-gray-300">-</p>
         </div>
-        <p className="text-2xl font-bold text-white">{memberStats.pointsRedeemedToday}</p>
-        <p className="text-gray-300">Today</p>
+        
+        <div className="metric-card p-6 rounded-xl border-purple-400">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-purple-400" style={{ fontFamily: 'Orbitron, monospace' }}>Points Redeemed</h3>
+            <i className="fas fa-star text-purple-400 text-2xl"></i>
+          </div>
+          <p className="text-2xl font-bold text-white">-</p>
+          <p className="text-gray-300">-</p>
+        </div>
       </div>
-    </div>
 
     {/* Charts Section */}
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -182,25 +237,10 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-300">Total Revenue</span>
-              <span className="text-2xl font-bold text-green-400">$145,000</span>
+              <span className="text-2xl font-bold text-green-400">-</span>
             </div>
             <div className="space-y-3">
-              {[
-                { month: 'Jan', revenue: 45000, color: 'bg-green-500' },
-                { month: 'Feb', revenue: 52000, color: 'bg-blue-500' },
-                { month: 'Mar', revenue: 48000, color: 'bg-purple-500' }
-              ].map((item, index) => (
-                <div key={index} className="flex items-center space-x-3">
-                  <span className="text-sm text-gray-300 w-8">{item.month}</span>
-                  <div className="flex-1 bg-gray-700 rounded-full h-3">
-                    <div 
-                      className={`${item.color} h-3 rounded-full transition-all duration-1000`}
-                      style={{ width: `${(item.revenue / 52000) * 100}%` }}
-                    ></div>
-                  </div>
-                  <span className="text-sm font-semibold text-green-400">${item.revenue.toLocaleString()}</span>
-                </div>
-              ))}
+              <div className="text-center text-gray-400">No data available</div>
             </div>
           </div>
         </div>
@@ -212,26 +252,10 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-300">Peak Hours</span>
-              <span className="text-lg font-bold text-pink-400">6-8 PM</span>
+              <span className="text-lg font-bold text-pink-400">-</span>
             </div>
             <div className="space-y-3">
-              {[
-                { facility: 'Cardio', usage: 85, color: 'bg-pink-500' },
-                { facility: 'Weights', usage: 72, color: 'bg-blue-500' },
-                { facility: 'Pool', usage: 45, color: 'bg-cyan-500' },
-                { facility: 'Classes', usage: 68, color: 'bg-purple-500' }
-              ].map((item, index) => (
-                <div key={index} className="flex items-center space-x-3">
-                  <span className="text-sm text-gray-300 w-16">{item.facility}</span>
-                  <div className="flex-1 bg-gray-700 rounded-full h-3">
-                    <div 
-                      className={`${item.color} h-3 rounded-full transition-all duration-1000`}
-                      style={{ width: `${item.usage}%` }}
-                    ></div>
-                  </div>
-                  <span className="text-sm font-semibold text-blue-400">{item.usage}%</span>
-                </div>
-              ))}
+              <div className="text-center text-gray-400">No data available</div>
             </div>
           </div>
         </div>
@@ -243,28 +267,13 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-300">Current Rate</span>
-              <span className="text-2xl font-bold text-red-400">2.1%</span>
+              <span className="text-2xl font-bold text-red-400">-</span>
             </div>
             <div className="space-y-3">
-              {[
-                { month: 'Jan', rate: 2.8, color: 'bg-red-500' },
-                { month: 'Feb', rate: 2.5, color: 'bg-orange-500' },
-                { month: 'Mar', rate: 2.1, color: 'bg-yellow-500' }
-              ].map((item, index) => (
-                <div key={index} className="flex items-center space-x-3">
-                  <span className="text-sm text-gray-300 w-8">{item.month}</span>
-                  <div className="flex-1 bg-gray-700 rounded-full h-3">
-                    <div 
-                      className={`${item.color} h-3 rounded-full transition-all duration-1000`}
-                      style={{ width: `${(item.rate / 3) * 100}%` }}
-                    ></div>
-                  </div>
-                  <span className="text-sm font-semibold text-red-400">{item.rate}%</span>
-                </div>
-              ))}
+              <div className="text-center text-gray-400">No data available</div>
             </div>
             <div className="text-center pt-2">
-              <span className="text-sm text-green-400 font-semibold">↓ Improving Trend</span>
+              <span className="text-sm text-gray-400">-</span>
             </div>
           </div>
         </div>
@@ -290,8 +299,217 @@ const AdminDashboard = ({ user, showToast }: { user: User | null; showToast: (me
         </button>
       ))}
     </div>
+
+    {/* Sessions Modal */}
+    {showSessionsModal && (
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50" onClick={() => setShowSessionsModal(false)}>
+        <div className="glass-card p-8 rounded-2xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-3xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+              <i className="fas fa-calendar-day mr-3"></i>
+              Sessions Analytics
+            </h2>
+            <button 
+              onClick={() => setShowSessionsModal(false)} 
+              className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+              title="Close"
+            >
+              <i className="fas fa-times text-2xl"></i>
+            </button>
+          </div>
+
+          {/* Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-xl text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm">Today</p>
+                  <p className="text-3xl font-bold">{sessionStats.sessionsToday}</p>
+                </div>
+                <i className="fas fa-calendar-day text-4xl text-blue-200"></i>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-xl text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-green-100 text-sm">This Month</p>
+                  <p className="text-3xl font-bold">{sessionStats.sessionsThisMonth}</p>
+                </div>
+                <i className="fas fa-calendar-alt text-4xl text-green-200"></i>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-xl text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-purple-100 text-sm">This Year</p>
+                  <p className="text-3xl font-bold">{sessionStats.sessionsThisYear}</p>
+                </div>
+                <i className="fas fa-calendar-check text-4xl text-purple-200"></i>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-6 rounded-xl text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-orange-100 text-sm">Total</p>
+                  <p className="text-3xl font-bold">{sessionStats.totalSessions}</p>
+                </div>
+                <i className="fas fa-chart-line text-4xl text-orange-200"></i>
+              </div>
+            </div>
+          </div>
+
+          {/* Trainer Performance */}
+          <div className="glass-card p-6 rounded-2xl mb-8">
+            <h3 className="text-xl font-bold text-blue-400 mb-4">
+              <i className="fas fa-user-tie mr-2"></i>
+              Trainer Performance
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left p-3 text-gray-300">Trainer</th>
+                    <th className="text-left p-3 text-gray-300">Sessions</th>
+                    <th className="text-left p-3 text-gray-300">Completion Rate</th>
+                    <th className="text-left p-3 text-gray-300">Performance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                  {sessionStats.trainerSessionBreakdown.map((trainer, index) => (
+                    <tr key={index} className="border-b border-gray-700 hover:bg-gray-800/50">
+                      <td className="p-3 font-semibold">{trainer.trainerName}</td>
+                      <td className="p-3 text-blue-400 font-bold">{trainer.sessionsCount}</td>
+                      <td className="p-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-20 bg-gray-700 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full ${
+                                trainer.completionRate >= 80 ? 'bg-green-500' : 
+                                trainer.completionRate >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${trainer.completionRate}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-sm">{trainer.completionRate}%</span>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          trainer.completionRate >= 80 ? 'bg-green-600 text-white' : 
+                          trainer.completionRate >= 60 ? 'bg-yellow-600 text-white' : 'bg-red-600 text-white'
+                        }`}>
+                          {trainer.completionRate >= 80 ? 'Excellent' : 
+                           trainer.completionRate >= 60 ? 'Good' : 'Needs Improvement'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Session Types */}
+          <div className="glass-card p-6 rounded-2xl mb-8">
+            <h3 className="text-xl font-bold text-green-400 mb-4">
+              <i className="fas fa-chart-pie mr-2"></i>
+              Session Types Distribution
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                {sessionStats.sessionTypeBreakdown.map((type, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <span className="text-gray-300">{type.type}</span>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-24 bg-gray-700 rounded-full h-3">
+                        <div 
+                          className="bg-gradient-to-r from-green-400 to-blue-400 h-3 rounded-full"
+                          style={{ width: `${type.percentage}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-semibold text-green-400 w-12 text-right">
+                        {type.count}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-gray-900 p-6 rounded-lg">
+                <h4 className="text-lg font-semibold text-center mb-4">Quick Stats</h4>
+                <div className="space-y-3 text-center">
+                  <div>
+                    <p className="text-2xl font-bold text-blue-400">{sessionStats.sessionsToday}</p>
+                    <p className="text-sm text-gray-400">Sessions Today</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-green-400">{sessionStats.sessionsThisMonth}</p>
+                    <p className="text-sm text-gray-400">This Month</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-purple-400">{sessionStats.sessionsThisYear}</p>
+                    <p className="text-sm text-gray-400">This Year</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Sessions */}
+          <div className="glass-card p-6 rounded-2xl">
+            <h3 className="text-xl font-bold text-purple-400 mb-4">
+              <i className="fas fa-history mr-2"></i>
+              Recent Sessions
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left p-3 text-gray-300">Client</th>
+                    <th className="text-left p-3 text-gray-300">Trainer</th>
+                    <th className="text-left p-3 text-gray-300">Type</th>
+                    <th className="text-left p-3 text-gray-300">Date</th>
+                    <th className="text-left p-3 text-gray-300">Time</th>
+                    <th className="text-left p-3 text-gray-300">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessionStats.recentSessions.map((session, index) => (
+                    <tr key={index} className="border-b border-gray-700 hover:bg-gray-800/50">
+                      <td className="p-3 font-semibold">{session.clientName}</td>
+                      <td className="p-3 text-blue-400">{session.trainerName}</td>
+                      <td className="p-3">
+                        <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
+                          {session.sessionType}
+                        </span>
+                        </td>
+                      <td className="p-3 text-gray-300">{new Date(session.sessionDate).toLocaleDateString()}</td>
+                      <td className="p-3 text-gray-300">
+                        {session.startTime} - {session.endTime}
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          session.status === 'completed' ? 'bg-green-600 text-white' : 
+                          session.status === 'scheduled' ? 'bg-blue-600 text-white' : 
+                          session.status === 'cancelled' ? 'bg-red-600 text-white' : 'bg-yellow-600 text-white'
+                        }`}>
+                          {session.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
   </div>
-);
+  );
+};
 
 const MemberDirectory = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const [searchTerm, setSearchTerm] = useState('');

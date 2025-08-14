@@ -403,22 +403,6 @@ export const memberApi = {
     return handleResponse(response);
   },
 
-  // Get muscle groups
-  getMuscleGroups: async () => {
-    const response = await fetch(`${BASE_URL}/members/muscle-groups`, {
-      headers: getAuthHeaders(),
-    });
-    return handleResponse(response);
-  },
-
-  // Get exercises
-  getExercises: async () => {
-    const response = await fetch(`${BASE_URL}/members/exercises`, {
-      headers: getAuthHeaders(),
-    });
-    return handleResponse(response);
-  },
-
   // Get trainer's booked slots
   getTrainerBookedSlots: async (trainerId: number) => {
     const response = await fetch(`${BASE_URL}/members/trainers/${trainerId}/booked-slots`, {
@@ -434,4 +418,5 @@ export const memberApi = {
     });
     return handleResponse(response);
   },
+
 };

@@ -18,6 +18,7 @@ interface TrainingSession {
   trainer_first_name: string;
   trainer_last_name: string;
   trainer_email: string;
+  payment_status?: string;
 }
 
 export const TrainersTab = ({ showToast }: TrainersTabProps) => {
@@ -86,11 +87,34 @@ export const TrainersTab = ({ showToast }: TrainersTabProps) => {
     };
 
     try {
-      // First, get all booked slots for this trainer from the bookings table
+      // Get the trainer's schedule from the trainer_schedules table
+      const scheduleResponse = await memberApi.getTrainerSchedule(trainerId, new Date().toISOString().split('T')[0]);
+      console.log(`Schedule for trainer ${trainerId}:`, scheduleResponse);
+      
+      if (Array.isArray(scheduleResponse)) {
+        scheduleResponse.forEach((slot: any) => {
+          const dayOfWeek = slot.day_of_week;
+          const timeSlot = slot.time_slot;
+          const status = slot.status;
+          
+          if (baseSchedule[dayOfWeek] && baseSchedule[dayOfWeek][timeSlot]) {
+            // Update the slot status based on database
+            if (status === 'booked') {
+              baseSchedule[dayOfWeek][timeSlot] = 'Booked';
+              console.log(`Slot ${timeSlot} on day ${dayOfWeek} is marked as Booked`);
+            } else if (status === 'unavailable') {
+              baseSchedule[dayOfWeek][timeSlot] = 'Unavailable';
+            } else if (status === 'break') {
+              baseSchedule[dayOfWeek][timeSlot] = 'Break';
+            }
+          }
+        });
+      }
+
+      // Also check for any existing bookings that might not be reflected in trainer_schedules
       const bookedSlotsResponse = await memberApi.getTrainerBookedSlots(trainerId);
       console.log(`Booked slots for trainer ${trainerId}:`, bookedSlotsResponse);
       
-      // Update the base schedule with booked slots
       if (Array.isArray(bookedSlotsResponse)) {
         bookedSlotsResponse.forEach((booking: any) => {
           const bookingDate = new Date(booking.session_date);
@@ -101,7 +125,7 @@ export const TrainersTab = ({ showToast }: TrainersTabProps) => {
           
           const startTime = booking.start_time;
           
-          // Only mark as booked if it's in the future
+          // Only mark as booked if it's in the future and the slot exists
           if (bookingDate >= new Date() && baseSchedule[dayOfWeek] && baseSchedule[dayOfWeek][startTime]) {
             baseSchedule[dayOfWeek][startTime] = 'Booked';
             console.log(`Marked slot ${startTime} on day ${dayOfWeek} (${bookingDate.toDateString()}) as Booked for trainer ${trainerId}`);
@@ -109,42 +133,6 @@ export const TrainersTab = ({ showToast }: TrainersTabProps) => {
         });
       }
 
-      // Also check the trainer_schedules table for additional status updates
-      const today = new Date();
-      const schedulePromises = [];
-      
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() + i);
-        const dateString = date.toISOString().split('T')[0];
-        
-        schedulePromises.push(
-          memberApi.getTrainerSchedule(trainerId, dateString)
-        );
-      }
-      
-      const scheduleResults = await Promise.all(schedulePromises);
-      console.log(`Fetched schedule for trainer ${trainerId} for next 7 days:`, scheduleResults);
-      
-      // Update the base schedule with real data from trainer_schedules
-      scheduleResults.forEach((daySchedule, dayIndex) => {
-        const dayOfWeek = (today.getDay() + dayIndex) % 7;
-        
-        if (Array.isArray(daySchedule)) {
-          daySchedule.forEach((slot: any) => {
-            const timeSlot = slot.time_slot;
-            const status = slot.status;
-            
-            if (baseSchedule[dayOfWeek] && baseSchedule[dayOfWeek][timeSlot]) {
-              // Only update if the slot is marked as booked in trainer_schedules
-              if (status === 'booked') {
-                baseSchedule[dayOfWeek][timeSlot] = 'Booked';
-                console.log(`Updated slot ${timeSlot} on day ${dayOfWeek} to Booked from trainer_schedules`);
-              }
-            }
-          });
-        }
-      });
     } catch (error) {
       console.error('Failed to fetch trainer schedule:', error);
     }
@@ -984,10 +972,12 @@ export const TrainersTab = ({ showToast }: TrainersTabProps) => {
                   <div className="flex items-start space-x-2">
                     <i className="fas fa-info-circle text-blue-400 mt-1"></i>
                     <div className="text-blue-200 text-sm">
-                      <p className="font-medium mb-1">Booking Tips:</p>
+                      <p className="font-medium mb-1">Booking Guide:</p>
                       <ul className="text-xs space-y-1 text-blue-100">
-                        <li>• Green slots are available for booking</li>
-                        <li>• Red slots are already booked</li>
+                        <li>• <span className="bg-green-600 text-white px-1 rounded">Green</span> slots are available for booking</li>
+                        <li>• <span className="bg-red-600 text-white px-1 rounded">Red</span> slots are already booked</li>
+                        <li>• <span className="bg-gray-500 text-white px-1 rounded">Gray</span> slots are unavailable</li>
+                        <li>• <span className="bg-yellow-600 text-white px-1 rounded">Yellow</span> slots are trainer breaks</li>
                         <li>• Book at least 24 hours in advance</li>
                         <li>• Sessions are 1 hour long</li>
                       </ul>
@@ -1038,24 +1028,50 @@ export const TrainersTab = ({ showToast }: TrainersTabProps) => {
                       const isAvailable = !isBooked;
                       const isSelected = selectedTimeSlot === timeSlot;
                       
+                      // Get the slot status from the trainer's schedule
+                      const dayOfWeek = selectedDate.getDay();
+                      const slotStatus = selectedTrainer.schedule[dayOfWeek]?.[timeSlot] || 'Available';
+                      
                       return (
                         <button
                           key={timeSlot}
                           onClick={() => isAvailable ? handleTimeSlotSelect(timeSlot) : null}
                           disabled={isBooked}
                           className={`p-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                            isBooked
+                            slotStatus === 'Booked' || isBooked
                               ? 'bg-red-600 text-white cursor-not-allowed opacity-75'
+                              : slotStatus === 'Unavailable'
+                              ? 'bg-gray-500 text-gray-300 cursor-not-allowed opacity-50'
+                              : slotStatus === 'Break'
+                              ? 'bg-yellow-600 text-white cursor-not-allowed opacity-75'
                               : isSelected
                               ? 'bg-green-500 text-white'
                               : 'bg-gray-700 text-white hover:bg-green-600 hover:text-white'
                           }`}
-                          title={isBooked ? 'This slot is already booked' : 'Click to select this time slot'}
+                          title={
+                            slotStatus === 'Booked' || isBooked
+                              ? 'This slot is already booked'
+                              : slotStatus === 'Unavailable'
+                              ? 'This slot is unavailable'
+                              : slotStatus === 'Break'
+                              ? 'Trainer is on break during this time'
+                              : 'Click to select this time slot'
+                          }
                         >
                           {timeSlot}
-                          {isBooked && (
+                          {slotStatus === 'Booked' && (
                             <div className="text-xs mt-1 opacity-90">
                               <i className="fas fa-lock mr-1"></i>Booked
+                            </div>
+                          )}
+                          {slotStatus === 'Unavailable' && (
+                            <div className="text-xs mt-1 opacity-90">
+                              <i className="fas fa-times mr-1"></i>Unavailable
+                            </div>
+                          )}
+                          {slotStatus === 'Break' && (
+                            <div className="text-xs mt-1 opacity-90">
+                              <i className="fas fa-coffee mr-1"></i>Break
                             </div>
                           )}
                         </button>

@@ -22,6 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_trainer_schedules_day_time ON trainer_schedules(d
 CREATE INDEX IF NOT EXISTS idx_trainer_schedules_status ON trainer_schedules(status);
 CREATE INDEX IF NOT EXISTS idx_trainer_schedules_booking_id ON trainer_schedules(booking_id);
 CREATE INDEX IF NOT EXISTS idx_trainer_schedules_client_id ON trainer_schedules(client_id);
+CREATE INDEX IF NOT EXISTS idx_trainer_schedules_session_date ON trainer_schedules(session_date);
 
 -- Function to update schedule when a booking is made
 CREATE OR REPLACE FUNCTION update_trainer_schedule_on_booking()
@@ -85,36 +86,33 @@ CREATE TRIGGER trainer_schedule_booking_trigger
     AFTER INSERT OR UPDATE OR DELETE ON training_sessions
     FOR EACH ROW EXECUTE FUNCTION update_trainer_schedule_on_booking();
 
--- Function to initialize trainer schedules
+-- Function to initialize trainer schedule with available time slots
 CREATE OR REPLACE FUNCTION initialize_trainer_schedule(trainer_id_param INTEGER)
 RETURNS VOID AS $$
 DECLARE
     day_num INTEGER;
-    time_slot TIME;
+    slot_time TIME;
     base_time TIME := '07:00';
     end_time TIME := '20:00';
 BEGIN
-    -- Initialize schedule for each day of the week (Monday = 1 to Saturday = 6)
+    -- Monday to Saturday (1-6)
     FOR day_num IN 1..6 LOOP
-        -- Initialize time slots from 7 AM to 8 PM, every hour
-        time_slot := base_time;
-        WHILE time_slot < end_time LOOP
+        slot_time := base_time;
+        WHILE slot_time < end_time LOOP
             INSERT INTO trainer_schedules (trainer_id, day_of_week, time_slot, status)
-            VALUES (trainer_id_param, day_num, time_slot, 'available')
+            VALUES (trainer_id_param, day_num, slot_time, 'available')
             ON CONFLICT (trainer_id, day_of_week, time_slot) DO NOTHING;
-            
-            time_slot := time_slot + INTERVAL '1 hour';
+            slot_time := slot_time + INTERVAL '1 hour';
         END LOOP;
     END LOOP;
     
     -- Sunday (0) - shorter hours
-    time_slot := '08:00';
-    WHILE time_slot < '16:00' LOOP
+    slot_time := '08:00';
+    WHILE slot_time < '16:00' LOOP
         INSERT INTO trainer_schedules (trainer_id, day_of_week, time_slot, status)
-        VALUES (trainer_id_param, 0, time_slot, 'available')
+        VALUES (trainer_id_param, 0, slot_time, 'available')
         ON CONFLICT (trainer_id, day_of_week, time_slot) DO NOTHING;
-        
-        time_slot := time_slot + INTERVAL '1 hour';
+        slot_time := slot_time + INTERVAL '1 hour';
     END LOOP;
 END;
 $$ LANGUAGE plpgsql;
@@ -149,6 +147,39 @@ BEGIN
     LEFT JOIN users u ON ts.client_id = u.id
     WHERE ts.trainer_id = trainer_id_param
       AND ts.day_of_week = EXTRACT(DOW FROM target_date)
+    ORDER BY ts.time_slot;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to check if a specific time slot is available for booking
+CREATE OR REPLACE FUNCTION is_slot_available(trainer_id_param INTEGER, session_date DATE, start_time TIME)
+RETURNS BOOLEAN AS $$
+DECLARE
+    slot_status VARCHAR(20);
+BEGIN
+    SELECT status INTO slot_status
+    FROM trainer_schedules
+    WHERE trainer_id = trainer_id_param
+      AND day_of_week = EXTRACT(DOW FROM session_date)
+      AND time_slot = start_time;
+    
+    RETURN COALESCE(slot_status = 'available', false);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get all available slots for a trainer on a specific date
+CREATE OR REPLACE FUNCTION get_available_slots(trainer_id_param INTEGER, session_date DATE)
+RETURNS TABLE (
+    time_slot TIME,
+    status VARCHAR(20)
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT ts.time_slot, ts.status
+    FROM trainer_schedules ts
+    WHERE ts.trainer_id = trainer_id_param
+      AND ts.day_of_week = EXTRACT(DOW FROM session_date)
+      AND ts.status = 'available'
     ORDER BY ts.time_slot;
 END;
 $$ LANGUAGE plpgsql;
