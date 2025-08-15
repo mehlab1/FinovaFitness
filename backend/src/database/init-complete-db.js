@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { query, testConnection, getClient } from '../database.js';
 import initializeSampleData from './init-sample-data.js';
+import { runCompleteInitialization as initializeTrainerSchedules } from './init-trainer-schedules.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(path.dirname(__filename));
@@ -24,6 +25,7 @@ const initializeCompleteDatabase = async () => {
       'core-tables.sql',
       'member-tables.sql', 
       'trainer-tables.sql',
+      'trainer-schedules.sql',
       'indexes.sql'
     ];
 
@@ -64,6 +66,9 @@ const initializeCompleteDatabase = async () => {
 
     console.log('🎯 Initializing sample data...');
     await initializeSampleData();
+
+    console.log('🎯 Initializing trainer schedules...');
+    await initializeTrainerSchedules();
 
     console.log('🎉 Complete database initialization finished!');
     console.log('📋 All tables, indexes, constraints, and sample data have been created.');

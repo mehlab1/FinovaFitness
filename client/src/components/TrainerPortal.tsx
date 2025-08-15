@@ -58,7 +58,7 @@ export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
             { id: 'profile', icon: 'fas fa-user-edit', label: 'Edit Profile', color: 'text-cyan-400' },
             { id: 'schedule', icon: 'fas fa-calendar', label: 'My Schedule', color: 'text-blue-400' },
             { id: 'client-requests', icon: 'fas fa-user-friends', label: 'Client Requests', color: 'text-green-400' },
-            { id: 'notes', icon: 'fas fa-sticky-note', label: 'Session Notes', color: 'text-purple-400' },
+            { id: 'notes', icon: 'fas fa-sticky-note', label: 'Session Details', color: 'text-purple-400' },
             { id: 'analytics', icon: 'fas fa-chart-bar', label: 'Analytics', color: 'text-orange-400' },
             { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
             { id: 'subscription', icon: 'fas fa-credit-card', label: 'Subscription', color: 'text-blue-400' }
@@ -127,19 +127,14 @@ const ClientRequests = ({ showToast }: { showToast: (message: string, type?: 'su
 
   const handleRequest = async (id: number, action: 'approve' | 'reject') => {
     try {
-      const requestData = {
-        status: action === 'approve' ? 'approved' : 'rejected',
-        trainer_response: action === 'approve' ? 'Request approved' : 'Request rejected',
-        approved_date: action === 'approve' ? new Date().toISOString().split('T')[0] : null,
-        approved_time: action === 'approve' ? '10:00' : null,
-        session_price: action === 'approve' ? 75.00 : null
-      };
+      // Map frontend action to backend action
+      const backendAction = action === 'approve' ? 'accept' : 'reject';
       
-      await trainerApi.updateRequest(id, requestData);
+      await trainerApi.updateRequest(id, backendAction);
       
       // Update local state
       setRequests(requests.map(req => 
-        req.id === id ? { ...req, status: requestData.status } : req
+        req.id === id ? { ...req, status: action === 'approve' ? 'confirmed' : 'rejected' } : req
       ));
       
       showToast(`Request ${action === 'approve' ? 'approved' : 'rejected'}`, 'success');
@@ -179,15 +174,26 @@ const ClientRequests = ({ showToast }: { showToast: (message: string, type?: 'su
               <div key={request.id} className="bg-gray-900 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-white">{request.requester_name}</h4>
+                    <h4 className="font-bold text-white">{request.requester_name || 'Unknown Client'}</h4>
                     <p className="text-gray-300">
-                      {request.request_type.replace('_', ' ')} • {request.preferred_date} at {request.preferred_time}
+                      {request.request_type ? request.request_type.replace('_', ' ') : 'Training Session'} • {request.preferred_date || 'TBD'} at {request.preferred_time || 'TBD'}
                     </p>
+                    <div className="text-sm text-gray-400 mt-2 space-y-1">
+                      {request.end_time && (
+                        <p>Duration: {request.preferred_time} - {request.end_time}</p>
+                      )}
+                      {request.price && (
+                        <p>Session Price: ${request.price}</p>
+                      )}
+                      {request.requester_phone && (
+                        <p>Phone: {request.requester_phone}</p>
+                      )}
+                    </div>
                     {request.message && (
-                      <p className="text-sm text-gray-400 mt-1">"{request.message}"</p>
+                      <p className="text-sm text-gray-400 mt-2">"{request.message}"</p>
                     )}
-                    <p className="text-xs text-gray-500 mt-1">
-                      {request.is_member ? 'Member' : 'Non-member'} • {request.requester_email}
+                    <p className="text-xs text-gray-500 mt-2">
+                      {request.is_member ? 'Member' : 'Non-member'} • {request.requester_email || 'No email'}
                     </p>
                   </div>
                   <div className="flex space-x-2">

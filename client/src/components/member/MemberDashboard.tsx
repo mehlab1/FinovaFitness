@@ -126,18 +126,31 @@ export const MemberDashboard = ({ user, showToast }: MemberDashboardProps) => {
               <div key={index} className="bg-gray-900 p-4 rounded-lg flex items-center justify-between">
                 <div>
                   <h4 className="font-bold text-white">
-                    {booking.booking_name || 'Booking'}
+                    {booking.type === 'training' ? 'Training Session' : (booking.type_display || 'Booking')}
                   </h4>
                   <p className="text-gray-300">
-                    {booking.type_display} • {new Date(booking.booking_date).toLocaleDateString()} at {booking.start_time}
+                    {booking.type === 'training' ? 'Training Session' : (booking.type_display || 'Booking')} • {new Date(booking.session_date).toLocaleDateString()} at {booking.start_time}
                   </p>
+                  {booking.trainer_first_name && (
+                    <p className="text-sm text-gray-400">
+                      with {booking.trainer_first_name} {booking.trainer_last_name}
+                    </p>
+                  )}
+                  <div className="flex items-center space-x-2 mt-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      booking.status === 'confirmed' ? 'bg-green-600 text-white' : 
+                      booking.status === 'pending' ? 'bg-yellow-600 text-white' : 
+                      booking.status === 'completed' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-white'
+                    }`}>
+                      {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                    </span>
+                    {booking.type === 'training' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-pink-600 text-white">
+                        Training
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                  booking.status === 'confirmed' ? 'bg-green-600' : 
-                  booking.status === 'pending' ? 'bg-yellow-600' : 'bg-gray-600'
-                }`}>
-                  {booking.status}
-                </span>
               </div>
             ))
           )}

@@ -383,17 +383,136 @@ router.delete('/block-slots/:id', verifyTrainerToken, async (req, res) => {
   }
 });
 
-// Get client requests
+// Get confirmed sessions (upcoming)
+router.get('/confirmed-sessions', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    
+    const result = await query(
+      `SELECT 
+         ts.id,
+         ts.session_date,
+         ts.start_time,
+         ts.end_time,
+         ts.session_type,
+         ts.client_id,
+         ts.notes,
+         ts.status,
+         ts.created_at,
+         CONCAT(u.first_name, ' ', u.last_name) as client_name
+       FROM training_sessions ts 
+       JOIN users u ON ts.client_id = u.id 
+       WHERE ts.trainer_id = $1 AND ts.status = 'confirmed'
+       ORDER BY ts.session_date, ts.start_time`,
+      [trainerId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Confirmed sessions error:', error);
+    res.status(500).json({ error: 'Failed to get confirmed sessions' });
+  }
+});
+
+// Get completed sessions
+router.get('/completed-sessions', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    
+    const result = await query(
+      `SELECT 
+         ts.id,
+         ts.session_date,
+         ts.start_time,
+         ts.end_time,
+         ts.session_type,
+         ts.client_id,
+         ts.notes,
+         ts.status,
+         ts.created_at,
+         CONCAT(u.first_name, ' ', u.last_name) as client_name
+       FROM training_sessions ts 
+       JOIN users u ON ts.client_id = u.id 
+       WHERE ts.trainer_id = $1 AND ts.status = 'completed'
+       ORDER BY ts.session_date DESC, ts.start_time DESC`,
+      [trainerId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Completed sessions error:', error);
+    res.status(500).json({ error: 'Failed to get completed sessions' });
+  }
+});
+
+// Mark session as completed
+router.put('/sessions/:id/complete', verifyTrainerToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const trainerId = req.trainer.id;
+    
+    // Update training session status to completed
+    const result = await query(
+      `UPDATE training_sessions 
+       SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND trainer_id = $2 AND status = 'confirmed'
+       RETURNING *`,
+      [id, trainerId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found or not confirmed' });
+    }
+
+    // Update trainer_schedules table to mark slot as available again
+    const session = result.rows[0];
+    const dayOfWeek = new Date(session.session_date).getDay();
+    
+    await query(
+      `UPDATE trainer_schedules 
+       SET status = 'available', booking_id = NULL, client_id = NULL, session_date = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE trainer_id = $1 AND day_of_week = $2 AND time_slot = $3`,
+      [trainerId, dayOfWeek, session.start_time]
+    );
+
+    res.json({
+      success: true,
+      message: 'Session marked as completed successfully',
+      session: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Mark session completed error:', error);
+    res.status(500).json({ error: 'Failed to mark session as completed' });
+  }
+});
+
+// Get pending session requests
 router.get('/requests', verifyTrainerToken, async (req, res) => {
   try {
     const trainerId = req.trainer.id;
     
     const result = await query(
-      `SELECT tr.*, u.first_name, u.last_name 
-       FROM training_requests tr 
-       LEFT JOIN users u ON tr.requester_id = u.id 
-       WHERE tr.trainer_id = $1 
-       ORDER BY tr.created_at DESC`,
+      `SELECT 
+         ts.id,
+         ts.session_type as request_type,
+         ts.session_date as preferred_date,
+         ts.start_time as preferred_time,
+         ts.end_time,
+         ts.notes as message,
+         ts.status,
+         ts.created_at,
+         ts.price,
+         CONCAT(u.first_name, ' ', u.last_name) as requester_name,
+         u.email as requester_email,
+         CASE WHEN u.role = 'member' THEN true ELSE false END as is_member,
+         u.phone as requester_phone
+       FROM training_sessions ts 
+       JOIN users u ON ts.client_id = u.id 
+       WHERE ts.trainer_id = $1 AND ts.status = 'pending'
+       ORDER BY ts.created_at DESC`,
       [trainerId]
     );
 
@@ -401,28 +520,78 @@ router.get('/requests', verifyTrainerToken, async (req, res) => {
 
   } catch (error) {
     console.error('Requests error:', error);
-    res.status(500).json({ error: 'Failed to get client requests' });
+    res.status(500).json({ error: 'Failed to get pending session requests' });
   }
 });
 
-// Update request status
+// Accept/Reject session request
 router.put('/requests/:id', verifyTrainerToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, trainer_response, approved_date, approved_time, session_price } = req.body;
+    const { action } = req.body; // 'accept' or 'reject'
     
-    const result = await query(
-      `UPDATE training_requests 
-       SET status = $1, trainer_response = $2, approved_date = $3, approved_time = $4, session_price = $5, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6 AND trainer_id = $7 RETURNING *`,
-      [status, trainer_response, approved_date, approved_time, session_price, id, req.trainer.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Request not found' });
+    if (!['accept', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Must be "accept" or "reject"' });
     }
 
-    res.json(result.rows[0]);
+    // Start transaction
+    await query('BEGIN');
+
+    try {
+      // Get the training session
+      const sessionResult = await query(
+        `SELECT * FROM training_sessions WHERE id = $1 AND trainer_id = $2 AND status = 'pending'`,
+        [id, req.trainer.id]
+      );
+
+      if (sessionResult.rows.length === 0) {
+        await query('ROLLBACK');
+        return res.status(404).json({ error: 'Session request not found or already processed' });
+      }
+
+      const session = sessionResult.rows[0];
+      const newStatus = action === 'accept' ? 'confirmed' : 'rejected';
+
+      // Update training session status
+      const result = await query(
+        `UPDATE training_sessions 
+         SET status = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2 RETURNING *`,
+        [newStatus, id]
+      );
+
+      // Update trainer_schedules table
+      const dayOfWeek = new Date(session.session_date).getDay();
+      if (action === 'accept') {
+        // Mark slot as booked
+        await query(
+          `UPDATE trainer_schedules 
+           SET status = 'booked', updated_at = CURRENT_TIMESTAMP
+           WHERE trainer_id = $1 AND day_of_week = $2 AND time_slot = $3`,
+          [req.trainer.id, dayOfWeek, session.start_time]
+        );
+      } else {
+        // Mark slot as available again
+        await query(
+          `UPDATE trainer_schedules 
+           SET status = 'available', booking_id = NULL, client_id = NULL, session_date = NULL, updated_at = CURRENT_TIMESTAMP
+           WHERE trainer_id = $1 AND day_of_week = $2 AND time_slot = $3`,
+          [req.trainer.id, dayOfWeek, session.start_time]
+        );
+      }
+
+      await query('COMMIT');
+
+      res.json({
+        success: true,
+        message: `Session request ${action}ed successfully`,
+        session: result.rows[0]
+      });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
 
   } catch (error) {
     console.error('Update request error:', error);
@@ -454,43 +623,36 @@ router.get('/session-notes', verifyTrainerToken, async (req, res) => {
 });
 
 // Add/Update session notes
-router.post('/session-notes', verifyTrainerToken, async (req, res) => {
+router.post('/session-notes/:sessionId', verifyTrainerToken, async (req, res) => {
   try {
+    const { sessionId } = req.params;
     const trainerId = req.trainer.id;
-    const {
-      training_session_id,
-      client_id,
-      exercises_performed,
-      sets_and_reps,
-      client_feedback,
-      trainer_observations,
-      next_session_goals,
-      client_progress_notes,
-      fitness_metrics
-    } = req.body;
+    const { notes } = req.body;
 
-    const result = await query(
-      `INSERT INTO session_notes 
-       (training_session_id, trainer_id, client_id, exercises_performed, sets_and_reps, 
-        client_feedback, trainer_observations, next_session_goals, client_progress_notes, fitness_metrics)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       ON CONFLICT (training_session_id) 
-       DO UPDATE SET
-         exercises_performed = EXCLUDED.exercises_performed,
-         sets_and_reps = EXCLUDED.sets_and_reps,
-         client_feedback = EXCLUDED.client_feedback,
-         trainer_observations = EXCLUDED.trainer_observations,
-         next_session_goals = EXCLUDED.next_session_goals,
-         client_progress_notes = EXCLUDED.client_progress_notes,
-         fitness_metrics = EXCLUDED.fitness_metrics,
-         updated_at = CURRENT_TIMESTAMP
-       RETURNING *`,
-      [training_session_id, trainerId, client_id, exercises_performed, 
-       JSON.stringify(sets_and_reps), client_feedback, trainer_observations, 
-       next_session_goals, client_progress_notes, JSON.stringify(fitness_metrics)]
+    // Verify the session belongs to this trainer and is confirmed
+    const sessionCheck = await query(
+      `SELECT id FROM training_sessions 
+       WHERE id = $1 AND trainer_id = $2 AND status = 'confirmed'`,
+      [sessionId, trainerId]
     );
 
-    res.json(result.rows[0]);
+    if (sessionCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found or not confirmed' });
+    }
+
+    // Update the training session with notes
+    const result = await query(
+      `UPDATE training_sessions 
+       SET notes = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 RETURNING *`,
+      [notes, sessionId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Session notes saved successfully',
+      session: result.rows[0]
+    });
 
   } catch (error) {
     console.error('Session notes save error:', error);

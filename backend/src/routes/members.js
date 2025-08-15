@@ -68,14 +68,47 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
       [userId]
     );
 
-    // Get upcoming bookings
+    // Get upcoming bookings and training sessions
     const bookingsResult = await query(
-      `SELECT b.*, t.id as trainer_id, u.first_name as trainer_first_name, u.last_name as trainer_last_name
+      `SELECT 
+         'booking' as type,
+         b.id,
+         b.booking_date as session_date,
+         b.start_time,
+         b.end_time,
+         b.booking_type as session_type,
+         b.status,
+         b.created_at,
+         t.id as trainer_id,
+         u.first_name as trainer_first_name,
+         u.last_name as trainer_last_name,
+         'Booking' as type_display
        FROM bookings b 
        LEFT JOIN trainers t ON b.trainer_id = t.id
        LEFT JOIN users u ON t.user_id = u.id
        WHERE b.user_id = $1 AND b.booking_date >= CURRENT_DATE 
-       ORDER BY b.booking_date, b.start_time LIMIT 5`,
+       
+       UNION ALL
+       
+       SELECT 
+         'training' as type,
+         ts.id,
+         ts.session_date,
+         ts.start_time,
+         ts.end_time,
+         ts.session_type,
+         ts.status,
+         ts.created_at,
+         ts.trainer_id,
+         tu.first_name as trainer_first_name,
+         tu.last_name as trainer_last_name,
+         'Training Session' as type_display
+       FROM training_sessions ts
+       LEFT JOIN trainers t ON ts.trainer_id = t.id
+       LEFT JOIN users tu ON t.user_id = tu.id
+       WHERE ts.client_id = $1 AND ts.session_date >= CURRENT_DATE AND ts.status IN ('pending', 'confirmed')
+       
+       ORDER BY session_date, start_time LIMIT 10`,
       [userId]
     );
 
@@ -1050,15 +1083,27 @@ router.post('/book-training-session', verifyMemberToken, async (req, res) => {
       notes
     } = req.body;
 
+    console.log('Booking request received:', {
+      userId,
+      trainer_id,
+      session_date,
+      start_time,
+      end_time,
+      session_type,
+      notes
+    });
+
     // Start a transaction to ensure data consistency
     await query('BEGIN');
 
     try {
       // Check if the time slot is available using the new database function
+      console.log('Checking slot availability with params:', [trainer_id, session_date, start_time]);
       const availabilityCheck = await query(
         'SELECT is_slot_available($1, $2, $3) as is_available',
         [trainer_id, session_date, start_time]
       );
+      console.log('Availability check result:', availabilityCheck.rows[0]);
 
       if (!availabilityCheck.rows[0]?.is_available) {
         await query('ROLLBACK');
@@ -1113,11 +1158,11 @@ router.post('/book-training-session', verifyMemberToken, async (req, res) => {
       const sessionDuration = (new Date(`2000-01-01 ${end_time}`) - new Date(`2000-01-01 ${start_time}`)) / (1000 * 60 * 60);
       const sessionPrice = hourlyRate * sessionDuration;
 
-      // Create the training session
+      // Create the training session with pending status (waiting for trainer confirmation)
       const result = await query(
         `INSERT INTO training_sessions 
          (trainer_id, client_id, session_date, start_time, end_time, session_type, status, price, notes, payment_status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, $8, 'pending')
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, 'pending')
          RETURNING *`,
         [trainer_id, userId, session_date, start_time, end_time, session_type, sessionPrice, notes]
       );
@@ -1127,16 +1172,16 @@ router.post('/book-training-session', verifyMemberToken, async (req, res) => {
       const scheduleUpdateCheck = await query(
         `SELECT status FROM trainer_schedules 
          WHERE trainer_id = $1 
-         AND day_of_week = EXTRACT(DOW FROM $3::date)
-         AND time_slot = $5`,
+         AND day_of_week = EXTRACT(DOW FROM $2::date)
+         AND time_slot = $3`,
         [trainer_id, session_date, start_time]
       );
 
-      if (scheduleUpdateCheck.rows.length === 0 || scheduleUpdateCheck.rows[0].status !== 'booked') {
-        // If the trigger didn't work, manually update the schedule
+      if (scheduleUpdateCheck.rows.length === 0 || scheduleUpdateCheck.rows[0].status !== 'pending') {
+        // If the trigger didn't work, manually update the schedule to pending
         await query(
           `UPDATE trainer_schedules 
-           SET status = 'booked',
+           SET status = 'pending',
                booking_id = $1,
                client_id = $2,
                session_date = $3,
@@ -1145,7 +1190,7 @@ router.post('/book-training-session', verifyMemberToken, async (req, res) => {
              AND day_of_week = EXTRACT(DOW FROM $3::date)
              AND time_slot = $5`,
           [result.rows[0].id, userId, session_date, trainer_id, start_time]
-      );
+        );
       }
 
       // Update trainer's total sessions count
@@ -1158,7 +1203,7 @@ router.post('/book-training-session', verifyMemberToken, async (req, res) => {
 
       res.json({
         success: true,
-        message: 'Training session booked successfully!',
+        message: 'Training session request sent successfully! Waiting for trainer confirmation.',
         session: result.rows[0]
       });
 
@@ -1169,9 +1214,16 @@ router.post('/book-training-session', verifyMemberToken, async (req, res) => {
 
   } catch (error) {
     console.error('Training session booking error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      detail: error.detail
+    });
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to book training session' 
+      error: 'Failed to book training session',
+      details: error.message
     });
   }
 });
@@ -2310,7 +2362,7 @@ router.get('/trainers/:trainerId/schedule/:date', verifyMemberToken, async (req,
        LEFT JOIN users u ON ts.client_id = u.id
        WHERE ts.trainer_id = $1
          AND ts.day_of_week = EXTRACT(DOW FROM $2::date)
-         AND ts.status != 'unavailable'
+         AND ts.status = 'available'
        ORDER BY ts.time_slot`,
       [trainerId, date]
     );
@@ -2319,7 +2371,7 @@ router.get('/trainers/:trainerId/schedule/:date', verifyMemberToken, async (req,
     const transformedSlots = result.rows.map(slot => ({
       id: slot.id.toString(),
       time: slot.time_slot,
-      status: slot.booking_id ? 'booked' : (slot.status === 'unavailable' ? 'unavailable' : 'available'),
+      status: slot.booking_id ? 'booked' : 'available', // Since we only return 'available' slots now
       clientName: slot.client_name,
       sessionType: slot.session_type
     }));

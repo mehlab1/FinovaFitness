@@ -47,12 +47,12 @@ export const trainerApi = {
     return handleResponse(response);
   },
 
-  // Update request status
-  updateRequest: async (id: number, data: any) => {
+  // Accept/Reject session request
+  updateRequest: async (id: number, action: 'accept' | 'reject') => {
     const response = await fetch(`${BASE_URL}/trainers/requests/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify({ action }),
     });
     return handleResponse(response);
   },
@@ -60,6 +60,31 @@ export const trainerApi = {
   // Get analytics data
   getAnalytics: async () => {
     const response = await fetch(`${BASE_URL}/trainers/analytics`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get confirmed sessions (upcoming)
+  getConfirmedSessions: async () => {
+    const response = await fetch(`${BASE_URL}/trainers/confirmed-sessions`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get completed sessions
+  getCompletedSessions: async () => {
+    const response = await fetch(`${BASE_URL}/trainers/completed-sessions`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Mark session as completed
+  markSessionCompleted: async (sessionId: number) => {
+    const response = await fetch(`${BASE_URL}/trainers/sessions/${sessionId}/complete`, {
+      method: 'PUT',
       headers: getAuthHeaders(),
     });
     return handleResponse(response);
