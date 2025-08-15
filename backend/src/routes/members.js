@@ -2280,6 +2280,7 @@ router.get('/trainers/:trainerId/schedule/:date', verifyMemberToken, async (req,
     
     const result = await query(
       `SELECT 
+         ts.id,
          ts.time_slot,
          ts.status,
          ts.booking_id,
@@ -2290,16 +2291,31 @@ router.get('/trainers/:trainerId/schedule/:date', verifyMemberToken, async (req,
            WHEN ts.client_id IS NOT NULL THEN 
              CONCAT(u.first_name, ' ', u.last_name)
            ELSE NULL
-         END as client_name
+         END as client_name,
+         CASE 
+           WHEN ts.booking_id IS NOT NULL THEN 
+             (SELECT session_type FROM training_sessions WHERE id = ts.booking_id)
+           ELSE NULL
+         END as session_type
        FROM trainer_schedules ts
        LEFT JOIN users u ON ts.client_id = u.id
        WHERE ts.trainer_id = $1
          AND ts.day_of_week = EXTRACT(DOW FROM $2::date)
+         AND ts.status != 'unavailable'
        ORDER BY ts.time_slot`,
       [trainerId, date]
     );
 
-    res.json(result.rows);
+    // Transform the data to match frontend expectations
+    const transformedSlots = result.rows.map(slot => ({
+      id: slot.id.toString(),
+      time: slot.time_slot,
+      status: slot.booking_id ? 'booked' : (slot.status === 'unavailable' ? 'unavailable' : 'available'),
+      clientName: slot.client_name,
+      sessionType: slot.session_type
+    }));
+
+    res.json(transformedSlots);
   } catch (error) {
     console.error('Error fetching trainer schedule for date:', error);
     res.status(500).json({ error: 'Failed to fetch trainer schedule for date' });

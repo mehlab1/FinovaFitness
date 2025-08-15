@@ -182,6 +182,207 @@ router.get('/schedule', verifyTrainerToken, async (req, res) => {
   }
 });
 
+// Get trainer availability settings
+router.get('/availability', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    
+    const result = await query(
+      'SELECT * FROM trainer_availability WHERE trainer_id = $1 ORDER BY day_of_week',
+      [trainerId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Availability error:', error);
+    res.status(500).json({ error: 'Failed to get availability settings' });
+  }
+});
+
+// Update trainer availability
+router.put('/availability', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    const { availability } = req.body;
+    
+    // Delete existing availability for this trainer
+    await query(
+      'DELETE FROM trainer_availability WHERE trainer_id = $1',
+      [trainerId]
+    );
+    
+    // Insert new availability settings
+    for (const day of availability) {
+      if (day.isAvailable) {
+        await query(
+          `INSERT INTO trainer_availability 
+           (trainer_id, day_of_week, start_time, end_time, session_duration_minutes, max_sessions_per_day, break_duration_minutes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            trainerId,
+            day.dayOfWeek,
+            day.startTime,
+            day.endTime,
+            day.sessionDuration,
+            day.maxSessions,
+            day.breakDuration
+          ]
+        );
+      }
+    }
+    
+    res.json({ message: 'Availability updated successfully' });
+  } catch (error) {
+    console.error('Update availability error:', error);
+    res.status(500).json({ error: 'Failed to update availability' });
+  }
+});
+
+// Generate time slots based on availability
+router.post('/generate-slots', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    const { availability } = req.body;
+    
+    // Clear existing time slots for this trainer
+    await query(
+      'DELETE FROM trainer_schedules WHERE trainer_id = $1',
+      [trainerId]
+    );
+    
+    // Generate time slots for each available day
+    for (const day of availability) {
+      if (day.isAvailable) {
+        const startTime = new Date(`2000-01-01T${day.startTime}`);
+        const endTime = new Date(`2000-01-01T${day.endTime}`);
+        const sessionDurationMs = day.sessionDuration * 60 * 1000;
+        const breakDurationMs = day.breakDuration * 60 * 1000;
+        
+        let currentTime = new Date(startTime);
+        
+        while (currentTime < endTime) {
+          const timeSlot = currentTime.toTimeString().slice(0, 5);
+          
+          await query(
+            `INSERT INTO trainer_schedules 
+             (trainer_id, day_of_week, time_slot, status)
+             VALUES ($1, $2, $3, 'available')`,
+            [trainerId, day.dayOfWeek, timeSlot]
+          );
+          
+          currentTime = new Date(currentTime.getTime() + sessionDurationMs + breakDurationMs);
+        }
+      }
+    }
+    
+    res.json({ message: 'Time slots generated successfully' });
+  } catch (error) {
+    console.error('Generate slots error:', error);
+    res.status(500).json({ error: 'Failed to generate time slots' });
+  }
+});
+
+// Get available time slots for a specific date
+router.get('/available-slots', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    const { date } = req.query;
+    
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter is required' });
+    }
+    
+    const dayOfWeek = new Date(date).getDay();
+    
+    const result = await query(
+      `SELECT ts.*, 
+              CASE 
+                WHEN ts.booking_id IS NOT NULL THEN 'booked'
+                WHEN ts.status = 'unavailable' THEN 'unavailable'
+                ELSE 'available'
+              END as slot_status
+       FROM trainer_schedules ts
+       WHERE ts.trainer_id = $1 AND ts.day_of_week = $2
+       ORDER BY ts.time_slot`,
+      [trainerId, dayOfWeek]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Available slots error:', error);
+    res.status(500).json({ error: 'Failed to get available slots' });
+  }
+});
+
+// Block specific time slots
+router.post('/block-slots', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    const { date, startTime, endTime, reason } = req.body;
+    
+    const result = await query(
+      `INSERT INTO trainer_time_off 
+       (trainer_id, start_date, end_date, start_time, end_time, reason)
+       VALUES ($1, $2, $2, $3, $4, $5) RETURNING *`,
+      [trainerId, date, startTime, endTime, reason || 'Personal time off']
+    );
+    
+    // Mark corresponding slots as unavailable
+    const dayOfWeek = new Date(date).getDay();
+    await query(
+      `UPDATE trainer_schedules 
+       SET status = 'unavailable'
+       WHERE trainer_id = $1 AND day_of_week = $2 AND time_slot BETWEEN $3 AND $4`,
+      [trainerId, dayOfWeek, startTime, endTime]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Block slots error:', error);
+    res.status(500).json({ error: 'Failed to block time slots' });
+  }
+});
+
+// Unblock time slots
+router.delete('/block-slots/:id', verifyTrainerToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const trainerId = req.trainer.id;
+    
+    // Get the blocked time off record
+    const timeOffResult = await query(
+      'SELECT * FROM trainer_time_off WHERE id = $1 AND trainer_id = $2',
+      [id, trainerId]
+    );
+    
+    if (timeOffResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Time off record not found' });
+    }
+    
+    const timeOff = timeOffResult.rows[0];
+    
+    // Mark corresponding slots as available again
+    const dayOfWeek = new Date(timeOff.start_date).getDay();
+    await query(
+      `UPDATE trainer_schedules 
+       SET status = 'available'
+       WHERE trainer_id = $1 AND day_of_week = $2 AND time_slot BETWEEN $3 AND $4`,
+      [trainerId, dayOfWeek, timeOff.start_time, timeOff.end_time]
+    );
+    
+    // Delete the time off record
+    await query(
+      'DELETE FROM trainer_time_off WHERE id = $1',
+      [id]
+    );
+    
+    res.json({ message: 'Time slots unblocked successfully' });
+  } catch (error) {
+    console.error('Unblock slots error:', error);
+    res.status(500).json({ error: 'Failed to unblock time slots' });
+  }
+});
+
 // Get client requests
 router.get('/requests', verifyTrainerToken, async (req, res) => {
   try {

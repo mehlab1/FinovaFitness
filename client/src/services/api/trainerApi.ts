@@ -104,14 +104,72 @@ export const trainerApi = {
   },
 
   // Update trainer profile
-  updateProfile: async (formData: FormData) => {
+  updateProfile: async (profileData: any) => {
     const response = await fetch(`${BASE_URL}/trainers/profile`, {
       method: 'PUT',
-      headers: {
-        'Authorization': getAuthHeaders().Authorization,
-      },
-      body: formData,
+      headers: getAuthHeaders(),
+      body: JSON.stringify(profileData),
     });
     return handleResponse(response);
   },
+
+  // Update trainer availability
+  updateAvailability: async (availability: any[]) => {
+    const response = await fetch(`${BASE_URL}/trainers/availability`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ availability }),
+    });
+    return handleResponse(response);
+  },
+
+  // Generate time slots based on availability
+  generateTimeSlots: async (availability: any[]) => {
+    const response = await fetch(`${BASE_URL}/trainers/generate-slots`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ availability }),
+    });
+    return handleResponse(response);
+  },
+
+  // Get trainer availability settings
+  getAvailability: async () => {
+    const response = await fetch(`${BASE_URL}/trainers/availability`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get available time slots for a specific date
+  getAvailableSlots: async (date: string) => {
+    const response = await fetch(`${BASE_URL}/trainers/available-slots?date=${date}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Block specific time slots (mark as unavailable)
+  blockTimeSlots: async (blockData: {
+    date: string;
+    startTime: string;
+    endTime: string;
+    reason?: string;
+  }) => {
+    const response = await fetch(`${BASE_URL}/trainers/block-slots`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(blockData),
+    });
+    return handleResponse(response);
+  },
+
+  // Unblock time slots (mark as available again)
+  unblockTimeSlots: async (blockId: number) => {
+    const response = await fetch(`${BASE_URL}/trainers/block-slots/${blockId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  }
 };
