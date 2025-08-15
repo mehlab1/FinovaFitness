@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Calendar, Clock, Users, Settings, Ban } from 'lucide-react';
+import { Calendar, Clock, Users, Settings, Ban, Plus, X, Edit3, Eye, EyeOff, Zap, Target, TrendingUp, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
+import { useToast } from '../Toast';
 
 interface TrainerScheduleProps {
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
@@ -33,13 +34,13 @@ interface TimeSlot {
 }
 
 const DAYS_OF_WEEK = [
-  { value: 0, name: 'Sunday', short: 'Sun' },
-  { value: 1, name: 'Monday', short: 'Mon' },
-  { value: 2, name: 'Tuesday', short: 'Tue' },
-  { value: 3, name: 'Wednesday', short: 'Wed' },
-  { value: 4, name: 'Thursday', short: 'Thu' },
-  { value: 5, name: 'Friday', short: 'Fri' },
-  { value: 6, name: 'Saturday', short: 'Sat' }
+  { value: 0, name: 'Sunday', short: 'Sun', color: 'text-purple-400' },
+  { value: 1, name: 'Monday', short: 'Mon', color: 'text-blue-400' },
+  { value: 2, name: 'Tuesday', short: 'Tue', color: 'text-green-400' },
+  { value: 3, name: 'Wednesday', short: 'Wed', color: 'text-yellow-400' },
+  { value: 4, name: 'Thursday', short: 'Thu', color: 'text-orange-400' },
+  { value: 5, name: 'Friday', short: 'Fri', color: 'text-red-400' },
+  { value: 6, name: 'Saturday', short: 'Sat', color: 'text-pink-400' }
 ];
 
 const SESSION_DURATIONS = [30, 45, 60, 75, 90, 120];
@@ -60,6 +61,8 @@ export const TrainerSchedule = ({ showToast }: TrainerScheduleProps) => {
   const [blockReason, setBlockReason] = useState<string>('');
   const [blockingTime, setBlockingTime] = useState(false);
   const [blockedTimeSlots, setBlockedTimeSlots] = useState<any[]>([]);
+  const [showBlockForm, setShowBlockForm] = useState(false);
+  const [expandedDays, setExpandedDays] = useState<number[]>([]);
 
   useEffect(() => {
     fetchExistingAvailability();
@@ -272,6 +275,7 @@ export const TrainerSchedule = ({ showToast }: TrainerScheduleProps) => {
       setBlockStartTime('09:00');
       setBlockEndTime('17:00');
       setBlockReason('');
+      setShowBlockForm(false);
       
       // Refresh schedule data
       fetchScheduleData();
@@ -310,504 +314,607 @@ export const TrainerSchedule = ({ showToast }: TrainerScheduleProps) => {
     return 'Incomplete';
   };
 
+  const toggleDayExpansion = (dayIndex: number) => {
+    setExpandedDays(prev => 
+      prev.includes(dayIndex) 
+        ? prev.filter(d => d !== dayIndex)
+        : [...prev, dayIndex]
+    );
+  };
+
   if (loading) {
     return (
       <div className="animate-fade-in flex items-center justify-center h-64">
         <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-pink-400 mb-4"></i>
-          <p className="text-gray-300">Loading schedule...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-pink-400 mx-auto mb-4"></div>
+          <p className="text-gray-300 text-lg">Loading your schedule...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="animate-fade-in">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-pink-400 mb-2 neon-glow" style={{ fontFamily: 'Orbitron, monospace' }}>
-          TRAINER SCHEDULE
+    <div className="animate-fade-in space-y-6">
+      {/* Header Section */}
+      <div className="text-center">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent mb-3">
+          My Schedule
         </h1>
-        <p className="text-gray-300">Design your training schedule and manage availability.</p>
+        <p className="text-gray-300 text-base max-w-2xl mx-auto">
+          Design your training schedule, manage availability, and control when you're available for sessions.
+        </p>
       </div>
 
-      {/* View Mode Toggle */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex space-x-2">
+      {/* Mode Toggle */}
+      <div className="flex justify-center">
+        <div className="bg-gray-800 rounded-xl p-1 flex space-x-1">
           <Button
-            variant={viewMode === 'setup' ? 'default' : 'outline'}
+            variant={viewMode === 'setup' ? 'default' : 'ghost'}
             onClick={() => setViewMode('setup')}
-            className="flex items-center space-x-2"
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+              viewMode === 'setup' 
+                ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
           >
             <Settings className="w-4 h-4" />
-            <span>Setup Schedule</span>
+            <span className="font-medium text-sm">Setup</span>
           </Button>
           <Button
-            variant={viewMode === 'view' ? 'default' : 'outline'}
+            variant={viewMode === 'view' ? 'default' : 'ghost'}
             onClick={() => setViewMode('view')}
-            className="flex items-center space-x-2"
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+              viewMode === 'view' 
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
           >
-            <Calendar className="w-4 h-4" />
-            <span>View Schedule</span>
+            <Eye className="w-4 h-4" />
+            <span className="font-medium text-sm">View</span>
           </Button>
         </div>
-        
-        {viewMode === 'setup' && (
-          <Button
-            onClick={saveAvailability}
-            disabled={saving}
-            className="bg-pink-500 hover:bg-pink-600"
-          >
-            {saving ? 'Saving...' : 'Save Schedule'}
-          </Button>
-        )}
       </div>
 
       {viewMode === 'setup' ? (
-        /* Schedule Setup Mode */
+        /* Schedule Setup Mode - Compact Layout */
         <div className="space-y-6">
-          {/* Global Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Settings className="w-5 h-5" />
-                <span>Global Schedule Settings</span>
-              </CardTitle>
-              <CardDescription>
-                Configure your default working hours and session parameters
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="defaultStartTime">Default Start Time</Label>
-                  <Input
-                    id="defaultStartTime"
-                    type="time"
-                    value={availability.length > 0 ? availability[0].startTime : '09:00'}
-                    onChange={(e) => {
-                      const newAvailability = availability.map(day => ({
-                        ...day,
-                        startTime: e.target.value
-                      }));
-                      setAvailability(newAvailability);
-                    }}
-                  />
+          {/* Global Settings & Block Time Side by Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Global Settings Card */}
+            <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 shadow-xl">
+              <CardHeader className="pb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full flex items-center justify-center">
+                    <Settings className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold text-white">Global Settings</CardTitle>
+                    <CardDescription className="text-gray-300 text-sm">
+                      Default session parameters
+                    </CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="defaultEndTime">Default End Time</Label>
-                  <Input
-                    id="defaultEndTime"
-                    type="time"
-                    value={availability.length > 0 ? availability[0].endTime : '17:00'}
-                    onChange={(e) => {
-                      const newAvailability = availability.map(day => ({
-                        ...day,
-                        endTime: e.target.value
-                      }));
-                      setAvailability(newAvailability);
-                    }}
-                  />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 text-xs font-medium">Session Duration</Label>
+                    <Select
+                      value={availability.length > 0 ? availability[0].sessionDuration.toString() : '60'}
+                      onValueChange={(value) => {
+                        const newAvailability = availability.map(day => ({
+                          ...day,
+                          sessionDuration: parseInt(value)
+                        }));
+                        setAvailability(newAvailability);
+                      }}
+                    >
+                      <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-800 border-gray-600">
+                        {SESSION_DURATIONS.map(duration => (
+                          <SelectItem key={duration} value={duration.toString()} className="text-white hover:bg-gray-700">
+                            {duration} min
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 text-xs font-medium">Break Duration</Label>
+                    <Select
+                      value={availability.length > 0 ? availability[0].breakDuration.toString() : '15'}
+                      onValueChange={(value) => {
+                        const newAvailability = availability.map(day => ({
+                          ...day,
+                          breakDuration: parseInt(value)
+                        }));
+                        setAvailability(newAvailability);
+                      }}
+                    >
+                      <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-800 border-gray-600">
+                        {BREAK_DURATIONS.map(duration => (
+                          <SelectItem key={duration} value={duration.toString()} className="text-white hover:bg-gray-700">
+                            {duration} min
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 text-xs font-medium">Max Sessions</Label>
+                    <Input
+                      type="number"
+                      value={availability.length > 0 ? availability[0].maxSessions : 8}
+                      onChange={(e) => {
+                        const newAvailability = availability.map(day => ({
+                          ...day,
+                          maxSessions: parseInt(e.target.value)
+                        }));
+                        setAvailability(newAvailability);
+                      }}
+                      className="bg-gray-700 border-gray-600 text-white h-9 text-sm"
+                      min="1"
+                      max="24"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="defaultSessionDuration">Default Session Duration</Label>
-                  <Select
-                    value={availability.length > 0 ? availability[0].sessionDuration.toString() : '60'}
-                    onValueChange={(value) => {
-                      const newAvailability = availability.map(day => ({
-                        ...day,
-                        sessionDuration: parseInt(value)
-                      }));
-                      setAvailability(newAvailability);
-                    }}
+              </CardContent>
+            </Card>
+
+            {/* Block Time Card */}
+            <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 shadow-xl">
+              <CardHeader className="pb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center">
+                    <Ban className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold text-white">Block Time</CardTitle>
+                    <CardDescription className="text-gray-300 text-sm">
+                      Block specific dates/times
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!showBlockForm ? (
+                  <Button
+                    onClick={() => setShowBlockForm(true)}
+                    className="w-full bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white py-2 rounded-lg text-sm font-medium"
                   >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SESSION_DURATIONS.map(duration => (
-                        <SelectItem key={duration} value={duration.toString()}>
-                          {duration} minutes
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Block Time Slots
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs font-medium">Date</Label>
+                        <Input
+                          type="date"
+                          value={blockDate}
+                          onChange={(e) => setBlockDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="bg-gray-700 border-gray-600 text-white h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs font-medium">Start</Label>
+                        <Input
+                          type="time"
+                          value={blockStartTime}
+                          onChange={(e) => setBlockStartTime(e.target.value)}
+                          className="bg-gray-700 border-gray-600 text-white h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs font-medium">End</Label>
+                        <Input
+                          type="time"
+                          value={blockEndTime}
+                          onChange={(e) => setBlockEndTime(e.target.value)}
+                          className="bg-gray-700 border-gray-600 text-white h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs font-medium">Reason</Label>
+                        <Input
+                          placeholder="Optional"
+                          value={blockReason}
+                          onChange={(e) => setBlockReason(e.target.value)}
+                          className="bg-gray-700 border-gray-600 text-white h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowBlockForm(false)}
+                        className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700 h-8 text-xs"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={blockTimeSlots}
+                        disabled={blockingTime || !blockDate}
+                        className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white h-8 text-xs"
+                      >
+                        {blockingTime ? 'Blocking...' : 'Block'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Daily Schedule Configuration - Compact */}
+          <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 shadow-xl">
+            <CardHeader className="pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-bold text-white">Daily Schedule</CardTitle>
+                  <CardDescription className="text-gray-300 text-sm">
+                    Set availability for each day
+                  </CardDescription>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Daily Schedule Setup */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Calendar className="w-5 h-5" />
-                <span>Daily Schedule Configuration</span>
-              </CardTitle>
-              <CardDescription>
-                Set your availability for each day of the week
-              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {availability.map((day, index) => (
-                  <div key={day.dayOfWeek} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
+            <CardContent className="space-y-3">
+              {availability.map((day, index) => (
+                <div key={day.dayOfWeek} className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <Switch
+                        checked={day.isAvailable}
+                        onCheckedChange={(checked) => 
+                          handleAvailabilityChange(index, 'isAvailable', checked)
+                        }
+                        className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500 data-[state=checked]:to-emerald-500"
+                      />
                       <div className="flex items-center space-x-3">
-                        <Switch
-                          checked={day.isAvailable}
-                          onCheckedChange={(checked) => 
-                            handleAvailabilityChange(index, 'isAvailable', checked)
-                          }
-                        />
-                        <Label className="text-lg font-medium">{day.dayName}</Label>
-                        <Badge variant={day.isAvailable ? 'default' : 'secondary'}>
-                          {day.isAvailable ? 'Available' : 'Unavailable'}
+                        <h3 className={`text-base font-bold ${DAYS_OF_WEEK[day.dayOfWeek].color}`}>
+                          {day.dayName}
+                        </h3>
+                        <Badge 
+                          variant={day.isAvailable ? 'default' : 'secondary'}
+                          className={`text-xs ${
+                            day.isAvailable 
+                              ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                              : 'bg-gray-600'
+                          }`}
+                        >
+                          {getDayStatusText(day)}
                         </Badge>
                       </div>
-      </div>
-
-                    {day.isAvailable && (
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 ml-8">
-                        <div>
-                          <Label>Start Time</Label>
-                          <Input
-                            type="time"
-                            value={day.startTime}
-                            onChange={(e) => 
-                              handleAvailabilityChange(index, 'startTime', e.target.value)
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label>End Time</Label>
-                          <Input
-                            type="time"
-                            value={day.endTime}
-                            onChange={(e) => 
-                              handleAvailabilityChange(index, 'endTime', e.target.value)
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label>Session Duration</Label>
-                          <Select
-                            value={day.sessionDuration.toString()}
-                            onValueChange={(value) => 
-                              handleAvailabilityChange(index, 'sessionDuration', parseInt(value))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {SESSION_DURATIONS.map(duration => (
-                                <SelectItem key={duration} value={duration.toString()}>
-                                  {duration} min
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Break Between Sessions</Label>
-                          <Select
-                            value={day.breakDuration.toString()}
-                            onValueChange={(value) => 
-                              handleAvailabilityChange(index, 'breakDuration', parseInt(value))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {BREAK_DURATIONS.map(duration => (
-                                <SelectItem key={duration} value={duration.toString()}>
-                                  {duration} min
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                     
-                    {/* Preview of generated time slots */}
-                    {day.isAvailable && (
-                      <div className="mt-4 ml-8">
-                        <Label className="text-sm text-gray-400">Preview Time Slots:</Label>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {generateTimeSlots(day).map((slot, slotIndex) => (
-                            <Badge key={slotIndex} variant="outline" className="text-xs">
-                              {slot}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleDayExpansion(index)}
+                      className="text-gray-400 hover:text-white p-1"
+                    >
+                      {expandedDays.includes(index) ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </Button>
                   </div>
-                ))}
-              </div>
+
+                  {expandedDays.includes(index) && day.isAvailable && (
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs font-medium">Start</Label>
+                        <Input
+                          type="time"
+                          value={day.startTime}
+                          onChange={(e) => 
+                            handleAvailabilityChange(index, 'startTime', e.target.value)
+                          }
+                          className="bg-gray-700 border-gray-600 text-white h-8 text-xs"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs font-medium">End</Label>
+                        <Input
+                          type="time"
+                          value={day.endTime}
+                          onChange={(e) => 
+                            handleAvailabilityChange(index, 'endTime', e.target.value)
+                          }
+                          className="bg-gray-700 border-gray-600 text-white h-8 text-xs"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs font-medium">Duration</Label>
+                        <Select
+                          value={day.sessionDuration.toString()}
+                          onValueChange={(value) => 
+                            handleAvailabilityChange(index, 'sessionDuration', parseInt(value))
+                          }
+                        >
+                          <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-800 border-gray-600">
+                            {SESSION_DURATIONS.map(duration => (
+                              <SelectItem key={duration} value={duration.toString()} className="text-white hover:bg-gray-700">
+                                {duration} min
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-gray-300 text-xs font-medium">Break</Label>
+                        <Select
+                          value={day.breakDuration.toString()}
+                          onValueChange={(value) => 
+                            handleAvailabilityChange(index, 'breakDuration', parseInt(value))
+                          }
+                        >
+                          <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-800 border-gray-600">
+                            {BREAK_DURATIONS.map(duration => (
+                              <SelectItem key={duration} value={duration.toString()} className="text-white hover:bg-gray-700">
+                                {duration} min
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Preview of generated time slots */}
+                  {expandedDays.includes(index) && day.isAvailable && (
+                    <div className="mt-3">
+                      <Label className="text-gray-400 text-xs font-medium">Preview:</Label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {generateTimeSlots(day).slice(0, 6).map((slot, slotIndex) => (
+                          <Badge key={slotIndex} variant="outline" className="text-xs bg-gray-600/50 border-gray-500 text-gray-200">
+                            {slot}
+                          </Badge>
+                        ))}
+                        {generateTimeSlots(day).length > 6 && (
+                          <Badge variant="outline" className="text-xs bg-gray-600/50 border-gray-500 text-gray-200">
+                            +{generateTimeSlots(day).length - 6} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </CardContent>
           </Card>
 
-          {/* Block Time Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Ban className="w-5 h-5" />
-                <span>Block Time Slots</span>
-              </CardTitle>
-              <CardDescription>
-                Block specific dates or time ranges when you're unavailable
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <Label htmlFor="blockDate">Date to Block</Label>
-                  <Input
-                    id="blockDate"
-                    type="date"
-                    value={blockDate}
-                    onChange={(e) => setBlockDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="blockStartTime">Start Time</Label>
-                  <Input
-                    id="blockStartTime"
-                    type="time"
-                    value={blockStartTime}
-                    onChange={(e) => setBlockStartTime(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="blockEndTime">End Time</Label>
-                  <Input
-                    id="blockEndTime"
-                    type="time"
-                    value={blockEndTime}
-                    onChange={(e) => setBlockEndTime(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="blockReason">Reason (Optional)</Label>
-                  <Input
-                    id="blockReason"
-                    placeholder="e.g., Personal time off, Holiday"
-                    value={blockReason}
-                    onChange={(e) => setBlockReason(e.target.value)}
-                  />
-                </div>
-              </div>
-              
-              <div className="mt-4 flex justify-end">
-                <Button
-                  onClick={blockTimeSlots}
-                  disabled={blockingTime || !blockDate}
-                  className="bg-red-500 hover:bg-red-600"
-                >
-                  {blockingTime ? 'Blocking...' : 'Block Time Slots'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Save Button */}
+          <div className="text-center">
+            <Button
+              onClick={saveAvailability}
+              disabled={saving}
+              className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-8 py-3 rounded-xl text-lg font-bold shadow-xl transform hover:scale-105 transition-all"
+            >
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-6 h-6 mr-3" />
+                  Save & Generate Schedule
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       ) : (
-        /* Schedule View Mode */
+        /* Schedule View Mode - Compact Layout */
         <div className="space-y-6">
-          {/* Date Selector */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center space-x-4">
-                <Label htmlFor="scheduleDate">Select Date:</Label>
-                <Input
-                  id="scheduleDate"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          {/* Date Selector & Quick Stats Side by Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Date Selector */}
+            <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 shadow-xl">
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-3">
+                  <Calendar className="w-5 h-5 text-blue-400" />
+                  <Label htmlFor="scheduleDate" className="text-gray-300 font-medium">Select Date:</Label>
+                  <Input
+                    id="scheduleDate"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="bg-gray-700 border-gray-600 text-white w-40"
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Schedule Overview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="w-5 h-5" />
-                <span>Schedule for {new Date(selectedDate).toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}</span>
-              </CardTitle>
+            {/* Quick Stats - Compact */}
+            <div className="lg:col-span-2 grid grid-cols-3 gap-3">
+              <Card className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-green-500/50 shadow-lg">
+                <CardContent className="pt-4 text-center">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Users className="w-4 h-4 text-white" />
+                  </div>
+                  <p className="text-2xl font-bold text-green-400 mb-1">
+                    {timeSlots.filter(slot => slot.status === 'available').length}
+                  </p>
+                  <p className="text-green-300 text-xs font-medium">Available</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-to-br from-red-500/20 to-pink-500/20 border-red-500/50 shadow-lg">
+                <CardContent className="pt-4 text-center">
+                  <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Target className="w-4 h-4 text-white" />
+                  </div>
+                  <p className="text-2xl font-bold text-red-400 mb-1">
+                    {timeSlots.filter(slot => slot.status === 'booked').length}
+                  </p>
+                  <p className="text-red-300 text-xs font-medium">Booked</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-to-br from-gray-500/20 to-slate-500/20 border-gray-500/50 shadow-lg">
+                <CardContent className="pt-4 text-center">
+                  <div className="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Ban className="w-4 h-4 text-white" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-400 mb-1">
+                    {timeSlots.filter(slot => slot.status === 'unavailable').length}
+                  </p>
+                  <p className="text-gray-300 text-xs font-medium">Blocked</p>
+                </CardContent>
+              </Card>
+            </div>
+      </div>
+
+          {/* Schedule Overview - Compact Grid */}
+          <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 shadow-xl">
+            <CardHeader className="pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-bold text-white">
+                    {new Date(selectedDate).toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      month: 'short', 
+                      day: 'numeric' 
+                    })}
+                  </CardTitle>
+                  <CardDescription className="text-gray-300 text-sm">
+                    {timeSlots.length} total time slots
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {timeSlots.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                   {timeSlots.map((slot) => (
                     <div
                       key={slot.id}
-                      className={`p-4 rounded-lg border ${
+                      className={`p-3 rounded-lg border transition-all transform hover:scale-105 ${
                         slot.status === 'booked' 
-                          ? 'bg-red-500/20 border-red-500' 
+                          ? 'border-red-500 bg-gradient-to-br from-red-500/20 to-red-600/20' 
                           : slot.status === 'unavailable'
-                          ? 'bg-gray-500/20 border-gray-500'
-                          : 'bg-green-500/20 border-green-500'
+                          ? 'border-gray-500 bg-gradient-to-br from-gray-500/20 to-gray-600/20'
+                          : 'border-green-500 bg-gradient-to-br from-green-500/20 to-green-600/20'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{slot.time}</span>
-                        <Badge variant={
-                          slot.status === 'booked' ? 'destructive' : 
-                          slot.status === 'unavailable' ? 'secondary' : 
-                          'default'
-                        }>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-white mb-2">{slot.time}</div>
+                        <Badge 
+                          variant={slot.status === 'booked' ? 'destructive' : 'secondary'}
+                          className={`text-xs px-2 py-1 rounded-full ${
+                            slot.status === 'booked' 
+                              ? 'bg-red-500 text-white' 
+                              : slot.status === 'unavailable'
+                              ? 'bg-gray-500 text-white'
+                              : 'bg-green-500 text-white'
+                          }`}
+                        >
                           {slot.status === 'booked' ? 'Booked' : 
                            slot.status === 'unavailable' ? 'Blocked' : 
                            'Available'}
                         </Badge>
+                        
+                        {slot.status === 'booked' && (
+                          <div className="mt-2 text-xs text-gray-300">
+                            <p className="truncate">{slot.clientName}</p>
+                          </div>
+                        )}
                       </div>
-                      {slot.status === 'booked' && (
-                        <div className="text-sm text-gray-600">
-                          <p><strong>Client:</strong> {slot.clientName}</p>
-                          <p><strong>Type:</strong> {slot.sessionType}</p>
-                        </div>
-                      )}
-                      {slot.status === 'unavailable' && (
-                        <div className="text-sm text-gray-600">
-                          <p><strong>Status:</strong> Time slot blocked</p>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p>No time slots available for this date.</p>
-                  <p className="text-sm">Make sure you have set up your availability schedule.</p>
+                <div className="text-center py-8 text-gray-400">
+                  <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+                  <p className="text-base">No time slots available for this date.</p>
+                  <p className="text-sm">Set up your availability schedule first.</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-                    {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-green-500/20 rounded-lg">
-                    <Users className="w-5 h-5 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Available Slots</p>
-                    <p className="text-2xl font-bold">
-                      {timeSlots.filter(slot => slot.status === 'available').length}
-                    </p>
-                  </div>
+          {/* Blocked Time Management - Compact */}
+          <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 shadow-xl">
+            <CardHeader className="pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <Ban className="w-5 h-5 text-white" />
                 </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-red-500/20 rounded-lg">
-                    <Users className="w-5 h-5 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Booked Sessions</p>
-                    <p className="text-2xl font-bold">
-                      {timeSlots.filter(slot => slot.status === 'booked').length}
-                    </p>
-                  </div>
+                <div>
+                  <CardTitle className="text-lg font-bold text-white">Blocked Time</CardTitle>
+                  <CardDescription className="text-gray-300 text-sm">
+                    {blockedTimeSlots.length} blocked periods
+                  </CardDescription>
                 </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gray-500/20 rounded-lg">
-                    <Ban className="w-5 h-5 text-gray-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Blocked Slots</p>
-                    <p className="text-2xl font-bold">
-                      {timeSlots.filter(slot => slot.status === 'unavailable').length}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-500/20 rounded-lg">
-                    <Clock className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Total Slots</p>
-                    <p className="text-2xl font-bold">{timeSlots.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Blocked Time Management */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Ban className="w-5 h-5" />
-                <span>Blocked Time Management</span>
-              </CardTitle>
-              <CardDescription>
-                View and manage your blocked time periods
-              </CardDescription>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {blockedTimeSlots.length > 0 ? (
                   blockedTimeSlots.map((blockedSlot) => (
-                    <div key={blockedSlot.id} className="flex items-center justify-between p-4 border rounded-lg bg-red-50">
-                      <div>
-                        <p className="font-medium">
-                          {new Date(blockedSlot.start_date).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {blockedSlot.start_time} - {blockedSlot.end_time}
-                        </p>
-                        {blockedSlot.reason && (
-                          <p className="text-sm text-gray-500">Reason: {blockedSlot.reason}</p>
-                        )}
+                    <div key={blockedSlot.id} className="flex items-center justify-between p-3 border border-gray-600 rounded-lg bg-gradient-to-r from-red-500/10 to-pink-500/10">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                          <CalendarDays className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-white text-sm">
+                            {new Date(blockedSlot.start_date).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                          <p className="text-gray-300 text-xs">
+                            {blockedSlot.start_time} - {blockedSlot.end_time}
+                          </p>
+      </div>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => unblockTimeSlots(blockedSlot.id)}
-                        className="text-red-600 border-red-600 hover:bg-red-50"
+                        className="border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition-all h-7 px-2 text-xs"
                       >
+                        <X className="w-3 h-3 mr-1" />
                         Unblock
                       </Button>
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-6 text-gray-500">
-                    <Ban className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p>No blocked time periods found.</p>
-                    <p className="text-sm">Use the Setup Schedule mode to block time slots.</p>
+                  <div className="text-center py-6 text-gray-400">
+                    <Ban className="w-8 h-8 mx-auto mb-2 text-gray-500" />
+                    <p className="text-sm">No blocked time periods found.</p>
                   </div>
                 )}
               </div>

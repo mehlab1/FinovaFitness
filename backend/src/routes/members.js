@@ -289,17 +289,26 @@ router.get('/trainers', verifyMemberToken, async (req, res) => {
          u.last_name,
          u.email,
          COALESCE(AVG(tr.rating), 0) as average_rating,
-         COUNT(tr.id) as total_ratings
+         COUNT(tr.id) as total_ratings,
+         COALESCE(COUNT(ts.id), 0) as total_sessions
        FROM trainers t
        JOIN users u ON t.user_id = u.id
        LEFT JOIN trainer_ratings tr ON t.id = tr.trainer_id
+       LEFT JOIN training_sessions ts ON t.id = ts.trainer_id
        WHERE u.is_active = true
        GROUP BY t.id, t.user_id, t.specialization, t.certification, t.experience_years, t.bio, t.hourly_rate, t.profile_image, u.first_name, u.last_name, u.email
        ORDER BY average_rating DESC, total_ratings DESC`,
       []
     );
 
-    res.json(result.rows);
+    // Transform the data to match frontend expectations
+    const transformedTrainers = result.rows.map(trainer => ({
+      ...trainer,
+      rating: parseFloat(trainer.average_rating).toFixed(1),
+      total_sessions: parseInt(trainer.total_sessions)
+    }));
+
+    res.json(transformedTrainers);
 
   } catch (error) {
     console.error('Trainers error:', error);
