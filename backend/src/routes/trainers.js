@@ -1,6 +1,37 @@
 import express from 'express';
 import { query } from '../database.js';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, '../../uploads/profiles/'));
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'trainer-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
 
 const router = express.Router();
 
@@ -360,6 +391,101 @@ router.get('/subscriptions', verifyTrainerToken, async (req, res) => {
   } catch (error) {
     console.error('Subscriptions error:', error);
     res.status(500).json({ error: 'Failed to get client subscriptions' });
+  }
+});
+
+// Get trainer profile
+router.get('/profile', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    
+    // Get trainer profile data
+    const profileResult = await query(
+      `SELECT t.*, u.first_name, u.last_name, u.email, u.phone 
+       FROM trainers t 
+       JOIN users u ON t.user_id = u.id 
+       WHERE t.id = $1`,
+      [trainerId]
+    );
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Trainer profile not found' });
+    }
+
+    const profile = profileResult.rows[0];
+    
+    // Parse arrays from database
+    profile.specialization = profile.specialization || [];
+    profile.certification = profile.certification || [];
+    
+    res.json(profile);
+  } catch (error) {
+    console.error('Profile error:', error);
+    res.status(500).json({ error: 'Failed to get profile' });
+  }
+});
+
+// Update trainer profile
+router.put('/profile', verifyTrainerToken, upload.single('profile_image'), async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    const userId = req.userId;
+    
+    // Parse form data
+    const {
+      first_name,
+      last_name,
+      email,
+      phone,
+      specialization,
+      certification,
+      experience_years,
+      bio,
+      hourly_rate
+    } = req.body;
+
+    // Parse arrays from JSON strings
+    const specializationArray = specialization ? JSON.parse(specialization) : [];
+    const certificationArray = certification ? JSON.parse(certification) : [];
+
+    // Update user information
+    await query(
+      `UPDATE users 
+       SET first_name = $1, last_name = $2, email = $3, phone = $4, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $5`,
+      [first_name, last_name, email, phone, userId]
+    );
+
+    // Handle profile image if uploaded
+    let profileImagePath = null;
+    if (req.file) {
+      profileImagePath = `/uploads/profiles/${req.file.filename}`;
+    }
+
+    // Update trainer information
+    if (profileImagePath) {
+      await query(
+        `UPDATE trainers 
+         SET specialization = $1, certification = $2, experience_years = $3, bio = $4, hourly_rate = $5, profile_image = $6 
+         WHERE id = $7`,
+        [specializationArray, certificationArray, experience_years, bio, hourly_rate, profileImagePath, trainerId]
+      );
+    } else {
+      await query(
+        `UPDATE trainers 
+         SET specialization = $1, certification = $2, experience_years = $3, bio = $4, hourly_rate = $5 
+         WHERE id = $6`,
+        [specializationArray, certificationArray, experience_years, bio, hourly_rate, trainerId]
+      );
+    }
+
+    res.json({ 
+      message: 'Profile updated successfully',
+      profile_image: profileImagePath
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 

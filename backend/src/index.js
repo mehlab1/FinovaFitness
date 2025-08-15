@@ -22,6 +22,9 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
+
 // Test database connection on startup
 app.get('/api/health', async (req, res) => {
   try {

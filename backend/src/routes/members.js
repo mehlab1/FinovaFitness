@@ -277,7 +277,14 @@ router.get('/trainers', verifyMemberToken, async (req, res) => {
   try {
     const result = await query(
       `SELECT 
-         t.*,
+         t.id,
+         t.user_id,
+         t.specialization,
+         t.certification,
+         t.experience_years,
+         t.bio,
+         t.hourly_rate,
+         t.profile_image,
          u.first_name,
          u.last_name,
          u.email,
@@ -287,7 +294,7 @@ router.get('/trainers', verifyMemberToken, async (req, res) => {
        JOIN users u ON t.user_id = u.id
        LEFT JOIN trainer_ratings tr ON t.id = tr.trainer_id
        WHERE u.is_active = true
-       GROUP BY t.id, u.first_name, u.last_name, u.email
+       GROUP BY t.id, t.user_id, t.specialization, t.certification, t.experience_years, t.bio, t.hourly_rate, t.profile_image, u.first_name, u.last_name, u.email
        ORDER BY average_rating DESC, total_ratings DESC`,
       []
     );

@@ -94,4 +94,24 @@ export const trainerApi = {
     });
     return handleResponse(response);
   },
+
+  // Get trainer profile
+  getProfile: async () => {
+    const response = await fetch(`${BASE_URL}/trainers/profile`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Update trainer profile
+  updateProfile: async (formData: FormData) => {
+    const response = await fetch(`${BASE_URL}/trainers/profile`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': getAuthHeaders().Authorization,
+      },
+      body: formData,
+    });
+    return handleResponse(response);
+  },
 };
