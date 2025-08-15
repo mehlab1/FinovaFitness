@@ -46,8 +46,10 @@ interface TrainingSession {
   end_time: string;
   session_type: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-  trainer_name: string;
-  trainer_specialization: string;
+  trainer_name?: string; // Made optional since we'll construct it
+  trainer_first_name?: string; // From backend
+  trainer_last_name?: string; // From backend
+  trainer_specialization?: string;
   trainer_id: number;
   notes?: string;
 }
@@ -130,8 +132,19 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
         memberApi.getUpcomingSessions(),
         memberApi.getCompletedSessions()
       ]);
-      setUpcomingSessions(upcomingData);
-      setCompletedSessions(completedData);
+      
+      // Transform the data to construct trainer_name from first_name and last_name
+      const transformSessions = (sessions: any[]) => {
+        return sessions.map(session => ({
+          ...session,
+          trainer_name: session.trainer_first_name && session.trainer_last_name 
+            ? `${session.trainer_first_name} ${session.trainer_last_name}`
+            : 'Unknown Trainer'
+        }));
+      };
+      
+      setUpcomingSessions(transformSessions(upcomingData));
+      setCompletedSessions(transformSessions(completedData));
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
@@ -772,7 +785,7 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
               <div>
                 <CardTitle className="text-lg font-bold text-white">Upcoming Sessions</CardTitle>
                 <CardDescription className="text-gray-300 text-sm">
-                  {upcomingSessions.length} upcoming training sessions
+                  <span className="text-green-400 font-semibold text-base">{upcomingSessions.length}</span> upcoming training sessions
                 </CardDescription>
               </div>
             </div>
@@ -781,15 +794,35 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
             {upcomingSessions.length > 0 ? (
               <div className="space-y-3">
                 {upcomingSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between p-4 border border-gray-600 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                        <Calendar className="w-5 h-5 text-white" />
+                  <div key={session.id} className="p-4 border border-gray-600 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                          <Calendar className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white text-sm">
+                            {session.session_type}
+                          </h4>
+                          <p className="text-gray-300 text-xs">
+                            with {session.trainer_name}
+                          </p>
+                        </div>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        {getStatusBadge(session.status)}
+                        <span className="text-xs text-gray-400">
+                          #{session.id}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <p className="font-medium text-white text-sm">
+                        <p className="text-gray-400 text-xs mb-1">Date & Time</p>
+                        <p className="text-white font-medium">
                           {new Date(session.session_date).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
+                            weekday: 'short', 
                             month: 'short', 
                             day: 'numeric' 
                           })}
@@ -797,13 +830,25 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
                         <p className="text-gray-300 text-xs">
                           {session.start_time} - {session.end_time}
                         </p>
-                        <p className="text-gray-400 text-xs">{session.session_type}</p>
+                      </div>
+                      
+                      <div>
+                        <p className="text-gray-400 text-xs mb-1">Session Details</p>
+                        <p className="text-white font-medium">
+                          {session.session_type}
+                        </p>
+                        <p className="text-gray-300 text-xs">
+                          Duration: {session.start_time} - {session.end_time}
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <span className="text-gray-400 text-xs">{session.trainer_name}</span>
-                      {getStatusBadge(session.status)}
-                    </div>
+                    
+                    {session.notes && (
+                      <div className="mt-3 pt-3 border-t border-gray-600">
+                        <p className="text-gray-400 text-xs mb-1">Notes</p>
+                        <p className="text-gray-300 text-sm italic">"{session.notes}"</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -828,7 +873,7 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
               <div>
                 <CardTitle className="text-lg font-bold text-white">Completed Sessions</CardTitle>
                 <CardDescription className="text-gray-300 text-sm">
-                  {completedSessions.length} completed training sessions
+                  <span className="text-purple-400 font-semibold text-base">{completedSessions.length}</span> completed training sessions
                 </CardDescription>
               </div>
             </div>
@@ -837,15 +882,35 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
             {completedSessions.length > 0 ? (
               <div className="space-y-3">
                 {completedSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between p-4 border border-gray-600 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
-                        <CheckCircle className="w-5 h-5 text-white" />
+                  <div key={session.id} className="p-4 border border-gray-600 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                          <CheckCircle className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white text-sm">
+                            {session.session_type}
+                          </h4>
+                          <p className="text-gray-300 text-xs">
+                            with {session.trainer_name}
+                          </p>
+                        </div>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        {getStatusBadge(session.status)}
+                        <span className="text-xs text-gray-400">
+                          #{session.id}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <p className="font-medium text-white text-sm">
+                        <p className="text-gray-400 text-xs mb-1">Date & Time</p>
+                        <p className="text-white font-medium">
                           {new Date(session.session_date).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
+                            weekday: 'short', 
                             month: 'short', 
                             day: 'numeric' 
                           })}
@@ -853,18 +918,25 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
                         <p className="text-gray-300 text-xs">
                           {session.start_time} - {session.end_time}
                         </p>
-                        <p className="text-gray-400 text-xs">{session.session_type}</p>
-                        {session.notes && (
-                          <p className="text-gray-400 text-xs mt-1 italic">
-                            Notes: {session.notes}
-                          </p>
-                        )}
+                      </div>
+                      
+                      <div>
+                        <p className="text-gray-400 text-xs mb-1">Session Details</p>
+                        <p className="text-white font-medium">
+                          {session.session_type}
+                        </p>
+                        <p className="text-gray-300 text-xs">
+                          Duration: {session.start_time} - {session.end_time}
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <span className="text-gray-400 text-xs">{session.trainer_name}</span>
-                      {getStatusBadge(session.status)}
-                    </div>
+                    
+                    {session.notes && (
+                      <div className="mt-3 pt-3 border-t border-gray-600">
+                        <p className="text-gray-400 text-xs mb-1">Notes</p>
+                        <p className="text-gray-300 text-sm italic">"{session.notes}"</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
