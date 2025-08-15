@@ -81,6 +81,14 @@ export const trainerApi = {
     return handleResponse(response);
   },
 
+  // Get trainer ratings and reviews
+  getRatings: async () => {
+    const response = await fetch(`${BASE_URL}/trainers/ratings`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
   // Mark session as completed
   markSessionCompleted: async (sessionId: number) => {
     const response = await fetch(`${BASE_URL}/trainers/sessions/${sessionId}/complete`, {

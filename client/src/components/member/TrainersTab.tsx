@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Calendar, Clock, MapPin, Star, Users, BookOpen, Search, Filter, Zap, Target, TrendingUp, Heart, Award, CheckCircle, XCircle, History, CalendarDays } from 'lucide-react';
+import { Calendar, Clock, MapPin, Star, Users, BookOpen, Search, Filter, Zap, Target, TrendingUp, Heart, Award, CheckCircle, XCircle, History, CalendarDays, User, MessageSquare } from 'lucide-react';
 import { useToast } from '../Toast';
 
 interface Trainer {
@@ -52,9 +52,10 @@ interface TrainingSession {
   trainer_specialization?: string;
   trainer_id: number;
   notes?: string;
+  has_review?: boolean; // Added for completed sessions
 }
 
-export const TrainersTab = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+export const TrainersTab = ({ showToast, onNavigateToReviews }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void; onNavigateToReviews?: (session: any) => void }) => {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -266,18 +267,42 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
       }
     });
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, hasReview?: boolean) => {
+    if (status === 'completed') {
+      if (hasReview) {
+        return (
+          <Badge className="bg-green-600 text-white">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Reviewed
+          </Badge>
+        );
+      } else {
+        return (
+          <Badge className="bg-yellow-600 text-white">
+            <Star className="w-3 h-3 mr-1" />
+            Pending Review
+          </Badge>
+        );
+      }
+    }
+    
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="border-yellow-500 text-yellow-400">Pending</Badge>;
+        return <Badge className="bg-yellow-600 text-white">Pending</Badge>;
       case 'confirmed':
-        return <Badge variant="outline" className="border-green-500 text-green-400">Confirmed</Badge>;
-      case 'completed':
-        return <Badge variant="outline" className="border-blue-500 text-blue-400">Completed</Badge>;
+        return <Badge className="bg-blue-600 text-white">Confirmed</Badge>;
       case 'cancelled':
-        return <Badge variant="outline" className="border-red-500 text-red-400">Cancelled</Badge>;
+        return <Badge className="bg-red-600 text-white">Cancelled</Badge>;
       default:
-        return <Badge variant="outline">Unknown</Badge>;
+        return <Badge className="bg-gray-600 text-white">{status}</Badge>;
+    }
+  };
+
+  const handleReviewClick = (session: TrainingSession) => {
+    if (onNavigateToReviews) {
+      onNavigateToReviews(session);
+    } else {
+      showToast('Navigate to Reviews tab to leave a review for this session', 'info');
     }
   };
 
@@ -898,7 +923,7 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        {getStatusBadge(session.status)}
+                        {getStatusBadge(session.status, session.has_review)}
                         <span className="text-xs text-gray-400">
                           #{session.id}
                         </span>
@@ -935,6 +960,34 @@ export const TrainersTab = ({ showToast }: { showToast: (message: string, type?:
                       <div className="mt-3 pt-3 border-t border-gray-600">
                         <p className="text-gray-400 text-xs mb-1">Notes</p>
                         <p className="text-gray-300 text-sm italic">"{session.notes}"</p>
+                      </div>
+                    )}
+
+                    {/* Review Action */}
+                    {session.status === 'completed' && !session.has_review && (
+                      <div className="mt-3 pt-3 border-t border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Star className="w-4 h-4 text-yellow-400" />
+                            <span className="text-sm text-gray-300">Leave a review for this session</span>
+                          </div>
+                          <Button
+                            onClick={() => handleReviewClick(session)}
+                            className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 transform hover:scale-105"
+                          >
+                            <MessageSquare className="w-4 h-4 mr-2" />
+                            Review
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {session.status === 'completed' && session.has_review && (
+                      <div className="mt-3 pt-3 border-t border-gray-600">
+                        <div className="flex items-center space-x-2">
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                          <span className="text-sm text-green-400 font-medium">Review submitted</span>
+                        </div>
                       </div>
                     )}
                   </div>

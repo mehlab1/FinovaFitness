@@ -4,6 +4,8 @@ import { facilities, exercises } from '../data/mockData';
 import { useToast } from './Toast';
 import { memberApi } from '../services/api/memberApi';
 import { TrainersTab } from './member/TrainersTab';
+import { CheckCircle, Star } from 'lucide-react';
+import { Button } from './ui/button';
 
 interface MemberPortalProps {
   user: User | null;
@@ -13,6 +15,7 @@ interface MemberPortalProps {
 export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [membershipData, setMembershipData] = useState<any>(null);
+  const [pendingReviewSession, setPendingReviewSession] = useState<any>(null);
   const { showToast } = useToast();
 
   // Fetch membership data on component mount
@@ -146,7 +149,10 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
       case 'workout':
         return <WorkoutSchedule showToast={showToast} />;
       case 'trainers':
-        return <TrainersTab showToast={showToast} />;
+        return <TrainersTab showToast={showToast} onNavigateToReviews={(session) => {
+          setPendingReviewSession(session);
+          setCurrentPage('reviews');
+        }} />;
       case 'nutritionists':
         return <NutritionistsTab showToast={showToast} />;
       case 'facilities':
@@ -158,7 +164,11 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
       case 'announcements':
         return <MemberAnnouncements showToast={showToast} />;
       case 'reviews':
-        return <Reviews showToast={showToast} />;
+        return <Reviews 
+          showToast={showToast} 
+          pendingReviewSession={pendingReviewSession} 
+          onClearPendingReview={() => setPendingReviewSession(null)}
+        />;
       default:
         return <Dashboard user={user} showToast={showToast} />;
     }
@@ -4582,115 +4592,512 @@ const LoyaltyReferrals = ({ user, showToast }: { user: User | null; showToast: (
   );
 };
 
-const Reviews = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void; pendingReviewSession?: any; onClearPendingReview?: () => void }) => {
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [selectedSession, setSelectedSession] = useState<any>(null);
   const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
+  const [reviewText, setReviewText] = useState('');
+  const [trainingEffectiveness, setTrainingEffectiveness] = useState(5);
+  const [communication, setCommunication] = useState(5);
+  const [punctuality, setPunctuality] = useState(5);
+  const [professionalism, setProfessionalism] = useState(5);
+  const [submitting, setSubmitting] = useState(false);
+  const [completedSessions, setCompletedSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const bookings = [
-    { id: 1, date: '2024-01-15', type: 'Personal Training', trainer: 'Sarah Johnson' },
-    { id: 2, date: '2024-01-12', type: 'Facility Booking', facility: 'Pool' },
-    { id: 3, date: '2024-01-10', type: 'Personal Training', trainer: 'Mike Chen' },
-    { id: 4, date: '2024-01-08', type: 'Nutrition Consultation', nutritionist: 'Dr. Emily Wilson' }
-  ];
+  useEffect(() => {
+    fetchCompletedSessions();
+  }, []);
 
-  const handleReview = (booking: any) => {
-    setSelectedBooking(booking);
+  // Auto-open review modal if there's a pending review session
+  useEffect(() => {
+    if (pendingReviewSession && completedSessions.length > 0) {
+      // Find the session in completed sessions
+      const session = completedSessions.find(s => s.id === pendingReviewSession.id);
+      if (session && !session.has_review) {
+        handleReview(session);
+        // Clear the pending review session after opening the modal
+        // This will be handled by the parent component
+      }
+    }
+  }, [pendingReviewSession, completedSessions]);
+
+  const fetchCompletedSessions = async () => {
+    try {
+      setLoading(true);
+      const sessions = await memberApi.getCompletedSessions();
+      setCompletedSessions(sessions);
+    } catch (error) {
+      console.error('Failed to fetch completed sessions:', error);
+      showToast('Failed to load completed sessions', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReview = (session: any) => {
+    setSelectedSession(session);
+    setRating(5);
+    setReviewText('');
+    setTrainingEffectiveness(5);
+    setCommunication(5);
+    setPunctuality(5);
+    setProfessionalism(5);
     setShowReviewModal(true);
   };
 
-  const submitReview = () => {
-    showToast('Thank you for your review!', 'success');
-    setShowReviewModal(false);
-    setRating(5);
-    setComment('');
+  const submitReview = async () => {
+    if (!selectedSession) return;
+
+    try {
+      setSubmitting(true);
+      
+      await memberApi.submitSessionReview({
+        session_id: selectedSession.id,
+        rating,
+        review_text: reviewText,
+        training_effectiveness: trainingEffectiveness,
+        communication,
+        punctuality,
+        professionalism
+      });
+
+      showToast('Thank you for your review!', 'success');
+      setShowReviewModal(false);
+      
+      // Clear pending review session
+      if (onClearPendingReview) {
+        onClearPendingReview();
+      }
+      
+      // Refresh the completed sessions to show updated review status
+      await fetchCompletedSessions();
+      
+    } catch (error) {
+      console.error('Failed to submit review:', error);
+      showToast('Failed to submit review. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const getReviewStatus = (session: any) => {
+    if (session.has_review) {
+      return (
+        <div className="flex items-center space-x-2">
+          <CheckCircle className="w-4 h-4 text-green-400" />
+          <span className="text-sm text-green-400 font-medium">Review submitted</span>
+        </div>
+      );
+    }
+    return (
+      <Button
+        onClick={() => handleReview(session)}
+        className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-3 py-1 rounded text-sm font-semibold transition-all duration-300 transform hover:scale-105"
+      >
+        <Star className="w-3 h-3 mr-1" />
+        Review
+      </Button>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-fade-in flex items-center justify-center h-64">
+        <div className="text-center">
+          <i className="fas fa-spinner fa-spin text-4xl text-blue-400 mb-4"></i>
+          <p className="text-gray-300">Loading completed sessions...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
       <div className="glass-card p-6 rounded-2xl">
-        <h3 className="text-xl font-bold text-blue-400 mb-4">Booking History</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="table-header">
-                <th className="text-left p-3">Date</th>
-                <th className="text-left p-3">Type</th>
-                <th className="text-left p-3">Details</th>
-                <th className="text-left p-3">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.map((booking) => (
-                <tr key={booking.id} className="table-row">
-                  <td className="p-3">{booking.date}</td>
-                  <td className="p-3">{booking.type}</td>
-                  <td className="p-3">
-                    {booking.trainer || booking.facility || booking.nutritionist}
-                  </td>
-                  <td className="p-3">
-                    <button
-                      onClick={() => handleReview(booking)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-semibold transition-colors"
-                    >
-                      Review
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-blue-400 mb-2">Training Session Reviews</h3>
+            <p className="text-gray-300 text-sm">Review your completed training sessions and help trainers improve</p>
+          </div>
+          <div className="text-sm text-gray-400">
+            {completedSessions.filter(s => s.has_review).length} of {completedSessions.length} reviewed
+          </div>
         </div>
+
+        {completedSessions.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <Star className="w-16 h-16 mx-auto mb-4 text-gray-500" />
+            <h4 className="text-lg font-semibold text-gray-300 mb-2">No completed sessions yet</h4>
+            <p className="text-sm">Complete a training session to leave a review</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {completedSessions.map((session) => (
+              <div key={session.id} className="p-4 border border-gray-600 rounded-lg bg-gradient-to-r from-blue-500/10 to-purple-500/10">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white text-sm">
+                        {session.session_type}
+                      </h4>
+                      <p className="text-gray-300 text-xs">
+                        with {session.trainer_first_name} {session.trainer_last_name}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-400">#{session.id}</span>
+                    {getReviewStatus(session)}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1">Date & Time</p>
+                    <p className="text-white font-medium">
+                      {new Date(session.session_date).toLocaleDateString('en-US', { 
+                        weekday: 'short', 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                    <p className="text-gray-300 text-xs">
+                      {session.start_time} - {session.end_time}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1">Session Details</p>
+                    <p className="text-white font-medium">
+                      {session.session_type}
+                    </p>
+                    <p className="text-gray-300 text-xs">
+                      Duration: {session.start_time} - {session.end_time}
+                    </p>
+                  </div>
+                </div>
+                
+                {session.notes && (
+                  <div className="mt-3 pt-3 border-t border-gray-600">
+                    <p className="text-gray-400 text-xs mb-1">Session Notes</p>
+                    <p className="text-gray-300 text-sm italic">"{session.notes}"</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       
-      {/* Review Modal */}
-      {showReviewModal && (
+      {/* Enhanced Review Modal */}
+      {showReviewModal && selectedSession && (
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-green-400 mb-4">Leave a Review</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Rating</label>
-                <div className="flex space-x-1">
+          <div className="glass-card p-8 rounded-3xl max-w-4xl w-full mx-4 max-h-[95vh] overflow-y-auto relative">
+            {/* Enhanced Header */}
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                <Star className="w-10 h-10 text-white" />
+              </div>
+              <h3 className="text-3xl font-bold text-white mb-2">Share Your Experience</h3>
+              <p className="text-gray-300 text-lg">Help {selectedSession.trainer_first_name} improve their services</p>
+            </div>
+
+            {/* Close Button */}
+            <button 
+              onClick={() => {
+                setShowReviewModal(false);
+                if (onClearPendingReview) {
+                  onClearPendingReview();
+                }
+              }} 
+              className="absolute top-6 right-6 text-gray-400 hover:text-white transition-colors p-3 rounded-full hover:bg-gray-700/50"
+              title="Close"
+            >
+              <i className="fas fa-times text-2xl"></i>
+            </button>
+
+            {/* Session Details Card */}
+            <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 p-6 rounded-2xl mb-8 border border-blue-500/30 backdrop-blur-sm">
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mr-4">
+                  <i className="fas fa-dumbbell text-white text-xl"></i>
+                </div>
+                <h4 className="text-2xl font-bold text-white">Session Details</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
+                      <i className="fas fa-user-tie text-blue-400 text-sm"></i>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Trainer</p>
+                      <p className="text-white font-semibold text-lg">{selectedSession.trainer_first_name} {selectedSession.trainer_last_name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
+                      <i className="fas fa-dumbbell text-green-400 text-sm"></i>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Session Type</p>
+                      <p className="text-white font-semibold text-lg">{selectedSession.session_type}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
+                      <i className="fas fa-calendar text-purple-400 text-sm"></i>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Date</p>
+                      <p className="text-white font-semibold text-lg">
+                        {new Date(selectedSession.session_date).toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          month: 'long', 
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-orange-500/20 rounded-full flex items-center justify-center">
+                      <i className="fas fa-clock text-orange-400 text-sm"></i>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Time</p>
+                      <p className="text-white font-semibold text-lg">{selectedSession.start_time} - {selectedSession.end_time}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Review Form */}
+            <div className="space-y-8">
+              {/* Overall Rating Section */}
+              <div className="text-center">
+                <label className="block text-2xl font-bold text-white mb-6">How would you rate your overall experience?</label>
+                <div className="flex justify-center space-x-3 mb-4">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
                       onClick={() => setRating(star)}
-                      className={`text-2xl ${
-                        star <= rating ? 'text-yellow-400' : 'text-gray-600'
+                      className={`transform transition-all duration-300 hover:scale-125 ${
+                        star <= rating 
+                          ? 'text-yellow-400 scale-110 animate-pulse' 
+                          : 'text-gray-600 hover:text-gray-400'
                       }`}
                     >
-                      ⭐
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        star <= rating 
+                          ? 'bg-yellow-400/20 shadow-lg shadow-yellow-400/25' 
+                          : 'bg-gray-700/50 hover:bg-gray-600/50'
+                      }`}>
+                        <span className="text-4xl">⭐</span>
+                      </div>
                     </button>
                   ))}
                 </div>
+                <div className="text-center">
+                  <p className="text-lg text-white font-semibold mb-2">
+                    {rating === 5 ? 'Excellent!' : 
+                     rating === 4 ? 'Very Good!' : 
+                     rating === 3 ? 'Good' : 
+                     rating === 2 ? 'Fair' : 'Poor'}
+                  </p>
+                  <p className="text-gray-400 text-sm">Click on a star to rate</p>
+                </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium mb-2">Comment</label>
+              {/* Detailed Ratings Section */}
+              <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 p-6 rounded-2xl border border-gray-600/50">
+                <h4 className="text-xl font-bold text-white mb-6 text-center">Rate Specific Aspects</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Training Effectiveness */}
+                  <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 p-4 rounded-xl border border-blue-500/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-lg font-semibold text-white flex items-center">
+                        <i className="fas fa-dumbbell text-blue-400 mr-2"></i>
+                        Training Effectiveness
+                      </label>
+                      <span className="text-blue-400 font-bold text-lg">{trainingEffectiveness}/5</span>
+                    </div>
+                    <div className="flex space-x-1 mb-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setTrainingEffectiveness(star)}
+                          className={`transform transition-all duration-200 hover:scale-110 ${
+                            star <= trainingEffectiveness ? 'text-blue-400' : 'text-gray-600 hover:text-gray-400'
+                          }`}
+                        >
+                          <span className="text-xl">⭐</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 text-center">
+                      How effective was the training session?
+                    </p>
+                  </div>
+                  
+                  {/* Communication */}
+                  <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 p-4 rounded-xl border border-green-500/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-lg font-semibold text-white flex items-center">
+                        <i className="fas fa-comments text-green-400 mr-2"></i>
+                        Communication
+                      </label>
+                      <span className="text-green-400 font-bold text-lg">{communication}/5</span>
+                    </div>
+                    <div className="flex space-x-1 mb-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setCommunication(star)}
+                          className={`transform transition-all duration-200 hover:scale-110 ${
+                            star <= communication ? 'text-green-400' : 'text-gray-600 hover:text-gray-400'
+                          }`}
+                        >
+                          <span className="text-xl">⭐</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 text-center">
+                      How well did the trainer communicate?
+                    </p>
+                  </div>
+                  
+                  {/* Punctuality */}
+                  <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 p-4 rounded-xl border border-purple-500/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-lg font-semibold text-white flex items-center">
+                        <i className="fas fa-clock text-purple-400 mr-2"></i>
+                        Punctuality
+                      </label>
+                      <span className="text-purple-400 font-bold text-lg">{punctuality}/5</span>
+                    </div>
+                    <div className="flex space-x-1 mb-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setPunctuality(star)}
+                          className={`transform transition-all duration-200 hover:scale-110 ${
+                            star <= punctuality ? 'text-purple-400' : 'text-gray-600 hover:text-gray-400'
+                          }`}
+                        >
+                          <span className="text-xl">⭐</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 text-center">
+                      Was the trainer on time?
+                    </p>
+                  </div>
+                  
+                  {/* Professionalism */}
+                  <div className="bg-gradient-to-br from-pink-600/20 to-pink-800/20 p-4 rounded-xl border border-pink-500/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-lg font-semibold text-white flex items-center">
+                        <i className="fas fa-user-tie text-pink-400 mr-2"></i>
+                        Professionalism
+                      </label>
+                      <span className="text-pink-400 font-bold text-lg">{professionalism}/5</span>
+                    </div>
+                    <div className="flex space-x-1 mb-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setProfessionalism(star)}
+                          className={`transform transition-all duration-200 hover:scale-110 ${
+                            star <= professionalism ? 'text-pink-400' : 'text-gray-600 hover:text-gray-400'
+                          }`}
+                        >
+                          <span className="text-xl">⭐</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 text-center">
+                      How professional was the trainer?
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Review Text Section */}
+              <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 p-6 rounded-2xl border border-gray-600/50">
+                <div className="text-center mb-4">
+                  <label className="block text-xl font-bold text-white mb-2">
+                    <i className="fas fa-comment-dots text-blue-400 mr-2"></i>
+                    Additional Comments (Optional)
+                  </label>
+                  <p className="text-gray-400 text-sm">Share your experience, feedback, or suggestions to help improve future sessions</p>
+                </div>
                 <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Share your experience..."
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"
-                  rows={3}
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  placeholder="Tell us about your experience... What went well? What could be improved? Any specific feedback for the trainer?"
+                  className="w-full px-6 py-4 bg-gray-800/80 border-2 border-gray-600/50 rounded-xl focus:border-blue-500 focus:outline-none text-white text-lg placeholder-gray-500 resize-none transition-all duration-300"
+                  rows={4}
                 />
+                <div className="flex justify-between items-center mt-3">
+                  <p className="text-xs text-gray-400">Your feedback helps trainers improve their services</p>
+                  <p className="text-xs text-gray-400">{reviewText.length}/500 characters</p>
+                </div>
               </div>
               
-              <div className="flex space-x-4">
-                <button
-                  onClick={submitReview}
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Submit Review
-                </button>
-                <button
-                  onClick={() => setShowReviewModal(false)}
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
+              {/* Submit Section */}
+              <div className="text-center pt-6">
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <button
+                    onClick={submitReview}
+                    disabled={submitting}
+                    className="group relative px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-2xl font-bold text-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-2xl hover:shadow-green-500/25"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-green-400/20 to-emerald-400/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <span className="relative flex items-center justify-center">
+                      {submitting ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin mr-3 text-xl"></i>
+                          Submitting Review...
+                        </>
+                      ) : (
+                        <>
+                          <Star className="w-6 h-6 mr-3" />
+                          Submit Review
+                        </>
+                      )}
+                    </span>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowReviewModal(false);
+                      if (onClearPendingReview) {
+                        onClearPendingReview();
+                      }
+                    }}
+                    className="px-8 py-4 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-2xl font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                  >
+                    <i className="fas fa-times mr-3"></i>
+                    Cancel
+                  </button>
+                </div>
+                
+                {/* Progress Indicator */}
+                <div className="mt-6">
+                  <div className="flex items-center justify-center space-x-2 text-sm text-gray-400">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <span>Review Form Complete</span>
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -4699,9 +5106,6 @@ const Reviews = ({ showToast }: { showToast: (message: string, type?: 'success' 
     </div>
   );
 };
-
-
-
 
 const MemberAnnouncements = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const announcements = [

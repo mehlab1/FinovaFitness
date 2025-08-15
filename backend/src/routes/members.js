@@ -2284,10 +2284,15 @@ router.get('/completed-sessions', verifyMemberToken, async (req, res) => {
          t.id as trainer_id,
          u.first_name as trainer_first_name,
          u.last_name as trainer_last_name,
-         u.email as trainer_email
+         u.email as trainer_email,
+         CASE 
+           WHEN tr.id IS NOT NULL THEN true 
+           ELSE false 
+         END as has_review
        FROM training_sessions ts
        JOIN trainers t ON ts.trainer_id = t.id
        JOIN users u ON t.user_id = u.id
+       LEFT JOIN trainer_ratings tr ON ts.id = tr.training_session_id
        WHERE ts.client_id = $1 
        AND ts.status = 'completed'
        ORDER BY ts.session_date DESC, ts.start_time DESC`,

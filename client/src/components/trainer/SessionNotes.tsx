@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '../ui/badge';
-import { Calendar, Clock, User, CheckCircle, FileText, Save, Play } from 'lucide-react';
+import { Calendar, Clock, User, CheckCircle, FileText, Save, Play, Edit, X, Star } from 'lucide-react';
 
 interface SessionNotesProps {
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
@@ -19,17 +19,22 @@ interface ConfirmedSession {
   client_id: number;
   client_name: string;
   notes?: string;
+  session_notes?: string;
   status: string;
   created_at: string;
+  has_review?: boolean; // Added for review status
 }
+
 
 export const SessionNotes = ({ showToast }: SessionNotesProps) => {
   const [confirmedSessions, setConfirmedSessions] = useState<ConfirmedSession[]>([]);
   const [completedSessions, setCompletedSessions] = useState<ConfirmedSession[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
   const [editingNotes, setEditingNotes] = useState<{ [key: number]: string }>({});
   const [savingNotes, setSavingNotes] = useState<{ [key: number]: boolean }>({});
+  const [editingMode, setEditingMode] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     fetchSessions();
@@ -65,16 +70,51 @@ export const SessionNotes = ({ showToast }: SessionNotesProps) => {
       setSavingNotes(prev => ({ ...prev, [sessionId]: true }));
       
       const notes = editingNotes[sessionId] || '';
-      await trainerApi.saveSessionNotes(sessionId, { notes });
+      
+      // Save to session_notes table with comprehensive data
+      const noteData = {
+        training_session_id: sessionId,
+        trainer_observations: notes,
+        client_feedback: '',
+        exercises_performed: [],
+        sets_and_reps: {},
+        next_session_goals: '',
+        client_progress_notes: '',
+        fitness_metrics: {}
+      };
+      
+      await trainerApi.saveSessionNotes(sessionId, noteData);
       
       // Update local state
       setConfirmedSessions(prev => 
         prev.map(session => 
           session.id === sessionId 
-            ? { ...session, notes: notes }
+            ? { ...session, session_notes: notes }
             : session
         )
       );
+      
+      setCompletedSessions(prev => 
+        prev.map(session => 
+          session.id === sessionId 
+            ? { ...session, session_notes: notes }
+            : session
+        )
+      );
+      
+      // Clear editing state
+      setEditingNotes(prev => {
+        const newState = { ...prev };
+        delete newState[sessionId];
+        return newState;
+      });
+      
+      // Clear editing mode if we were editing
+      setEditingMode(prev => {
+        const newState = { ...prev };
+        delete newState[sessionId];
+        return newState;
+      });
       
       showToast('Session notes saved successfully', 'success');
     } catch (error) {
@@ -84,6 +124,34 @@ export const SessionNotes = ({ showToast }: SessionNotesProps) => {
       setSavingNotes(prev => ({ ...prev, [sessionId]: false }));
     }
   };
+
+  const startEditing = (sessionId: number) => {
+    const session = [...confirmedSessions, ...completedSessions].find(s => s.id === sessionId);
+    const currentText = session?.session_notes || '';
+    setEditingNotes(prev => ({
+      ...prev,
+      [sessionId]: currentText
+    }));
+    setEditingMode(prev => ({
+      ...prev,
+      [sessionId]: true
+    }));
+  };
+
+  const cancelEditing = (sessionId: number) => {
+    setEditingMode(prev => {
+      const newState = { ...prev };
+      delete newState[sessionId];
+      return newState;
+    });
+    setEditingNotes(prev => {
+      const newState = { ...prev };
+      delete newState[sessionId];
+      return newState;
+    });
+  };
+
+
 
   const markSessionCompleted = async (sessionId: number) => {
     try {
@@ -101,6 +169,11 @@ export const SessionNotes = ({ showToast }: SessionNotesProps) => {
       console.error('Failed to mark session completed:', error);
       showToast('Failed to mark session as completed', 'error');
     }
+  };
+
+  const getDisplayNotes = (sessionId: number) => {
+    const session = [...confirmedSessions, ...completedSessions].find(s => s.id === sessionId);
+    return session?.session_notes || '';
   };
 
   if (loading) {
@@ -141,7 +214,7 @@ export const SessionNotes = ({ showToast }: SessionNotesProps) => {
           className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
             activeTab === 'completed'
               ? 'bg-green-400 text-white'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              : 'bg-gray-700 text-gray-300 hover:bg-green-600'
           }`}
         >
           <CheckCircle className="w-4 h-4 inline mr-2" />
@@ -206,21 +279,22 @@ export const SessionNotes = ({ showToast }: SessionNotesProps) => {
                       <span>Client: {session.client_name}</span>
                     </div>
                     
+                    {/* Session Notes Input */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
                         Session Notes
                       </label>
                       <Textarea
-                        value={editingNotes[session.id] || session.notes || ''}
+                        value={editingNotes[session.id] || ''}
                         onChange={(e) => handleNotesChange(session.id, e.target.value)}
                         placeholder="Add session notes, client feedback, or observations..."
                         className="bg-gray-700 border-gray-600 text-white"
                         rows={4}
                       />
-                      <div className="flex justify-end mt-2">
+                      <div className="flex justify-end mt-2 space-x-2">
                         <Button
                           onClick={() => saveSessionNotes(session.id)}
-                          disabled={savingNotes[session.id]}
+                          disabled={savingNotes[session.id] || !editingNotes[session.id]}
                           className="bg-pink-600 hover:bg-pink-700 text-white"
                           size="sm"
                         >
@@ -233,6 +307,70 @@ export const SessionNotes = ({ showToast }: SessionNotesProps) => {
                         </Button>
                       </div>
                     </div>
+
+                    {/* Display Saved Notes */}
+                    {getDisplayNotes(session.id) && (
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-300">
+                            <FileText className="w-4 h-4 inline mr-2" />
+                            Saved Notes
+                          </label>
+                          <Button
+                            onClick={() => startEditing(session.id)}
+                            variant="outline"
+                            size="sm"
+                            className="text-blue-400 border-blue-400 hover:bg-blue-400 hover:text-white"
+                          >
+                            <Edit className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
+                        </div>
+                        <div className="bg-gray-700 border border-gray-600 rounded-lg p-3 text-gray-300">
+                          {getDisplayNotes(session.id)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Edit Mode for Saved Notes */}
+                    {editingMode[session.id] && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Edit Session Notes
+                        </label>
+                        <Textarea
+                          value={editingNotes[session.id] || ''}
+                          onChange={(e) => handleNotesChange(session.id, e.target.value)}
+                          placeholder="Edit session notes..."
+                          className="bg-gray-700 border-gray-600 text-white"
+                          rows={4}
+                        />
+                        <div className="flex justify-end mt-2 space-x-2">
+                          <Button
+                            onClick={() => saveSessionNotes(session.id)}
+                            disabled={savingNotes[session.id]}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            size="sm"
+                          >
+                            {savingNotes[session.id] ? (
+                              <i className="fas fa-spinner fa-spin mr-2" />
+                            ) : (
+                              <Save className="w-4 h-4 mr-2" />
+                            )}
+                            Update Notes
+                          </Button>
+                          <Button
+                            onClick={() => cancelEditing(session.id)}
+                            variant="outline"
+                            size="sm"
+                            className="text-gray-400 border-gray-400 hover:bg-gray-400 hover:text-white"
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -258,21 +396,40 @@ export const SessionNotes = ({ showToast }: SessionNotesProps) => {
             completedSessions.map((session) => (
               <Card key={session.id} className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 shadow-xl">
                 <CardHeader className="pb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-green-400" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg font-bold text-white">
+                          {session.session_type}
+                        </CardTitle>
+                        <CardDescription className="text-gray-300">
+                          {new Date(session.session_date).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })} at {session.start_time} - {session.end_time}
+                        </CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-lg font-bold text-white">
-                        {session.session_type}
-                      </CardTitle>
-                      <CardDescription className="text-gray-300">
-                        {new Date(session.session_date).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        })} at {session.start_time} - {session.end_time}
-                      </CardDescription>
+                    <div className="flex items-center space-x-2">
+                      {/* Review Status Badge */}
+                      {session.has_review ? (
+                        <Badge className="bg-green-600 text-white">
+                          <Star className="w-3 h-3 mr-1" />
+                          Reviewed
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-yellow-600 text-white">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Pending Review
+                        </Badge>
+                      )}
+                      <Badge className="bg-green-600 text-white">
+                        Completed
+                      </Badge>
                     </div>
                   </div>
                 </CardHeader>
@@ -283,24 +440,92 @@ export const SessionNotes = ({ showToast }: SessionNotesProps) => {
                       <span>Client: {session.client_name}</span>
                     </div>
                     
-                    {session.notes && (
+                    {/* Display Saved Notes for Completed Sessions */}
+                    {getDisplayNotes(session.id) && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Session Notes
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-300">
+                            <FileText className="w-4 h-4 inline mr-2" />
+                            Session Notes
+                          </label>
+                          <Button
+                            onClick={() => startEditing(session.id)}
+                            variant="outline"
+                            size="sm"
+                            className="text-blue-400 border-blue-400 hover:bg-blue-400 hover:text-white"
+                          >
+                            <Edit className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
+                        </div>
                         <div className="bg-gray-700 border border-gray-600 rounded-lg p-3 text-gray-300">
-                          {session.notes}
+                          {getDisplayNotes(session.id)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Edit Mode for Completed Sessions */}
+                    {editingMode[session.id] && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Edit Session Notes
+                        </label>
+                        <Textarea
+                          value={editingNotes[session.id] || ''}
+                          onChange={(e) => handleNotesChange(session.id, e.target.value)}
+                          placeholder="Edit session notes..."
+                          className="bg-gray-700 border-gray-600 text-white"
+                          rows={4}
+                        />
+                        <div className="flex justify-end mt-2 space-x-2">
+                          <Button
+                            onClick={() => saveSessionNotes(session.id)}
+                            disabled={savingNotes[session.id]}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            size="sm"
+                          >
+                            {savingNotes[session.id] ? (
+                              <i className="fas fa-spinner fa-spin mr-2" />
+                            ) : (
+                              <Save className="w-4 h-4 mr-2" />
+                            )}
+                            Update Notes
+                          </Button>
+                          <Button
+                            onClick={() => cancelEditing(session.id)}
+                            variant="outline"
+                            size="sm"
+                            className="text-gray-400 border-gray-400 hover:bg-gray-400 hover:text-white"
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Cancel
+                          </Button>
                         </div>
                       </div>
                     )}
                     
-                    <div className="flex items-center space-x-2">
-                      <Badge className="bg-green-600 text-white">
-                        Completed
-                      </Badge>
-                      <span className="text-sm text-gray-400">
-                        Completed on {new Date(session.created_at).toLocaleDateString()}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Badge className="bg-green-600 text-white">
+                          Completed
+                        </Badge>
+                        <span className="text-sm text-gray-400">
+                          Completed on {new Date(session.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      
+                      {/* Review Status Info */}
+                      {session.has_review ? (
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Star className="w-4 h-4 text-green-400" />
+                          <span className="text-green-400">Client has left a review</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Clock className="w-4 h-4 text-yellow-400" />
+                          <span className="text-yellow-400">Waiting for client review</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>

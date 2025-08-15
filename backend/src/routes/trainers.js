@@ -399,9 +399,11 @@ router.get('/confirmed-sessions', verifyTrainerToken, async (req, res) => {
          ts.notes,
          ts.status,
          ts.created_at,
-         CONCAT(u.first_name, ' ', u.last_name) as client_name
+         CONCAT(u.first_name, ' ', u.last_name) as client_name,
+         COALESCE(sn.trainer_observations, '') as session_notes
        FROM training_sessions ts 
        JOIN users u ON ts.client_id = u.id 
+       LEFT JOIN session_notes sn ON ts.id = sn.training_session_id
        WHERE ts.trainer_id = $1 AND ts.status = 'confirmed'
        ORDER BY ts.session_date, ts.start_time`,
       [trainerId]
@@ -431,9 +433,16 @@ router.get('/completed-sessions', verifyTrainerToken, async (req, res) => {
          ts.notes,
          ts.status,
          ts.created_at,
-         CONCAT(u.first_name, ' ', u.last_name) as client_name
+         CONCAT(u.first_name, ' ', u.last_name) as client_name,
+         COALESCE(sn.trainer_observations, '') as session_notes,
+         CASE 
+           WHEN tr.id IS NOT NULL THEN true 
+           ELSE false 
+         END as has_review
        FROM training_sessions ts 
        JOIN users u ON ts.client_id = u.id 
+       LEFT JOIN session_notes sn ON ts.id = sn.training_session_id
+       LEFT JOIN trainer_ratings tr ON ts.id = tr.training_session_id
        WHERE ts.trainer_id = $1 AND ts.status = 'completed'
        ORDER BY ts.session_date DESC, ts.start_time DESC`,
       [trainerId]
@@ -486,6 +495,39 @@ router.put('/sessions/:id/complete', verifyTrainerToken, async (req, res) => {
   } catch (error) {
     console.error('Mark session completed error:', error);
     res.status(500).json({ error: 'Failed to mark session as completed' });
+  }
+});
+
+// Get trainer ratings and reviews
+router.get('/ratings', verifyTrainerToken, async (req, res) => {
+  try {
+    const trainerId = req.trainer.id;
+    
+    const result = await query(
+      `SELECT 
+         tr.rating,
+         tr.review_text,
+         tr.training_effectiveness,
+         tr.communication,
+         tr.punctuality,
+         tr.professionalism,
+         tr.created_at,
+         CONCAT(u.first_name, ' ', u.last_name) as client_name,
+         ts.session_type,
+         ts.session_date
+       FROM trainer_ratings tr
+       JOIN users u ON tr.client_id = u.id
+       JOIN training_sessions ts ON tr.training_session_id = ts.id
+       WHERE tr.trainer_id = $1
+       ORDER BY tr.created_at DESC`,
+      [trainerId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Trainer ratings error:', error);
+    res.status(500).json({ error: 'Failed to get trainer ratings' });
   }
 });
 
@@ -622,37 +664,132 @@ router.get('/session-notes', verifyTrainerToken, async (req, res) => {
   }
 });
 
+// Get session notes for a specific session
+router.get('/session-notes/:sessionId', verifyTrainerToken, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const trainerId = req.trainer.id;
+    
+    // Verify the session belongs to this trainer
+    const sessionCheck = await query(
+      `SELECT id FROM training_sessions WHERE id = $1 AND trainer_id = $2`,
+      [sessionId, trainerId]
+    );
+
+    if (sessionCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found or not accessible' });
+    }
+
+    const result = await query(
+      `SELECT sn.*, ts.session_date, ts.start_time, ts.end_time, u.first_name, u.last_name
+       FROM session_notes sn
+       JOIN training_sessions ts ON sn.training_session_id = ts.id
+       JOIN users u ON sn.client_id = u.id
+       WHERE sn.training_session_id = $1 AND sn.trainer_id = $2`,
+      [sessionId, trainerId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Session notes error:', error);
+    res.status(500).json({ error: 'Failed to get session notes' });
+  }
+});
+
 // Add/Update session notes
 router.post('/session-notes/:sessionId', verifyTrainerToken, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const trainerId = req.trainer.id;
-    const { notes } = req.body;
+    const { 
+      trainer_observations, 
+      client_feedback, 
+      exercises_performed, 
+      sets_and_reps, 
+      next_session_goals, 
+      client_progress_notes, 
+      fitness_metrics 
+    } = req.body;
 
-    // Verify the session belongs to this trainer and is confirmed
+    // Verify the session belongs to this trainer
     const sessionCheck = await query(
-      `SELECT id FROM training_sessions 
-       WHERE id = $1 AND trainer_id = $2 AND status = 'confirmed'`,
+      `SELECT id, client_id FROM training_sessions 
+       WHERE id = $1 AND trainer_id = $2`,
       [sessionId, trainerId]
     );
 
     if (sessionCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Session not found or not confirmed' });
+      return res.status(404).json({ error: 'Session not found or not accessible' });
     }
 
-    // Update the training session with notes
-    const result = await query(
-      `UPDATE training_sessions 
-       SET notes = $1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2 RETURNING *`,
-      [notes, sessionId]
+    const clientId = sessionCheck.rows[0].client_id;
+
+    // Check if session notes already exist
+    const existingNotes = await query(
+      `SELECT id FROM session_notes WHERE training_session_id = $1`,
+      [sessionId]
     );
 
-    res.json({
-      success: true,
-      message: 'Session notes saved successfully',
-      session: result.rows[0]
-    });
+    if (existingNotes.rows.length > 0) {
+      // Update existing notes
+      const result = await query(
+        `UPDATE session_notes 
+         SET trainer_observations = $1, 
+             client_feedback = $2, 
+             exercises_performed = $3, 
+             sets_and_reps = $4, 
+             next_session_goals = $5, 
+             client_progress_notes = $6, 
+             fitness_metrics = $7,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE training_session_id = $8 
+         RETURNING *`,
+        [
+          trainer_observations || '', 
+          client_feedback || '', 
+          exercises_performed || [], 
+          sets_and_reps || {}, 
+          next_session_goals || '', 
+          client_progress_notes || '', 
+          fitness_metrics || {}, 
+          sessionId
+        ]
+      );
+
+      res.json({
+        success: true,
+        message: 'Session notes updated successfully',
+        notes: result.rows[0]
+      });
+    } else {
+      // Create new notes
+      const result = await query(
+        `INSERT INTO session_notes 
+         (training_session_id, trainer_id, client_id, trainer_observations, client_feedback, 
+          exercises_performed, sets_and_reps, next_session_goals, client_progress_notes, fitness_metrics)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [
+          sessionId, 
+          trainerId, 
+          clientId, 
+          trainer_observations || '', 
+          client_feedback || '', 
+          exercises_performed || [], 
+          sets_and_reps || {}, 
+          next_session_goals || '', 
+          client_progress_notes || '', 
+          fitness_metrics || {}
+        ]
+      );
+
+      res.json({
+        success: true,
+        message: 'Session notes created successfully',
+        notes: result.rows[0]
+      });
+    }
 
   } catch (error) {
     console.error('Session notes save error:', error);
