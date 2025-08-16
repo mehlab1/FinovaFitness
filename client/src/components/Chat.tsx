@@ -142,6 +142,55 @@ const Chat: React.FC<ChatProps> = ({ requestId, currentUserId, currentUserRole, 
     }
   };
 
+  // Handle file upload
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check if file is PDF
+    if (file.type !== 'application/pdf') {
+      setError('Only PDF files are allowed');
+      return;
+    }
+
+    // Check file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB');
+      return;
+    }
+
+    try {
+      setIsSending(true);
+      setError(null);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`http://localhost:3001/api/chat/upload/${requestId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to upload file' }));
+        throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
+      }
+
+      const sentMessage = await response.json();
+      setMessages(prev => [...prev, sentMessage]);
+      
+      // Reset file input
+      event.target.value = '';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload file');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   // Load messages on component mount
   useEffect(() => {
     fetchMessages();
@@ -183,6 +232,14 @@ const Chat: React.FC<ChatProps> = ({ requestId, currentUserId, currentUserRole, 
         <div className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 text-green-300 px-3 py-1.5 rounded-full text-xs mb-3 font-medium backdrop-blur-sm">
           <span className="text-lg">📋</span>
           <span>Diet Plan</span>
+        </div>
+      );
+    }
+    if (message.message_type === 'file') {
+      return (
+        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 text-blue-300 px-3 py-1.5 rounded-full text-xs mb-3 font-medium backdrop-blur-sm">
+          <span className="text-lg">📄</span>
+          <span>PDF Document</span>
         </div>
       );
     }
@@ -301,7 +358,34 @@ const Chat: React.FC<ChatProps> = ({ requestId, currentUserId, currentUserRole, 
                   
                   {getMessageTypeIcon(message)}
                   
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.message}</p>
+                  {message.message_type === 'file' ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-300">{message.message}</p>
+                      {message.file_url && (
+                        <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-lg p-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                              <span className="text-white text-lg">📄</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-blue-300">PDF Document</p>
+                              <p className="text-xs text-gray-400">Click to download</p>
+                            </div>
+                            <a
+                              href={`http://localhost:3001${message.file_url}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-xs font-medium rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                              Download
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.message}</p>
+                  )}
                   
                   <div className={`text-xs mt-2 flex items-center gap-2 ${isOwnMessage(message) ? 'text-purple-200' : 'text-gray-400'}`}>
                     <span>{format(new Date(message.created_at), 'MMM d, h:mm a')}</span>
@@ -359,19 +443,25 @@ const Chat: React.FC<ChatProps> = ({ requestId, currentUserId, currentUserRole, 
           {/* Quick Actions for Nutritionists */}
           {currentUserRole === 'nutritionist' && (
             <div className="mt-4 flex gap-3">
-              <button
-                onClick={() => {
-                  const dietPlan = prompt('Enter the diet plan:');
-                  if (dietPlan) {
-                    sendDietPlan(dietPlan);
-                  }
-                }}
-                disabled={isSending}
-                className="group flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 hover:from-green-500/30 hover:to-emerald-500/30 text-green-300 rounded-xl text-sm font-medium transition-all duration-200 border border-green-500/30 hover:border-green-500/50 hover:scale-105 backdrop-blur-sm"
-              >
-                <span className="text-lg">📋</span>
-                <span>Send Diet Plan</span>
-              </button>
+              <div className="relative">
+                <input
+                  type="file"
+                  id="pdf-upload"
+                  accept=".pdf"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  disabled={isSending}
+                />
+                <label
+                  htmlFor="pdf-upload"
+                  className={`group flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 hover:from-green-500/30 hover:to-emerald-500/30 text-green-300 rounded-xl text-sm font-medium transition-all duration-200 border border-green-500/30 hover:border-green-500/50 hover:scale-105 backdrop-blur-sm cursor-pointer ${
+                    isSending ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <span className="text-lg">📄</span>
+                  <span>Upload PDF Diet Plan</span>
+                </label>
+              </div>
             </div>
           )}
         </div>

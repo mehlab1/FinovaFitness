@@ -29,6 +29,7 @@ export const verifyToken = async (req, res, next) => {
 
     req.user = userResult.rows[0];
     req.userId = decoded.userId;
+    req.userRole = userResult.rows[0].role;
     next();
   } catch (error) {
     console.error('Token verification error:', error);

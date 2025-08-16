@@ -101,6 +101,86 @@ export const sendMessage = async (req, res) => {
   }
 };
 
+// Upload a file (PDF) to chat
+export const uploadFile = async (req, res) => {
+  try {
+    console.log('Upload file called with:', {
+      requestId: req.params.requestId,
+      userId: req.userId,
+      userRole: req.userRole,
+      hasFile: !!req.file,
+      fileInfo: req.file ? {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      } : null
+    });
+
+    const { requestId } = req.params;
+    const userId = req.userId;
+    const userRole = req.userRole;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Verify the user has access to this chat
+    const accessResult = await query(
+      `SELECT id FROM diet_plan_requests 
+       WHERE id = $1 AND (
+         user_id = $2 OR nutritionist_id = $2
+       )`,
+      [requestId, userId]
+    );
+
+    console.log('Access check result:', accessResult.rows);
+
+    if (accessResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied to this chat' });
+    }
+
+    // Only nutritionists can upload files
+    if (userRole !== 'nutritionist') {
+      console.log('User role check failed:', { userRole, expected: 'nutritionist' });
+      return res.status(403).json({ error: 'Only nutritionists can upload files' });
+    }
+
+    // Create file URL
+    const fileUrl = `/uploads/diet-plans/${req.file.filename}`;
+    const fileName = req.file.originalname;
+
+    console.log('Creating file message with:', { fileUrl, fileName });
+
+    // Insert the file message
+    const result = await query(
+      `INSERT INTO chat_messages 
+       (diet_plan_request_id, sender_id, sender_type, message, message_type, file_url)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [requestId, userId, 'nutritionist', `Uploaded: ${fileName}`, 'file', fileUrl]
+    );
+
+    // Get the message with sender details
+    const messageWithSender = await query(
+      `SELECT 
+         cm.*,
+         u.first_name, u.last_name
+       FROM chat_messages cm
+       JOIN users u ON cm.sender_id = u.id
+       WHERE cm.id = $1`,
+      [result.rows[0].id]
+    );
+
+    console.log('File message created successfully:', messageWithSender.rows[0]);
+
+    res.json(messageWithSender.rows[0]);
+
+  } catch (error) {
+    console.error('Upload file error:', error);
+    res.status(500).json({ error: 'Failed to upload file' });
+  }
+};
+
 // Get unread message count for a user
 export const getUnreadCount = async (req, res) => {
   try {
