@@ -107,6 +107,7 @@ export interface DietPlanRequest {
   status: 'pending' | 'approved' | 'rejected' | 'completed';
   nutritionist_notes?: string;
   meal_plan?: string;
+  diet_plan_completed?: boolean;
   created_at: string;
   updated_at: string;
 }

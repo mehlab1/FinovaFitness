@@ -15,6 +15,7 @@ export const nutritionistApi = {
       nutritionist_notes?: string;
       preparation_time?: string;
       meal_plan?: string;
+      diet_plan_completed?: boolean;
     }
   ): Promise<DietPlanRequest> => {
     return apiCall(`/nutritionists/diet-plan-requests/${requestId}`, {

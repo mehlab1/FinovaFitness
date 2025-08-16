@@ -21,6 +21,8 @@ export const getDietPlanRequests = async (req, res) => {
     // Transform the data to match frontend expectations
     const transformedRequests = result.rows.map(row => ({
       id: row.id,
+      user_id: row.user_id, // Client ID
+      nutritionist_id: row.nutritionist_id,
       client_name: `${row.member_first_name} ${row.member_last_name}`,
       fitness_goal: row.fitness_goal,
       current_weight: row.current_weight,
@@ -31,6 +33,10 @@ export const getDietPlanRequests = async (req, res) => {
       status: row.status,
       nutritionist_notes: row.nutritionist_notes,
       meal_plan: row.meal_plan,
+      diet_plan_completed: row.diet_plan_completed || false,
+      comprehensive_plan_data: row.comprehensive_plan_data,
+      plan_created_at: row.plan_created_at,
+      plan_updated_at: row.plan_updated_at,
       created_at: row.created_at,
       updated_at: row.updated_at
     }));
@@ -48,7 +54,7 @@ export const updateDietPlanRequest = async (req, res) => {
   try {
     const nutritionistId = req.userId;
     const { requestId } = req.params;
-    const { status, nutritionist_notes, preparation_time, meal_plan } = req.body;
+    const { status, nutritionist_notes, preparation_time, meal_plan, diet_plan_completed } = req.body;
 
     // Verify the request belongs to this nutritionist
     const verifyResult = await query(
@@ -60,13 +66,45 @@ export const updateDietPlanRequest = async (req, res) => {
       return res.status(404).json({ error: 'Diet plan request not found' });
     }
 
+    // Build update query dynamically based on provided fields
+    let updateFields = [];
+    let updateValues = [];
+    let paramCount = 1;
+
+    if (status !== undefined) {
+      updateFields.push(`status = $${paramCount++}`);
+      updateValues.push(status);
+    }
+    if (nutritionist_notes !== undefined) {
+      updateFields.push(`nutritionist_notes = $${paramCount++}`);
+      updateValues.push(nutritionist_notes);
+    }
+    if (preparation_time !== undefined) {
+      updateFields.push(`preparation_time = $${paramCount++}`);
+      updateValues.push(preparation_time);
+    }
+    if (meal_plan !== undefined) {
+      updateFields.push(`meal_plan = $${paramCount++}`);
+      updateValues.push(meal_plan);
+    }
+    if (diet_plan_completed !== undefined) {
+      updateFields.push(`diet_plan_completed = $${paramCount++}`);
+      updateValues.push(diet_plan_completed);
+    }
+
+    // Always update the updated_at timestamp
+    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+    
+    // Add the requestId and nutritionistId to the values array
+    updateValues.push(requestId, nutritionistId);
+
     // Update the request
     const result = await query(
       `UPDATE diet_plan_requests 
-       SET status = $1, nutritionist_notes = $2, preparation_time = $3, meal_plan = $4, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5 AND nutritionist_id = $6
+       SET ${updateFields.join(', ')}
+       WHERE id = $${paramCount++} AND nutritionist_id = $${paramCount++}
        RETURNING *`,
-      [status, nutritionist_notes, preparation_time, meal_plan, requestId, nutritionistId]
+      updateValues
     );
 
     res.json(result.rows[0]);
@@ -504,5 +542,272 @@ export const markSessionCompleted = async (req, res) => {
   } catch (error) {
     console.error('Mark session completed error:', error);
     res.status(500).json({ error: 'Failed to mark session as completed' });
+  }
+};
+
+// Create comprehensive diet plan
+export const createComprehensiveDietPlan = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { 
+      diet_plan_request_id, 
+      client_id, 
+      plan_name, 
+      description, 
+      total_weeks, 
+      overall_goals, 
+      dietary_guidelines, 
+      shopping_list, 
+      preparation_tips, 
+      weekly_plans, 
+      status, 
+      current_step, 
+      total_steps 
+    } = req.body;
+
+    // Verify the diet plan request belongs to this nutritionist
+    const verifyResult = await query(
+      'SELECT id FROM diet_plan_requests WHERE id = $1 AND nutritionist_id = $2',
+      [diet_plan_request_id, nutritionistId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Diet plan request not found' });
+    }
+
+    // Create comprehensive diet plan data
+    const comprehensivePlanData = {
+      plan_name,
+      description,
+      total_weeks,
+      overall_goals,
+      dietary_guidelines,
+      shopping_list,
+      preparation_tips,
+      weekly_plans,
+      status,
+      current_step,
+      total_steps,
+      created_at: new Date().toISOString()
+    };
+
+    // Update the diet plan request with comprehensive data
+    const result = await query(
+      `UPDATE diet_plan_requests 
+       SET comprehensive_plan_data = $1, 
+           plan_created_at = CURRENT_TIMESTAMP,
+           plan_updated_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND nutritionist_id = $3
+       RETURNING *`,
+      [JSON.stringify(comprehensivePlanData), diet_plan_request_id, nutritionistId]
+    );
+
+    res.json({
+      id: result.rows[0].id,
+      diet_plan_request_id,
+      client_id,
+      nutritionist_id: nutritionistId,
+      ...comprehensivePlanData
+    });
+
+  } catch (error) {
+    console.error('Create comprehensive diet plan error:', error);
+    res.status(500).json({ error: 'Failed to create comprehensive diet plan' });
+  }
+};
+
+// Get comprehensive diet plan
+export const getComprehensiveDietPlan = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { requestId } = req.params;
+
+    // Verify the diet plan request belongs to this nutritionist
+    const result = await query(
+      `SELECT 
+         id,
+         user_id as client_id,
+         nutritionist_id,
+         comprehensive_plan_data,
+         plan_created_at,
+         plan_updated_at,
+         diet_plan_completed
+       FROM diet_plan_requests 
+       WHERE id = $1 AND nutritionist_id = $2`,
+      [requestId, nutritionistId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Comprehensive diet plan not found' });
+    }
+
+    const planData = result.rows[0];
+    if (!planData.comprehensive_plan_data) {
+      return res.status(404).json({ error: 'No comprehensive diet plan data found' });
+    }
+
+    res.json({
+      id: planData.id,
+      diet_plan_request_id: planData.id,
+      client_id: planData.client_id,
+      nutritionist_id: planData.nutritionist_id,
+      diet_plan_completed: planData.diet_plan_completed,
+      ...planData.comprehensive_plan_data
+    });
+
+  } catch (error) {
+    console.error('Get comprehensive diet plan error:', error);
+    res.status(500).json({ error: 'Failed to get comprehensive diet plan' });
+  }
+};
+
+// Update comprehensive diet plan
+export const updateComprehensiveDietPlan = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { requestId } = req.params;
+    const { 
+      plan_name, 
+      description, 
+      total_weeks, 
+      overall_goals, 
+      dietary_guidelines, 
+      shopping_list, 
+      preparation_tips, 
+      weekly_plans, 
+      status, 
+      current_step, 
+      total_steps 
+    } = req.body;
+
+    // Verify the diet plan request belongs to this nutritionist
+    const verifyResult = await query(
+      'SELECT id FROM diet_plan_requests WHERE id = $1 AND nutritionist_id = $2',
+      [requestId, nutritionistId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Diet plan request not found' });
+    }
+
+    // Get existing plan data
+    const existingResult = await query(
+      'SELECT comprehensive_plan_data FROM diet_plan_requests WHERE id = $1',
+      [requestId]
+    );
+
+    let existingData = {};
+    if (existingResult.rows[0]?.comprehensive_plan_data) {
+      existingData = existingResult.rows[0].comprehensive_plan_data;
+    }
+
+    // Update comprehensive diet plan data
+    const updatedPlanData = {
+      ...existingData,
+      plan_name,
+      description,
+      total_weeks,
+      overall_goals,
+      dietary_guidelines,
+      shopping_list,
+      preparation_tips,
+      weekly_plans,
+      status,
+      current_step,
+      total_steps,
+      updated_at: new Date().toISOString()
+    };
+
+    // Update the diet plan request
+    const result = await query(
+      `UPDATE diet_plan_requests 
+       SET comprehensive_plan_data = $1, 
+           plan_updated_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND nutritionist_id = $3
+       RETURNING *`,
+      [JSON.stringify(updatedPlanData), requestId, nutritionistId]
+    );
+
+    res.json({
+      id: result.rows[0].id,
+      diet_plan_request_id: requestId,
+      client_id: result.rows[0].user_id,
+      nutritionist_id: nutritionistId,
+      ...updatedPlanData
+    });
+
+  } catch (error) {
+    console.error('Update comprehensive diet plan error:', error);
+    res.status(500).json({ error: 'Failed to update comprehensive diet plan' });
+  }
+};
+
+// Save diet plan progress
+export const saveDietPlanProgress = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { requestId } = req.params;
+    const { 
+      current_step, 
+      weekly_plans, 
+      status, 
+      progress_notes 
+    } = req.body;
+
+    // Verify the diet plan request belongs to this nutritionist
+    const verifyResult = await query(
+      'SELECT id FROM diet_plan_requests WHERE id = $1 AND nutritionist_id = $2',
+      [requestId, nutritionistId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Diet plan request not found' });
+    }
+
+    // Get existing plan data
+    const existingResult = await query(
+      'SELECT comprehensive_plan_data FROM diet_plan_requests WHERE id = $1',
+      [requestId]
+    );
+
+    let existingData = {};
+    if (existingResult.rows[0]?.comprehensive_plan_data) {
+      existingData = existingResult.rows[0].comprehensive_plan_data;
+    }
+
+    // Update progress data
+    const updatedPlanData = {
+      ...existingData,
+      current_step,
+      weekly_plans,
+      status,
+      progress_notes,
+      updated_at: new Date().toISOString()
+    };
+
+    // Update the diet plan request
+    const result = await query(
+      `UPDATE diet_plan_requests 
+       SET comprehensive_plan_data = $1, 
+           plan_updated_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND nutritionist_id = $3
+       RETURNING *`,
+      [JSON.stringify(updatedPlanData), requestId, nutritionistId]
+    );
+
+    res.json({
+      id: result.rows[0].id,
+      diet_plan_request_id: requestId,
+      client_id: result.rows[0].user_id,
+      nutritionist_id: nutritionistId,
+      ...updatedPlanData
+    });
+
+  } catch (error) {
+    console.error('Save diet plan progress error:', error);
+    res.status(500).json({ error: 'Failed to save diet plan progress' });
   }
 };

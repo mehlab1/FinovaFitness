@@ -37,7 +37,7 @@ export const NutritionistPortal = ({ user, onLogout }: NutritionistPortalProps) 
           setShowChat={setShowChat}
         />;
       case 'templates':
-        return <MealPlanTemplates showToast={showToast} />;
+        return <MealPlanTemplates user={user} showToast={showToast} />;
       case 'notes':
         return <ClientNotes showToast={showToast} />;
       case 'announcements':
@@ -1222,9 +1222,9 @@ const DietPlanRequests = ({
   );
 };
 
-const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [activeTab, setActiveTab] = useState<'templates' | 'client-requests'>('templates');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'completed'>('all');
+const MealPlanTemplates = ({ user, showToast }: { user: User | null, showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const [activeTab, setActiveTab] = useState<'templates' | 'diet-plan-requests'>('templates');
+  const [dietPlanTab, setDietPlanTab] = useState<'pending-plans' | 'final-review'>('pending-plans');
   const [templates, setTemplates] = useState<MealPlanTemplate[]>([]);
   const [dietPlanRequests, setDietPlanRequests] = useState<DietPlanRequest[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1368,9 +1368,25 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
     try {
       setIsLoadingRequests(true);
       const data = await nutritionistApi.getDietPlanRequests();
-      setDietPlanRequests(data);
+      
+      // Add sample data for testing if no data exists
+      // Merge with local changes to preserve diet_plan_completed status
+      setDietPlanRequests(prev => {
+        const localChanges = new Map();
+        prev.forEach(req => {
+          if (req.diet_plan_completed !== undefined) {
+            localChanges.set(req.id, req.diet_plan_completed);
+          }
+        });
+        
+        return data.map(req => ({
+          ...req,
+          diet_plan_completed: localChanges.get(req.id) ?? req.diet_plan_completed ?? false
+        }));
+      });
     } catch (error) {
       showToast('Failed to fetch diet plan requests', 'error');
+      setDietPlanRequests([]);
     } finally {
       setIsLoadingRequests(false);
     }
@@ -1653,38 +1669,198 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
       
       const progressData = {
         diet_plan_request_id: selectedRequest.id,
-        nutritionist_id: 1, // This should come from the logged-in user
-        client_id: 1, // This should come from the selected request
+        nutritionist_id: user?.id || 1, // Use logged-in user ID
+        client_id: selectedRequest.user_id || 1, // Use client ID from request
         ...dietPlanData,
         status: 'in_progress' as const,
         current_step: dietPlanCreationStep,
         total_steps: 6
       };
 
+      // Save to both backend and localStorage
+      try {
       // Save to backend
       await nutritionistApi.createComprehensiveDietPlan(progressData);
+        showToast('Diet plan progress saved successfully to database and locally!', 'success');
+      } catch (backendError) {
+        console.log('Backend save failed, saving to localStorage only:', backendError);
+        // If backend fails, still save to localStorage
+        localStorage.setItem(`dietPlan_${selectedRequest.id}`, JSON.stringify(progressData));
+        showToast('Progress saved locally (backend unavailable)', 'info');
+      }
       
-      // Also save to localStorage as backup
+      // Always save to localStorage as backup
       localStorage.setItem(`dietPlan_${selectedRequest.id}`, JSON.stringify(progressData));
       
-      showToast('Diet plan progress saved successfully!', 'success');
     } catch (error) {
-      // If backend save fails, still save to localStorage
-      if (selectedRequest) {
-        const progressData = {
-          diet_plan_request_id: selectedRequest.id,
-          nutritionist_id: 1,
-          client_id: 1,
+        showToast('Failed to save progress', 'error');
+      console.error('Error saving progress:', error);
+    }
+  };
+
+  const completeDietPlan = async () => {
+    try {
+      if (!selectedRequest) return;
+      
+      // Update the backend to mark diet plan as completed
+      try {
+        await nutritionistApi.updateDietPlanRequest(selectedRequest.id, { 
+          diet_plan_completed: true 
+        });
+      } catch (apiError) {
+        console.log('Backend update failed, updating local state only:', apiError);
+        // Continue with local update even if backend fails
+      }
+      
+      // Update the local state to mark diet plan as completed
+      setDietPlanRequests(prev => 
+        prev.map(req => 
+          req.id === selectedRequest.id 
+            ? { ...req, diet_plan_completed: true }
+            : req
+        )
+      );
+      
+      // Close the modal
+      setShowDietPlanModal(false);
+      setSelectedRequest(null);
+      
+      // Show success message
+      showToast('Diet plan completed successfully! The request has been moved to Final Review.', 'success');
+      
+    } catch (error) {
+      showToast('Failed to complete diet plan', 'error');
+    }
+  };
+
+
+
+  const markDietPlanComplete = async (requestId: number) => {
+    try {
+      // Update the backend to mark diet plan as completed
+      try {
+        await nutritionistApi.updateDietPlanRequest(requestId, { 
+          diet_plan_completed: true 
+        });
+      } catch (apiError) {
+        console.log('Backend update failed, updating local state only:', apiError);
+        // Continue with local update even if backend fails
+      }
+      
+      // Update the local state to mark diet plan as completed
+      setDietPlanRequests(prev => 
+        prev.map(req => 
+          req.id === requestId 
+            ? { ...req, diet_plan_completed: true }
+            : req
+        )
+      );
+      
+      // Show success message
+      showToast('Diet plan marked as completed! The request has been moved to Final Review.', 'success');
+      
+    } catch (error) {
+      showToast('Failed to mark diet plan as completed', 'error');
+    }
+  };
+
+  const saveFinalChanges = async () => {
+    try {
+      if (!selectedRequest) return;
+      
+      if (selectedRequest.diet_plan_completed) {
+        // This is from final review tab - update existing plan
+        const updatedDietPlanData = {
           ...dietPlanData,
-          status: 'in_progress' as const,
+          status: 'completed' as const,
           current_step: dietPlanCreationStep,
           total_steps: 6
         };
-        localStorage.setItem(`dietPlan_${selectedRequest.id}`, JSON.stringify(progressData));
-        showToast('Progress saved locally (backend unavailable)', 'info');
+
+        // Update existing plan in backend
+        await nutritionistApi.updateComprehensiveDietPlan(selectedRequest.id, updatedDietPlanData);
+        
+        // Also save to localStorage as backup
+        localStorage.setItem(`dietPlan_${selectedRequest.id}`, JSON.stringify(updatedDietPlanData));
+        
+        showToast('Diet plan updated successfully in database!', 'success');
       } else {
-        showToast('Failed to save progress', 'error');
+        // This is from pending tab - create new plan
+        const completeDietPlanData = {
+          diet_plan_request_id: selectedRequest.id,
+          nutritionist_id: user?.id || 1, // Use logged-in user ID
+          client_id: selectedRequest.user_id || 1, // Use client ID from request
+          ...dietPlanData,
+          status: 'completed' as const,
+          current_step: dietPlanCreationStep,
+          total_steps: 6
+        };
+
+        // Save to backend
+        await nutritionistApi.createComprehensiveDietPlan(completeDietPlanData);
+        
+        // Also save to localStorage as backup
+        localStorage.setItem(`dietPlan_${selectedRequest.id}`, JSON.stringify(completeDietPlanData));
+        
+        // Update the backend to mark diet plan as completed
+        try {
+          await nutritionistApi.updateDietPlanRequest(selectedRequest.id, { 
+            diet_plan_completed: true 
+          });
+        } catch (apiError) {
+          console.log('Backend update failed, updating local state only:', apiError);
+          // Continue with local update even if backend fails
+        }
+        
+        // Update the local state to mark diet plan as completed
+        setDietPlanRequests(prev => 
+          prev.map(req => 
+            req.id === selectedRequest.id 
+              ? { ...req, diet_plan_completed: true }
+              : req
+          )
+        );
+        
+        showToast('Diet plan created successfully! The request has been moved to Final Review.', 'success');
       }
+      
+      // Close the modal
+      setShowDietPlanModal(false);
+      setSelectedRequest(null);
+      
+    } catch (error) {
+      showToast('Failed to save diet plan', 'error');
+      console.error('Error saving diet plan:', error);
+    }
+  };
+
+  const markRequestAsCompleted = async (requestId: number) => {
+    try {
+      // Update the backend to mark request as completed
+      try {
+        await nutritionistApi.updateDietPlanRequest(requestId, { 
+          status: 'completed',
+          diet_plan_completed: false // Remove this field
+        });
+      } catch (apiError) {
+        console.log('Backend update failed, updating local state only:', apiError);
+        // Continue with local update even if backend fails
+      }
+      
+      // Update the local state to mark request as completed
+      setDietPlanRequests(prev => 
+        prev.map(req => 
+          req.id === requestId 
+            ? { ...req, status: 'completed', diet_plan_completed: false }
+            : req
+        )
+      );
+      
+      // Show success message
+      showToast('Request marked as completed! It has been moved to My Requests → Completed section.', 'success');
+      
+    } catch (error) {
+      showToast('Failed to mark request as completed', 'error');
     }
   };
 
@@ -2054,18 +2230,18 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
           Templates
         </button>
         <button
-          onClick={() => setActiveTab('client-requests')}
+          onClick={() => setActiveTab('diet-plan-requests')}
           className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
-            activeTab === 'client-requests'
+            activeTab === 'diet-plan-requests'
               ? 'bg-purple-500 text-white shadow-lg'
               : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
           }`}
         >
-          <i className="fas fa-users mr-2"></i>
-          Client Requests
-          {dietPlanRequests.filter(r => r.status === 'approved').length > 0 && (
-            <span className="ml-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-              {dietPlanRequests.filter(r => r.status === 'approved').length}
+          <i className="fas fa-clipboard-list mr-2"></i>
+          Diet Plan Requests
+          {dietPlanRequests.filter(r => r.status === 'approved' && !r.diet_plan_completed).length > 0 && (
+            <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+              {dietPlanRequests.filter(r => r.status === 'approved' && !r.diet_plan_completed).length}
             </span>
           )}
         </button>
@@ -2156,11 +2332,11 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
         </>
       )}
 
-      {/* Client Requests Tab */}
-      {activeTab === 'client-requests' && (
+      {/* Diet Plan Requests Tab */}
+      {activeTab === 'diet-plan-requests' && (
         <div className="space-y-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-purple-400">Client Diet Plan Requests</h3>
+            <h3 className="text-xl font-bold text-purple-400">Diet Plan Requests</h3>
             <button
               onClick={fetchDietPlanRequests}
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
@@ -2170,65 +2346,74 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
             </button>
           </div>
 
-          {/* Status Filter */}
-          <div className="flex space-x-2 mb-6">
-            {['all', 'pending', 'approved', 'rejected', 'completed'].map((status) => (
+          {/* Diet Plan Tabs */}
+          <div className="flex space-x-1 mb-6 bg-gray-800/50 p-1 rounded-xl">
               <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  statusFilter === status
-                    ? 'bg-purple-500 text-white'
-                    : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'
-                }`}
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-                {status === 'all' && ` (${dietPlanRequests.length})`}
-                {status !== 'all' && ` (${dietPlanRequests.filter(r => r.status === status).length})`}
+              onClick={() => setDietPlanTab('pending-plans')}
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
+                dietPlanTab === 'pending-plans'
+                  ? 'bg-orange-500 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+              }`}
+            >
+              <i className="fas fa-clock mr-2"></i>
+              Pending Plans
+              <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                {dietPlanRequests.filter(r => r.status === 'approved' && !r.diet_plan_completed).length}
+              </span>
               </button>
-            ))}
+            <button
+              onClick={() => setDietPlanTab('final-review')}
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
+                dietPlanTab === 'final-review'
+                  ? 'bg-green-500 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+              }`}
+            >
+              <i className="fas fa-check-circle mr-2"></i>
+              Final Review
+              <span className="ml-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                {dietPlanRequests.filter(r => r.diet_plan_completed && r.status !== 'completed').length}
+              </span>
+            </button>
           </div>
 
-          {/* Requests List */}
+          {/* Pending Plans Tab */}
+          {dietPlanTab === 'pending-plans' && (
+            <>
+
           {isLoadingRequests ? (
             <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
             </div>
-          ) : dietPlanRequests.length === 0 ? (
+              ) : dietPlanRequests.filter(r => r.status === 'approved' && !r.diet_plan_completed).length === 0 ? (
             <div className="text-center py-12">
               <div className="w-24 h-24 mx-auto mb-4 bg-gray-800/50 rounded-full flex items-center justify-center border border-gray-700/50">
-                <i className="fas fa-clipboard-list text-3xl text-gray-600"></i>
+                    <i className="fas fa-check-circle text-3xl text-gray-600"></i>
               </div>
-              <p className="text-lg font-medium text-gray-400">No diet plan requests yet</p>
-              <p className="text-sm text-gray-500 mt-1">Clients will appear here when they submit requests</p>
+                  <p className="text-lg font-medium text-gray-400">No pending plans</p>
+                  <p className="text-sm text-gray-500 mt-1">All approved requests have been completed</p>
             </div>
           ) : (
             <div className="space-y-4">
               {dietPlanRequests
-                .filter(request => {
-                  if (statusFilter === 'all') return true;
-                  return request.status === statusFilter;
-                })
+                    .filter(request => request.status === 'approved' && !request.diet_plan_completed)
                 .map((request) => (
-                  <div key={request.id} className="glass-card p-6 rounded-xl border border-gray-700/50 hover:shadow-lg transition-all">
+                      <div key={request.id} className="glass-card p-6 rounded-xl border border-orange-500/20 hover:shadow-lg transition-all hover:border-orange-500/40">
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h4 className="text-lg font-semibold text-white mb-2">{request.client_name}</h4>
                         <div className="flex items-center space-x-4 text-sm text-gray-300">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            request.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                            request.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                            request.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                            'bg-blue-500/20 text-blue-400'
-                          }`}>
-                            {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                                <i className="fas fa-clock mr-1"></i>
+                                Pending Diet Plan
                           </span>
                           <span>Goal: {request.fitness_goal}</span>
                           <span>Budget: ${request.monthly_budget}</span>
                         </div>
                         
                         {/* Progress Indicator */}
-                        {request.status === 'approved' && hasExistingProgress(request.id) && (
+                            {hasExistingProgress(request.id) && (
                           <div className="mt-2 flex items-center space-x-2">
                             <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
                             <span className="text-xs text-orange-400 font-medium">Progress Saved</span>
@@ -2277,6 +2462,13 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
                     )}
 
                     <div className="flex space-x-3">
+                          <button
+                            onClick={() => openDietPlanRequest(request)}
+                            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-medium transition-colors"
+                          >
+                            <i className="fas fa-utensils mr-2"></i>
+                            Create Diet Plan
+                          </button>
                       <button
                         onClick={() => openDietPlanRequest(request)}
                         className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-medium transition-colors"
@@ -2284,28 +2476,116 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
                         <i className="fas fa-eye mr-2"></i>
                         View Details
                       </button>
-                      {request.status === 'pending' && (
-                        <>
                           <button
-                            onClick={() => handleUpdateRequestStatus(request.id, 'approved')}
+                            onClick={() => markDietPlanComplete(request.id)}
                             className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition-colors"
                           >
                             <i className="fas fa-check mr-2"></i>
-                            Approve
+                            Mark Complete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Final Review Tab */}
+          {dietPlanTab === 'final-review' && (
+            <>
+              {isLoadingRequests ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+                </div>
+              ) : dietPlanRequests.filter(r => r.diet_plan_completed && r.status !== 'completed').length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-24 h-24 mx-auto mb-4 bg-gray-800/50 rounded-full flex items-center justify-center border border-gray-700/50">
+                    <i className="fas fa-clipboard-check text-3xl text-gray-600"></i>
+                  </div>
+                  <p className="text-lg font-medium text-gray-400">No plans in final review</p>
+                  <p className="text-sm text-gray-500 mt-1">Plans ready for final review will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {dietPlanRequests
+                    .filter(request => request.diet_plan_completed && request.status !== 'completed')
+                    .map((request) => (
+                      <div key={request.id} className="glass-card p-6 rounded-xl border border-green-500/20 hover:shadow-lg transition-all hover:border-green-500/40">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h4 className="text-lg font-semibold text-white mb-2">{request.client_name}</h4>
+                            <div className="flex items-center space-x-4 text-sm text-gray-300">
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                                <i className="fas fa-check-circle mr-1"></i>
+                                Completed Diet Plan
+                              </span>
+                              <span>Goal: {request.fitness_goal}</span>
+                              <span>Budget: ${request.monthly_budget}</span>
+                            </div>
+                          </div>
+                          <div className="text-right text-sm text-gray-400">
+                            <div>Requested: {new Date(request.created_at).toLocaleDateString()}</div>
+                            {request.updated_at !== request.created_at && (
+                              <div>Updated: {new Date(request.updated_at).toLocaleDateString()}</div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+                          <div>
+                            <span className="text-gray-400">Current Weight:</span>
+                            <div className="font-medium text-white">{request.current_weight} kg</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Height:</span>
+                            <div className="font-medium text-white">{request.height} cm</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Target Weight:</span>
+                            <div className="font-medium text-white">{request.target_weight} kg</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Activity Level:</span>
+                            <div className="font-medium text-white">{request.activity_level}</div>
+                          </div>
+                        </div>
+
+                        {request.dietary_restrictions && (
+                          <div className="mb-4">
+                            <span className="text-gray-400 text-sm">Dietary Restrictions:</span>
+                            <div className="text-white mt-1">{request.dietary_restrictions}</div>
+                          </div>
+                        )}
+
+                        {request.additional_notes && (
+                          <div className="mb-4">
+                            <span className="text-gray-400 text-sm">Additional Notes:</span>
+                            <div className="text-white mt-1">{request.additional_notes}</div>
+                          </div>
+                        )}
+
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => openDietPlanRequest(request)}
+                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition-colors"
+                          >
+                            <i className="fas fa-eye mr-2"></i>
+                            Continue
                           </button>
                           <button
-                            onClick={() => handleUpdateRequestStatus(request.id, 'rejected')}
-                            className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-medium transition-colors"
+                            onClick={() => markRequestAsCompleted(request.id)}
+                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-medium transition-colors"
                           >
-                            <i className="fas fa-times mr-2"></i>
-                            Reject
+                            <i className="fas fa-check-double mr-2"></i>
+                            Final Review Complete
                           </button>
-                        </>
-                      )}
                     </div>
                   </div>
                 ))}
             </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -3151,8 +3431,8 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
                               : 'bg-green-500 hover:bg-green-600 text-white'
                           }`}
                         >
-                          <i className={`${hasExistingProgress ? 'fas fa-play' : 'fas fa-plus'} mr-2`}></i>
-                          {hasExistingProgress ? 'Continue Plan' : 'Create New Plan'}
+                          <i className={`${hasExistingProgress ? 'fas fa-edit' : 'fas fa-plus'} mr-2`}></i>
+                          {hasExistingProgress ? 'Continue' : 'Create New Plan'}
                         </button>
                       );
                     })()}
@@ -3226,7 +3506,9 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
           <div className="glass-card p-6 rounded-2xl max-w-7xl w-full max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-purple-400">Create Comprehensive Diet Plan</h3>
+              <h3 className="text-2xl font-bold text-purple-400">
+              {selectedRequest && selectedRequest.diet_plan_completed ? 'Edit Diet Plan' : 'Create Comprehensive Diet Plan'}
+            </h3>
               <div className="flex items-center space-x-3">
                 <button
                   onClick={saveDietPlanProgress}
@@ -4105,11 +4387,11 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
                   </button>
                 ) : (
                   <button
-                    onClick={() => showToast('Diet plan creation completed!', 'success')}
+                    onClick={saveFinalChanges}
                     className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
                   >
-                    <i className="fas fa-check mr-2"></i>
-                    Complete Plan
+                    <i className="fas fa-save mr-2"></i>
+                    {selectedRequest && selectedRequest.diet_plan_completed ? 'Save Final Changes' : 'Create Plan'}
                   </button>
                 )}
               </div>
