@@ -109,6 +109,32 @@ export const memberApi = {
     return handleResponse(response);
   },
 
+  // Create diet plan request
+  createDietPlanRequest: async (requestData: {
+    nutritionist_id: number;
+    fitness_goal: string;
+    current_weight: number;
+    target_weight: number;
+    monthly_budget: number;
+    dietary_restrictions?: string;
+    additional_notes?: string;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/diet-plan-request`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(requestData),
+    });
+    return handleResponse(response);
+  },
+
+  // Get diet plan requests
+  getDietPlanRequests: async () => {
+    const response = await fetch(`${BASE_URL}/members/diet-plan-requests`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
   // Get workout schedule
   getWorkoutSchedule: async () => {
     const response = await fetch(`${BASE_URL}/members/workout-schedule`, {

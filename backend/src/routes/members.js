@@ -2545,4 +2545,58 @@ router.post('/choose-membership-plan', verifyMemberToken, async (req, res) => {
   }
 });
 
+// Create diet plan request
+router.post('/diet-plan-request', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const {
+      nutritionist_id,
+      fitness_goal,
+      current_weight,
+      target_weight,
+      monthly_budget,
+      dietary_restrictions,
+      additional_notes
+    } = req.body;
+
+    const result = await query(
+      `INSERT INTO diet_plan_requests 
+       (user_id, nutritionist_id, fitness_goal, current_weight, target_weight, monthly_budget, dietary_restrictions, additional_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [userId, nutritionist_id, fitness_goal, current_weight, target_weight, monthly_budget, dietary_restrictions, additional_notes]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error('Diet plan request error:', error);
+    res.status(500).json({ error: 'Failed to create diet plan request' });
+  }
+});
+
+// Get diet plan requests for member
+router.get('/diet-plan-requests', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const result = await query(
+      `SELECT 
+         dpr.*,
+         u.first_name, u.last_name, u.email
+       FROM diet_plan_requests dpr
+       JOIN users u ON dpr.nutritionist_id = u.id
+       WHERE dpr.user_id = $1
+       ORDER BY dpr.created_at DESC`,
+      [userId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Diet plan requests error:', error);
+    res.status(500).json({ error: 'Failed to get diet plan requests' });
+  }
+});
+
 export default router;

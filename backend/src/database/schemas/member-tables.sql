@@ -72,6 +72,24 @@ CREATE TABLE IF NOT EXISTS nutrition_consultations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Diet plan requests
+CREATE TABLE IF NOT EXISTS diet_plan_requests (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    nutritionist_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    fitness_goal VARCHAR(100) NOT NULL,
+    current_weight DECIMAL(5,2) NOT NULL,
+    target_weight DECIMAL(5,2) NOT NULL,
+    monthly_budget DECIMAL(10,2) NOT NULL,
+    dietary_restrictions TEXT,
+    additional_notes TEXT,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'completed')),
+    nutritionist_notes TEXT,
+    meal_plan TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Member profiles (extends users table for member-specific data)
 CREATE TABLE IF NOT EXISTS member_profiles (
     id SERIAL PRIMARY KEY,

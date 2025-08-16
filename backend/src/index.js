@@ -8,6 +8,8 @@ import userRoutes from './routes/users.js';
 import trainerRoutes from './routes/trainers.js';
 import memberRoutes from './routes/members.js';
 import adminRoutes from './routes/admin.js';
+import nutritionistRoutes from './routes/nutritionists.js';
+import chatRoutes from './routes/chat.js';
 
 // Load environment variables
 dotenv.config();
@@ -50,6 +52,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/trainers', trainerRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/nutritionists', nutritionistRoutes);
+app.use('/api/chat', chatRoutes);
 
 // API routes will be added here
 app.get('/api', (req, res) => {
@@ -96,6 +100,61 @@ app.get('/api/db-test', async (req, res) => {
     });
   }
 });
+
+// Temporary endpoint to check chat messages in database
+app.get('/api/check-chat-messages', async (req, res) => {
+  try {
+    const { query } = await import('./config/database.js');
+    
+    // Check if chat_messages table exists and has data
+    const result = await query(`
+      SELECT 
+        COUNT(*) as total_messages,
+        COUNT(DISTINCT diet_plan_request_id) as active_chats,
+        COUNT(DISTINCT sender_id) as unique_senders,
+        MIN(created_at) as first_message,
+        MAX(created_at) as last_message
+      FROM chat_messages
+    `);
+    
+    // Get sample messages
+    const sampleMessages = await query(`
+      SELECT 
+        cm.id,
+        cm.message,
+        cm.sender_type,
+        cm.message_type,
+        cm.created_at,
+        u.first_name,
+        u.last_name
+      FROM chat_messages cm
+      JOIN users u ON cm.sender_id = u.id
+      ORDER BY cm.created_at DESC
+      LIMIT 5
+    `);
+    
+    res.json({ 
+      success: true, 
+      table_stats: result.rows[0],
+      sample_messages: sampleMessages.rows
+    });
+  } catch (error) {
+    console.error('Error checking chat messages:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to check chat messages',
+      error: error.message 
+    });
+  }
+});
+
+
+
+
+
+
+
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {

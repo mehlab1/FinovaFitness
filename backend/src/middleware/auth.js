@@ -86,3 +86,16 @@ export const verifyMember = async (req, res, next) => {
     res.status(500).json({ error: 'Authentication failed' });
   }
 };
+
+// Verify nutritionist role middleware
+export const verifyNutritionist = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'nutritionist') {
+      return res.status(403).json({ error: 'Access denied. Nutritionist role required.' });
+    }
+    next();
+  } catch (error) {
+    console.error('Nutritionist verification error:', error);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+};

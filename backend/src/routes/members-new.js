@@ -20,4 +20,8 @@ router.get('/nutritionists', memberController.getNutritionists);
 // Booking and request routes
 router.post('/training-request', memberController.createTrainingRequest);
 
+// Diet plan request routes
+router.post('/diet-plan-request', memberController.createDietPlanRequest);
+router.get('/diet-plan-requests', memberController.getDietPlanRequests);
+
 export default router;

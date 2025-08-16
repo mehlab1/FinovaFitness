@@ -4,8 +4,9 @@ import { facilities, exercises } from '../data/mockData';
 import { useToast } from './Toast';
 import { memberApi } from '../services/api/memberApi';
 import { TrainersTab } from './member/TrainersTab';
-import { CheckCircle, Star } from 'lucide-react';
+import { CheckCircle, Star, MessageSquare } from 'lucide-react';
 import { Button } from './ui/button';
+import Chat from './Chat';
 
 interface MemberPortalProps {
   user: User | null;
@@ -154,7 +155,7 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
           setCurrentPage('reviews');
         }} />;
       case 'nutritionists':
-        return <NutritionistsTab showToast={showToast} />;
+        return <NutritionistsTab showToast={showToast} user={user} />;
       case 'facilities':
         return <FacilitiesBooking showToast={showToast} />;
       case 'store':
@@ -5175,90 +5176,311 @@ const MemberAnnouncements = ({ showToast }: { showToast: (message: string, type?
   );
 };
 
-const NutritionistsTab = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void; user: User | null }) => {
   const [selectedNutritionist, setSelectedNutritionist] = useState<any>(null);
   const [showDietForm, setShowDietForm] = useState(false);
+  const [nutritionists, setNutritionists] = useState<any[]>([]);
+  const [dietRequests, setDietRequests] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState('nutritionists');
+  const [loading, setLoading] = useState(true);
+  const [showChat, setShowChat] = useState(false);
+  const [selectedChatRequest, setSelectedChatRequest] = useState<any>(null);
   const [dietForm, setDietForm] = useState({
     fitnessGoal: '',
     currentWeight: '',
     targetWeight: '',
     budget: '',
-    dietaryRestrictions: ''
+    dietaryRestrictions: '',
+    additionalNotes: ''
   });
 
-  const nutritionists = [
-    {
-      id: '1',
-      name: 'Dr. Emily Wilson',
-      specialty: 'Sports Nutrition',
-      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
-      bio: 'Dr. Wilson specializes in sports nutrition and performance optimization.',
-      schedule: ['11:00 AM', '4:00 PM', '6:00 PM']
-    },
-    {
-      id: '2',
-      name: 'Dr. Maria Garcia',
-      specialty: 'Weight Management',
-      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400',
-      bio: 'Dr. Garcia focuses on sustainable weight management and healthy eating habits.',
-      schedule: ['10:00 AM', '3:00 PM', '5:30 PM']
-    }
-  ];
+  // Fetch nutritionists and diet requests on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [nutritionistsData, requestsData] = await Promise.all([
+          memberApi.getNutritionists(),
+          memberApi.getDietPlanRequests()
+        ]);
+        setNutritionists(nutritionistsData);
+        setDietRequests(requestsData);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+        showToast('Failed to load nutritionist data', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleDietRequest = () => {
-    showToast('Diet plan request submitted successfully!', 'success');
-    setShowDietForm(false);
-    setDietForm({
-      fitnessGoal: '',
-      currentWeight: '',
-      targetWeight: '',
-      budget: '',
-      dietaryRestrictions: ''
-    });
+    fetchData();
+  }, []);
+
+  const handleDietRequest = async () => {
+    if (!selectedNutritionist) {
+      showToast('Please select a nutritionist first', 'error');
+      return;
+    }
+
+    try {
+      const requestData = {
+        nutritionist_id: selectedNutritionist.id,
+        fitness_goal: dietForm.fitnessGoal,
+        current_weight: parseFloat(dietForm.currentWeight),
+        target_weight: parseFloat(dietForm.targetWeight),
+        monthly_budget: parseFloat(dietForm.budget),
+        dietary_restrictions: dietForm.dietaryRestrictions,
+        additional_notes: dietForm.additionalNotes
+      };
+
+      await memberApi.createDietPlanRequest(requestData);
+      
+      // Refresh diet requests
+      const updatedRequests = await memberApi.getDietPlanRequests();
+      setDietRequests(updatedRequests);
+      
+      showToast('Diet plan request submitted successfully!', 'success');
+      setShowDietForm(false);
+      setDietForm({
+        fitnessGoal: '',
+        currentWeight: '',
+        targetWeight: '',
+        budget: '',
+        dietaryRestrictions: '',
+        additionalNotes: ''
+      });
+      setSelectedNutritionist(null);
+    } catch (error) {
+      console.error('Failed to submit diet request:', error);
+      showToast('Failed to submit diet plan request', 'error');
+    }
   };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'text-yellow-400';
+      case 'approved': return 'text-green-400';
+      case 'rejected': return 'text-red-400';
+      case 'completed': return 'text-blue-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const baseClasses = 'px-3 py-1 rounded-full text-xs font-semibold';
+    switch (status) {
+      case 'pending': return `${baseClasses} bg-yellow-500/20 text-yellow-400 border border-yellow-500/30`;
+      case 'approved': return `${baseClasses} bg-green-500/20 text-green-400 border border-green-500/30`;
+      case 'rejected': return `${baseClasses} bg-red-500/20 text-red-400 border border-red-500/30`;
+      case 'completed': return `${baseClasses} bg-blue-500/20 text-blue-400 border border-blue-500/30`;
+      default: return `${baseClasses} bg-gray-500/20 text-gray-400 border border-gray-500/30`;
+    }
+  };
+
+  const filteredRequests = dietRequests.filter(request => {
+    if (activeTab === 'pending') return request.status === 'pending';
+    if (activeTab === 'approved') return request.status === 'approved';
+    if (activeTab === 'rejected') return request.status === 'rejected';
+    if (activeTab === 'completed') return request.status === 'completed';
+    return true;
+  });
+
+  if (loading) {
+    return (
+      <div className="animate-fade-in">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-purple-400 text-lg">Loading nutritionist data...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
-      <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-        Our Nutritionists
-      </h2>
-      
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {nutritionists.map((nutritionist) => (
-          <div key={nutritionist.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
-            <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-purple-400">
-              <img src={nutritionist.image} alt={nutritionist.name} className="w-full h-full object-cover" />
-            </div>
-            <h3 className="text-xl font-bold text-purple-400 mb-2">{nutritionist.name}</h3>
-            <p className="text-green-400 mb-2">{nutritionist.specialty}</p>
-            <p className="text-gray-300 text-sm mb-4">{nutritionist.bio}</p>
-            <button
-              onClick={() => setShowDietForm(true)}
-              className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition-colors"
-            >
-              Request Diet Plan
-            </button>
-          </div>
+      {/* Tab Navigation */}
+      <div className="flex space-x-1 mb-6 bg-gray-800 p-1 rounded-lg">
+        {[
+          { id: 'nutritionists', label: 'Our Nutritionists', icon: 'fas fa-user-md' },
+          { id: 'pending', label: 'Pending Requests', icon: 'fas fa-clock' },
+          { id: 'approved', label: 'Approved Requests', icon: 'fas fa-check-circle' },
+          { id: 'rejected', label: 'Rejected Requests', icon: 'fas fa-times-circle' },
+          { id: 'completed', label: 'Completed Plans', icon: 'fas fa-star' }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md transition-all ${
+              activeTab === tab.id
+                ? 'bg-purple-500 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            <i className={tab.icon}></i>
+            <span className="hidden sm:inline">{tab.label}</span>
+          </button>
         ))}
       </div>
 
+      {/* Nutritionists Tab */}
+      {activeTab === 'nutritionists' && (
+        <div>
+          <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+            Our Nutritionists
+          </h2>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {nutritionists.map((nutritionist) => (
+              <div key={nutritionist.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
+                <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-purple-400 bg-gray-700 flex items-center justify-center">
+                  <i className="fas fa-user-md text-3xl text-purple-400"></i>
+                </div>
+                <h3 className="text-xl font-bold text-purple-400 mb-2">
+                  {nutritionist.first_name} {nutritionist.last_name}
+                </h3>
+                <p className="text-green-400 mb-2">Registered Nutritionist</p>
+                <p className="text-gray-300 text-sm mb-4">Specialized in personalized nutrition plans and dietary guidance.</p>
+                <button
+                  onClick={() => {
+                    setSelectedNutritionist(nutritionist);
+                    setShowDietForm(true);
+                  }}
+                  className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Request Diet Plan
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Request Status Tabs */}
+      {activeTab !== 'nutritionists' && (
+        <div>
+          <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+            {activeTab === 'pending' && 'Pending Requests'}
+            {activeTab === 'approved' && 'Approved Requests'}
+            {activeTab === 'rejected' && 'Rejected Requests'}
+            {activeTab === 'completed' && 'Completed Plans'}
+          </h2>
+          
+          {filteredRequests.length === 0 ? (
+            <div className="text-center py-12">
+              <i className="fas fa-inbox text-4xl text-gray-500 mb-4"></i>
+              <p className="text-gray-400 text-lg">No {activeTab} requests found</p>
+            </div>
+            ) : (
+            <div className="space-y-4">
+              {filteredRequests.map((request) => (
+                <div key={request.id} className="glass-card p-6 rounded-xl">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <h4 className="font-bold text-white text-lg">
+                          {request.first_name} {request.last_name}
+                        </h4>
+                        <span className={getStatusBadge(request.status)}>
+                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+                        <div>
+                          <strong className="text-white">Fitness Goal:</strong> {request.fitness_goal}
+                        </div>
+                        <div>
+                          <strong className="text-white">Current Weight:</strong> {request.current_weight} kg
+                        </div>
+                        <div>
+                          <strong className="text-white">Target Weight:</strong> {request.target_weight} kg
+                        </div>
+                        <div>
+                          <strong className="text-white">Monthly Budget:</strong> PKR {request.monthly_budget}
+                        </div>
+                        {request.dietary_restrictions && (
+                          <div className="md:col-span-2">
+                            <strong className="text-white">Dietary Restrictions:</strong> {request.dietary_restrictions}
+                          </div>
+                        )}
+                        {request.additional_notes && (
+                          <div className="md:col-span-2">
+                            <strong className="text-white">Additional Notes:</strong> {request.additional_notes}
+                          </div>
+                        )}
+                        {request.nutritionist_notes && (
+                          <div className="md:col-span-2">
+                            <strong className="text-white">Nutritionist Notes:</strong> {request.nutritionist_notes}
+                          </div>
+                        )}
+                        {request.preparation_time && (
+                          <div className="md:col-span-2">
+                            <strong className="text-white">Preparation Time:</strong> {request.preparation_time}
+                          </div>
+                        )}
+                        {request.meal_plan && (
+                          <div className="md:col-span-2">
+                            <strong className="text-white">Meal Plan:</strong> {request.meal_plan}
+                          </div>
+                        )}
+                        <div className="md:col-span-2 text-xs text-gray-500">
+                          Requested on: {new Date(request.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      
+                      {/* Chat button for approved requests */}
+                      {request.status === 'approved' && (
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            onClick={() => {
+                              setSelectedChatRequest(request);
+                              setShowChat(true);
+                            }}
+                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            Chat with Nutritionist
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Diet Plan Request Modal */}
       {showDietForm && (
-        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-4 sm:p-6 rounded-2xl w-full max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-purple-400">Request Diet Plan</h3>
-              <button onClick={() => setShowDietForm(false)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
+              <h3 className="text-lg sm:text-xl font-bold text-purple-400">Request Diet Plan</h3>
+              <button 
+                onClick={() => setShowDietForm(false)} 
+                className="close-button text-gray-300 hover:text-white p-2 rounded-lg touch-manipulation" 
+                title="Close"
+              >
                 <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
               </button>
             </div>
+            
+            {selectedNutritionist && (
+              <div className="mb-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                <p className="text-sm text-purple-300">
+                  <strong>Selected Nutritionist:</strong> {selectedNutritionist.first_name} {selectedNutritionist.last_name}
+                </p>
+              </div>
+            )}
+            
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Fitness Goal</label>
+                <label className="block text-sm font-medium mb-2 text-white">Fitness Goal</label>
                 <select
                   value={dietForm.fitnessGoal}
                   onChange={(e) => setDietForm({...dietForm, fitnessGoal: e.target.value})}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
                 >
                   <option value="">Select Goal</option>
                   <option value="weight-loss">Weight Loss</option>
@@ -5267,56 +5489,77 @@ const NutritionistsTab = ({ showToast }: { showToast: (message: string, type?: '
                   <option value="performance">Performance</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Current Weight (kg)</label>
-                <input
-                  type="number"
-                  value={dietForm.currentWeight}
-                  onChange={(e) => setDietForm({...dietForm, currentWeight: e.target.value})}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
-                  placeholder="70"
-                />
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white">Current Weight (kg)</label>
+                  <input
+                    type="number"
+                    value={dietForm.currentWeight}
+                    onChange={(e) => setDietForm({...dietForm, currentWeight: e.target.value})}
+                    className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
+                    placeholder="70"
+                    inputMode="decimal"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white">Target Weight (kg)</label>
+                  <input
+                    type="number"
+                    value={dietForm.targetWeight}
+                    onChange={(e) => setDietForm({...dietForm, targetWeight: e.target.value})}
+                    className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
+                    placeholder="65"
+                    inputMode="decimal"
+                  />
+                </div>
               </div>
+              
               <div>
-                <label className="block text-sm font-medium mb-2">Target Weight (kg)</label>
-                <input
-                  type="number"
-                  value={dietForm.targetWeight}
-                  onChange={(e) => setDietForm({...dietForm, targetWeight: e.target.value})}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
-                  placeholder="65"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Monthly Budget (PKR)</label>
+                <label className="block text-sm font-medium mb-2 text-white">Monthly Budget (PKR)</label>
                 <input
                   type="number"
                   value={dietForm.budget}
                   onChange={(e) => setDietForm({...dietForm, budget: e.target.value})}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
                   placeholder="15000"
+                  inputMode="decimal"
                 />
               </div>
+              
               <div>
-                <label className="block text-sm font-medium mb-2">Dietary Restrictions</label>
+                <label className="block text-sm font-medium mb-2 text-white">Dietary Restrictions</label>
                 <textarea
                   value={dietForm.dietaryRestrictions}
                   onChange={(e) => setDietForm({...dietForm, dietaryRestrictions: e.target.value})}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation resize-none"
                   placeholder="Any allergies or dietary preferences..."
-                  rows={3}
+                  rows={2}
                 ></textarea>
               </div>
-              <div className="flex space-x-4">
+              
+              <div>
+                <label className="block text-sm font-medium mb-2 text-white">Additional Notes</label>
+                <textarea
+                  value={dietForm.additionalNotes}
+                  onChange={(e) => setDietForm({...dietForm, additionalNotes: e.target.value})}
+                  className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation resize-none"
+                  placeholder="Any other information you'd like to share..."
+                  rows={2}
+                ></textarea>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   onClick={handleDietRequest}
-                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition-colors"
+                  disabled={!dietForm.fitnessGoal || !dietForm.currentWeight || !dietForm.targetWeight || !dietForm.budget}
+                  className="flex-1 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-colors touch-manipulation min-h-[44px]"
                 >
                   Submit Request
                 </button>
                 <button
                   onClick={() => setShowDietForm(false)}
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition-colors touch-manipulation min-h-[44px]"
                 >
                   Cancel
                 </button>
@@ -5324,6 +5567,19 @@ const NutritionistsTab = ({ showToast }: { showToast: (message: string, type?: '
             </div>
           </div>
         </div>
+      )}
+
+      {/* Chat Component */}
+      {showChat && selectedChatRequest && (
+        <Chat
+          requestId={selectedChatRequest.id}
+          currentUserId={user?.id || 0}
+          currentUserRole="member"
+          onClose={() => {
+            setShowChat(false);
+            setSelectedChatRequest(null);
+          }}
+        />
       )}
     </div>
   );

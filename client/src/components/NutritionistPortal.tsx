@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User } from '../types';
 import { useToast } from './Toast';
+import Chat from './Chat';
+import { MessageSquare } from 'lucide-react';
 
 interface NutritionistPortalProps {
   user: User | null;
@@ -9,6 +11,8 @@ interface NutritionistPortalProps {
 
 export const NutritionistPortal = ({ user, onLogout }: NutritionistPortalProps) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [showChat, setShowChat] = useState(false);
+  const [selectedChatRequest, setSelectedChatRequest] = useState<any>(null);
   const { showToast } = useToast();
 
   const renderPage = () => {
@@ -18,7 +22,11 @@ export const NutritionistPortal = ({ user, onLogout }: NutritionistPortalProps) 
       case 'schedule':
         return <NutritionistSchedule showToast={showToast} />;
       case 'client-requests':
-        return <DietPlanRequests showToast={showToast} />;
+        return <DietPlanRequests 
+          showToast={showToast} 
+          setSelectedChatRequest={setSelectedChatRequest}
+          setShowChat={setShowChat}
+        />;
       case 'templates':
         return <MealPlanTemplates showToast={showToast} />;
       case 'notes':
@@ -89,6 +97,19 @@ export const NutritionistPortal = ({ user, onLogout }: NutritionistPortalProps) 
           {renderPage()}
         </div>
       </div>
+
+      {/* Chat Component */}
+      {showChat && selectedChatRequest && (
+        <Chat
+          requestId={selectedChatRequest.id}
+          currentUserId={user?.id || 0}
+          currentUserRole="nutritionist"
+          onClose={() => {
+            setShowChat(false);
+            setSelectedChatRequest(null);
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -245,68 +266,358 @@ const NutritionistSchedule = ({ showToast }: { showToast: (message: string, type
   );
 };
 
-const DietPlanRequests = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [requests, setRequests] = useState([
-    { id: 1, client: 'Emma Wilson', goal: 'Weight Loss', calories: 1500, dietary: 'Vegetarian', diary: 'food_diary_1.pdf', status: 'pending' },
-    { id: 2, client: 'David Brown', goal: 'Muscle Gain', calories: 2500, dietary: 'None', diary: 'food_diary_2.pdf', status: 'pending' },
-    { id: 3, client: 'Lisa Garcia', goal: 'Maintenance', calories: 2000, dietary: 'Gluten-Free', diary: 'food_diary_3.pdf', status: 'pending' }
-  ]);
+const DietPlanRequests = ({ 
+  showToast, 
+  setSelectedChatRequest, 
+  setShowChat 
+}: { 
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  setSelectedChatRequest: (request: any) => void;
+  setShowChat: (show: boolean) => void;
+}) => {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('pending');
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [actionType, setActionType] = useState<'approve' | 'reject' | 'complete'>('approve');
+  const [notes, setNotes] = useState('');
+  const [mealPlan, setMealPlan] = useState('');
+  const [preparationTime, setPreparationTime] = useState('');
 
-  const handleCreatePlan = (id: number) => {
-    setRequests(requests.map(req => 
-      req.id === id ? { ...req, status: 'completed' } : req
-    ));
-    showToast('Diet plan created and sent to client', 'success');
+  // Fetch diet plan requests on component mount
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:3001/api/nutritionists/diet-plan-requests', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setRequests(data);
+      } else {
+        console.error('Failed to fetch requests:', response.statusText);
+        showToast('Failed to fetch diet plan requests', 'error');
+        setRequests([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch requests:', error);
+      showToast('Failed to fetch diet plan requests', 'error');
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleAction = async () => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/nutritionists/diet-plan-requests/${selectedRequest.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: actionType === 'approve' ? 'approved' : actionType === 'reject' ? 'rejected' : 'completed',
+          nutritionist_notes: notes,
+          meal_plan: actionType === 'approve' || actionType === 'complete' ? mealPlan : selectedRequest.meal_plan,
+          preparation_time: actionType === 'approve' ? preparationTime : undefined
+        })
+      });
+
+      if (response.ok) {
+        // Refresh the requests list
+        await fetchRequests();
+        
+        setShowActionModal(false);
+        setSelectedRequest(null);
+        setNotes('');
+        setMealPlan('');
+        setPreparationTime('');
+        
+        const actionText = actionType === 'approve' ? 'approved' : actionType === 'reject' ? 'rejected' : 'marked as completed';
+        showToast(`Request ${actionText} successfully`, 'success');
+      } else {
+        const errorData = await response.json();
+        showToast(errorData.error || 'Failed to update request', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to update request:', error);
+      showToast('Failed to update request', 'error');
+    }
+  };
+
+  const filteredRequests = requests.filter(request => {
+    if (activeTab === 'pending') return request.status === 'pending';
+    if (activeTab === 'approved') return request.status === 'approved';
+    if (activeTab === 'rejected') return request.status === 'rejected';
+    if (activeTab === 'completed') return request.status === 'completed';
+    return true;
+  });
+
+  const getStatusBadge = (status: string) => {
+    const baseClasses = 'px-3 py-1 rounded-full text-xs font-semibold';
+    switch (status) {
+      case 'pending': return `${baseClasses} bg-yellow-500/20 text-yellow-400 border border-yellow-500/30`;
+      case 'approved': return `${baseClasses} bg-green-500/20 text-green-400 border border-green-500/30`;
+      case 'rejected': return `${baseClasses} bg-red-500/20 text-red-400 border border-red-500/30`;
+      case 'completed': return `${baseClasses} bg-blue-500/20 text-blue-400 border border-blue-500/30`;
+      default: return `${baseClasses} bg-gray-500/20 text-gray-400 border border-gray-500/30`;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-fade-in">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-purple-400 text-lg">Loading requests...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
+      {/* Tab Navigation */}
+      <div className="flex space-x-1 mb-6 bg-gray-800 p-1 rounded-lg">
+        {[
+          { id: 'pending', label: 'Pending Requests', icon: 'fas fa-clock' },
+          { id: 'approved', label: 'Approved Requests', icon: 'fas fa-check-circle' },
+          { id: 'rejected', label: 'Rejected Requests', icon: 'fas fa-times-circle' },
+          { id: 'completed', label: 'Completed Plans', icon: 'fas fa-star' }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md transition-all ${
+              activeTab === tab.id
+                ? 'bg-purple-500 text-white shadow-lg'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            <i className={tab.icon}></i>
+            <span className="hidden sm:inline">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="glass-card p-6 rounded-2xl">
-        <h3 className="text-xl font-bold text-purple-400 mb-4">Diet Plan Requests</h3>
-        <div className="space-y-4">
-          {requests.map((request) => (
-            <div key={request.id} className="bg-gray-900 p-6 rounded-lg">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h4 className="font-bold text-white mb-2">{request.client}</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-300">
-                    <div>
-                      <strong>Goal:</strong> {request.goal}
+        <h3 className="text-xl font-bold text-purple-400 mb-4">
+          {activeTab === 'pending' && 'Pending Requests'}
+          {activeTab === 'approved' && 'Approved Requests'}
+          {activeTab === 'rejected' && 'Rejected Requests'}
+          {activeTab === 'completed' && 'Completed Plans'}
+        </h3>
+        
+        {filteredRequests.length === 0 ? (
+          <div className="text-center py-12">
+            <i className="fas fa-inbox text-4xl text-gray-500 mb-4"></i>
+            <p className="text-gray-400 text-lg">No {activeTab} requests found</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredRequests.map((request) => (
+              <div key={request.id} className="bg-gray-900 p-6 rounded-lg">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <h4 className="font-bold text-white text-lg">{request.client_name}</h4>
+                      <span className={getStatusBadge(request.status)}>
+                        {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                      </span>
                     </div>
-                    <div>
-                      <strong>Target Calories:</strong> {request.calories}
-                    </div>
-                    <div>
-                      <strong>Dietary Restrictions:</strong> {request.dietary}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <strong>Food Diary:</strong>
-                      <button className="text-blue-400 hover:text-blue-300 transition-colors">
-                        <i className="fas fa-download mr-1"></i>
-                        {request.diary}
-                      </button>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+                      <div>
+                        <strong className="text-white">Fitness Goal:</strong> {request.fitness_goal}
+                      </div>
+                      <div>
+                        <strong className="text-white">Current Weight:</strong> {request.current_weight} kg
+                      </div>
+                      <div>
+                        <strong className="text-white">Target Weight:</strong> {request.target_weight} kg
+                      </div>
+                      <div>
+                        <strong className="text-white">Monthly Budget:</strong> PKR {request.monthly_budget}
+                      </div>
+                      {request.dietary_restrictions && (
+                        <div className="md:col-span-2">
+                          <strong className="text-white">Dietary Restrictions:</strong> {request.dietary_restrictions}
+                        </div>
+                      )}
+                      {request.nutritionist_notes && (
+                        <div className="md:col-span-2">
+                          <strong className="text-white">Your Notes:</strong> {request.nutritionist_notes}
+                        </div>
+                      )}
+                      {request.meal_plan && (
+                        <div className="md:col-span-2">
+                          <strong className="text-white">Meal Plan:</strong> {request.meal_plan}
+                        </div>
+                      )}
+                      <div className="md:col-span-2 text-xs text-gray-500">
+                        Requested on: {new Date(request.created_at).toLocaleDateString()}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="ml-4">
-                  {request.status === 'pending' ? (
-                    <button
-                      onClick={() => handleCreatePlan(request.id)}
-                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-                    >
-                      Create Plan
-                    </button>
-                  ) : (
-                    <span className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold">
-                      Completed
-                    </span>
-                  )}
+                  
+                  <div className="ml-4 space-y-2">
+                    {request.status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setActionType('approve');
+                            setShowActionModal(true);
+                          }}
+                          className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setActionType('reject');
+                            setShowActionModal(true);
+                          }}
+                          className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    
+                    {request.status === 'approved' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setActionType('complete');
+                            setShowActionModal(true);
+                          }}
+                          className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                        >
+                          Mark Complete
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedChatRequest(request);
+                            setShowChat(true);
+                          }}
+                          className="w-full bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          Chat
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Action Modal */}
+      {showActionModal && selectedRequest && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-purple-400">
+                {actionType === 'approve' && 'Approve Request'}
+                {actionType === 'reject' && 'Reject Request'}
+                {actionType === 'complete' && 'Mark as Complete'}
+              </h3>
+              <button onClick={() => setShowActionModal(false)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Notes</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                  placeholder={actionType === 'approve' ? 'Add approval notes...' : actionType === 'reject' ? 'Add rejection reason...' : 'Add completion notes...'}
+                  rows={3}
+                ></textarea>
+              </div>
+              
+              {actionType === 'approve' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Preparation Time <span className="text-yellow-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={preparationTime}
+                    onChange={(e) => setPreparationTime(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                    placeholder="e.g., 2-3 days, 1 week, 3-5 business days"
+                    required
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    How long will it take to prepare the diet plan?
+                  </p>
+                </div>
+              )}
+              
+              {(actionType === 'approve' || actionType === 'complete') && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Meal Plan {actionType === 'approve' && <span className="text-gray-400">(Optional)</span>}
+                  </label>
+                  <textarea
+                    value={mealPlan}
+                    onChange={(e) => setMealPlan(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none"
+                    placeholder={actionType === 'approve' ? 'You can add the meal plan now or later...' : 'Enter the meal plan details...'}
+                    rows={4}
+                  ></textarea>
+                  {actionType === 'approve' && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      You can add the meal plan now or add it later when it's ready.
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              <div className="flex space-x-4">
+                <button
+                  onClick={handleAction}
+                  disabled={actionType === 'approve' && !preparationTime.trim()}
+                  className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${
+                    actionType === 'approve' && !preparationTime.trim()
+                      ? 'bg-gray-600 cursor-not-allowed'
+                      : 'bg-purple-500 hover:bg-purple-600'
+                  } text-white`}
+                >
+                  {actionType === 'approve' && 'Approve'}
+                  {actionType === 'reject' && 'Reject'}
+                  {actionType === 'complete' && 'Complete'}
+                </button>
+                <button
+                  onClick={() => setShowActionModal(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
