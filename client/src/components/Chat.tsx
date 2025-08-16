@@ -191,6 +191,34 @@ const Chat: React.FC<ChatProps> = ({ requestId, currentUserId, currentUserRole, 
     }
   };
 
+  // Handle file download
+  const handleFileDownload = async (fileUrl: string, fileName: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001${fileUrl}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download file');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setError('Failed to download file');
+      console.error('Download error:', error);
+    }
+  };
+
   // Load messages on component mount
   useEffect(() => {
     fetchMessages();
@@ -371,14 +399,12 @@ const Chat: React.FC<ChatProps> = ({ requestId, currentUserId, currentUserRole, 
                               <p className="text-sm font-medium text-blue-300">PDF Document</p>
                               <p className="text-xs text-gray-400">Click to download</p>
                             </div>
-                            <a
-                              href={`http://localhost:3001${message.file_url}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={() => message.file_url && handleFileDownload(message.file_url, message.message.replace('Uploaded: ', ''))}
                               className="px-3 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-xs font-medium rounded-lg transition-all duration-200 hover:scale-105"
                             >
                               Download
-                            </a>
+                            </button>
                           </div>
                         </div>
                       )}
