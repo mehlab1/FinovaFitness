@@ -69,6 +69,12 @@ router.get('/dashboard', nutritionistController.getNutritionistDashboard);
 router.get('/diet-plan-requests', nutritionistController.getDietPlanRequests);
 router.put('/diet-plan-requests/:requestId', nutritionistController.updateDietPlanRequest);
 
+// Diet plan PDF download route
+router.get('/diet-plan-requests/:requestId/download-pdf', nutritionistController.downloadDietPlanPDF);
+
+// Debug endpoint to inspect comprehensive plan data
+router.get('/diet-plan-requests/:requestId/debug', nutritionistController.debugDietPlanData);
+
 // Comprehensive Diet Plan routes
 router.post('/comprehensive-diet-plans', nutritionistController.createComprehensiveDietPlan);
 router.get('/comprehensive-diet-plans/:requestId', nutritionistController.getComprehensiveDietPlan);

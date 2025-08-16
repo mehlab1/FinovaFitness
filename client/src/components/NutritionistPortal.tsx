@@ -4,6 +4,7 @@ import { useToast } from './Toast';
 import Chat from './Chat';
 import { MessageSquare } from 'lucide-react';
 import { nutritionistApi } from '../services/api/nutritionistApi';
+import jsPDF from 'jspdf';
 
 interface NutritionistPortalProps {
   user: User | null;
@@ -4612,6 +4613,59 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
     }
   };
 
+  // Download diet plan as PDF
+  const downloadDietPlanPDF = async (requestId: number, clientName: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/nutritionists/diet-plan-requests/${requestId}/download-pdf`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `finovafitness_diet_plan_${clientName.replace(/\s+/g, '_')}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        showToast('Diet plan PDF downloaded successfully', 'success');
+      } else {
+        const errorData = await response.json();
+        showToast(errorData.error || 'Failed to download PDF', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to download diet plan PDF:', error);
+      showToast('Failed to download diet plan PDF', 'error');
+    }
+  };
+
+  // Debug diet plan data structure
+  const debugDietPlanData = async (requestId: number, clientName: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/nutritionists/diet-plan-requests/${requestId}/debug`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Diet Plan Debug Data:', data);
+        showToast(`Debug data logged for ${clientName}. Check console.`, 'info');
+      } else {
+        const errorData = await response.json();
+        showToast(errorData.error || 'Failed to debug data', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to debug diet plan data:', error);
+      showToast('Failed to debug diet plan data', 'error');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'text-yellow-400';
@@ -4936,6 +4990,38 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
                               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                             >
                               Mark as Completed
+                            </button>
+                            {setSelectedChatRequest && setShowChat && (
+                              <button
+                                onClick={() => {
+                                  setSelectedChatRequest(request);
+                                  setShowChat(true);
+                                }}
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                              >
+                                <i className="fas fa-comments mr-2"></i>
+                                Chat
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Download PDF button for completed requests */}
+                        {request.status === 'completed' && (
+                          <div className="mt-4 flex space-x-2">
+                            <button
+                              onClick={() => downloadDietPlanPDF(request.id, request.client_name)}
+                              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                            >
+                              <i className="fas fa-download mr-2"></i>
+                              Download PDF
+                            </button>
+                            <button
+                              onClick={() => debugDietPlanData(request.id, request.client_name)}
+                              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors"
+                            >
+                              <i className="fas fa-bug mr-2"></i>
+                              Debug Data
                             </button>
                             {setSelectedChatRequest && setShowChat && (
                               <button

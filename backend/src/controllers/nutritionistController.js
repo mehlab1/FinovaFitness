@@ -811,3 +811,520 @@ export const saveDietPlanProgress = async (req, res) => {
     res.status(500).json({ error: 'Failed to save diet plan progress' });
   }
 };
+
+// Download diet plan as PDF
+export const downloadDietPlanPDF = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { requestId } = req.params;
+
+    // Get the diet plan request with comprehensive data
+    const result = await query(
+      `SELECT 
+         dpr.*,
+         u.first_name, u.last_name, u.email,
+         m.first_name as member_first_name, m.last_name as member_last_name,
+         n.first_name as nutritionist_first_name, n.last_name as nutritionist_last_name, n.email as nutritionist_email
+       FROM diet_plan_requests dpr
+       JOIN users u ON dpr.nutritionist_id = u.id
+       JOIN users m ON dpr.user_id = m.id
+       JOIN users n ON dpr.nutritionist_id = n.id
+       WHERE dpr.id = $1 AND dpr.nutritionist_id = $2`,
+      [requestId, nutritionistId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Diet plan request not found' });
+    }
+
+    const request = result.rows[0];
+    
+    // Check if the request is completed
+    if (request.status !== 'completed') {
+      return res.status(400).json({ error: 'Only completed diet plans can be downloaded' });
+    }
+
+    // Debug: Log what's in the comprehensive plan data
+    console.log('Comprehensive Plan Data:', JSON.stringify(request.comprehensive_plan_data, null, 2));
+    console.log('Weekly Plans:', request.comprehensive_plan_data?.weekly_plans);
+
+    // Import PDFKit dynamically
+    const PDFDocument = (await import('pdfkit')).default;
+    
+    // Create PDF document with better margins and layout
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: {
+        top: 40,
+        bottom: 40,
+        left: 40,
+        right: 40
+      }
+    });
+
+    // Set response headers for PDF download
+    const filename = `finovafitness_diet_plan_${request.member_first_name}_${request.member_last_name}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Pipe PDF to response
+    doc.pipe(res);
+
+    // Add Finova Fitness branding header with enterprise-level styling
+    doc.rect(0, 0, doc.page.width, 90)
+       .fill('#F8FAFC') // Very light blue background
+       .stroke('#3B82F6'); // Professional blue border
+    
+    // Add subtle pattern overlay
+    doc.rect(0, 0, doc.page.width, 90)
+       .fill('#EFF6FF') // Light blue overlay
+       .opacity(0.3);
+    
+    doc.fontSize(32)
+       .fill('#1E40AF') // Dark blue text
+       .text('FINOVA FITNESS', 0, 25, { align: 'center', width: doc.page.width });
+    
+    doc.fontSize(20)
+       .fill('#374151') // Dark gray text
+       .text('Comprehensive Diet Plan', 0, 55, { align: 'center', width: doc.page.width });
+    
+    // Add subtitle
+    doc.fontSize(12)
+       .fill('#6B7280')
+       .text('Professional Nutrition & Wellness', 0, 75, { align: 'center', width: doc.page.width });
+    
+    doc.moveDown(2);
+
+    // Helper function to add section headers
+    const addSectionHeader = (text, y) => {
+      // Light background with dark border
+      doc.rect(0, y, doc.page.width, 25)
+         .fill('#F3F4F6') // Light gray background
+         .stroke('#374151'); // Dark border
+      
+      doc.fontSize(16)
+         .fill('#000000') // BLACK text for visibility
+         .text(text, 10, y + 5);
+      
+      return y + 35;
+    };
+
+    // Helper function to add content
+    const addContent = (text, y, fontSize = 12) => {
+      doc.fontSize(fontSize)
+         .fill('#000000') // BLACK text for visibility
+         .text(text, 10, y, { width: doc.page.width - 20 });
+      
+      return y + (fontSize * 1.5);
+    };
+
+    let currentY = 130;
+    
+    // Helper function to check if we need a new page
+    const checkPageBreak = (requiredHeight) => {
+      if (currentY + requiredHeight > doc.page.height - 100) {
+        doc.addPage();
+        currentY = 120; // Reset Y position for new page
+        return true;
+      }
+      return false;
+    };
+
+    // Add client information section with better layout
+    currentY = addSectionHeader('CLIENT INFORMATION', currentY);
+    
+    const clientInfo = [
+      `Name: ${request.member_first_name} ${request.member_last_name}`,
+      `Fitness Goal: ${request.fitness_goal || 'No data'}`,
+      `Current Weight: ${request.current_weight || 'No data'} kg`,
+      `Target Weight: ${request.target_weight || 'No data'} kg`,
+      `Height: ${request.height || 'No data'} cm`,
+      `Activity Level: ${request.activity_level || 'No data'}`,
+      `Monthly Budget: PKR ${request.monthly_budget || 'No data'}`,
+      `Dietary Restrictions: ${request.dietary_restrictions || 'No data'}`,
+      `Additional Notes: ${request.additional_notes || 'No data'}`
+    ];
+
+    clientInfo.forEach(info => {
+      currentY = addContent(info, currentY);
+    });
+
+    currentY += 10;
+
+    // Add nutritionist information
+    currentY = addSectionHeader('NUTRITIONIST CONTACT INFORMATION', currentY);
+    
+    const nutritionistInfo = [
+      `Name: ${request.nutritionist_first_name} ${request.nutritionist_last_name}`,
+      `Email: ${request.nutritionist_email || 'No data'}`,
+      `Plan Created: ${request.plan_created_at ? new Date(request.plan_created_at).toLocaleDateString() : 'No data'}`,
+      `Last Updated: ${request.plan_updated_at ? new Date(request.plan_updated_at).toLocaleDateString() : 'No data'}`
+    ];
+
+    nutritionistInfo.forEach(info => {
+      currentY = addContent(info, currentY);
+    });
+
+    currentY += 10;
+
+    // Add nutritionist notes
+    if (request.nutritionist_notes) {
+      currentY = addSectionHeader('NUTRITIONIST NOTES', currentY);
+      currentY = addContent(request.nutritionist_notes, currentY);
+      currentY += 10;
+    }
+
+    // Add meal plan if exists
+    if (request.meal_plan) {
+      currentY = addSectionHeader('MEAL PLAN', currentY);
+      currentY = addContent(request.meal_plan, currentY);
+      currentY += 10;
+    }
+
+    // Add comprehensive plan data if exists
+    if (request.comprehensive_plan_data) {
+      const planData = request.comprehensive_plan_data;
+      
+      // Plan Overview
+      if (planData.plan_name || planData.description || planData.total_weeks) {
+        currentY = addSectionHeader('PLAN OVERVIEW', currentY);
+        
+        if (planData.plan_name) currentY = addContent(`Plan Name: ${planData.plan_name}`, currentY);
+        if (planData.description) currentY = addContent(`Description: ${planData.description}`, currentY);
+        if (planData.total_weeks) currentY = addContent(`Total Weeks: ${planData.total_weeks}`, currentY);
+        
+        currentY += 10;
+      }
+
+      // Overall Goals
+      if (planData.overall_goals) {
+        currentY = addSectionHeader('OVERALL GOALS', currentY);
+        
+        if (typeof planData.overall_goals === 'object') {
+          // Handle structured goals object
+          const goals = planData.overall_goals;
+          if (goals.target_calories) currentY = addContent(`Target Calories: ${goals.target_calories}`, currentY, 11);
+          if (goals.target_protein) currentY = addContent(`Target Protein: ${goals.target_protein}g`, currentY, 11);
+          if (goals.target_carbs) currentY = addContent(`Target Carbs: ${goals.target_carbs}g`, currentY, 11);
+          if (goals.target_fats) currentY = addContent(`Target Fats: ${goals.target_fats}g`, currentY, 11);
+          if (goals.target_fiber) currentY = addContent(`Target Fiber: ${goals.target_fiber}g`, currentY, 11);
+          if (goals.target_sugar) currentY = addContent(`Target Sugar: ${goals.target_sugar}g`, currentY, 11);
+          if (goals.target_sodium) currentY = addContent(`Target Sodium: ${goals.target_sodium}mg`, currentY, 11);
+        } else {
+          // Handle string goals
+          currentY = addContent(planData.overall_goals, currentY);
+        }
+        currentY += 10;
+      }
+
+      // Dietary Guidelines
+      if (planData.dietary_guidelines) {
+        currentY = addSectionHeader('DIETARY GUIDELINES', currentY);
+        
+        if (Array.isArray(planData.dietary_guidelines)) {
+          planData.dietary_guidelines.forEach((guideline, index) => {
+            currentY = addContent(`${index + 1}. ${guideline}`, currentY, 11);
+            currentY += 8;
+          });
+        } else if (typeof planData.dietary_guidelines === 'string') {
+          currentY = addContent(planData.dietary_guidelines, currentY);
+        } else {
+          currentY = addContent(JSON.stringify(planData.dietary_guidelines, null, 2), currentY, 10);
+        }
+        currentY += 10;
+      }
+
+      // Shopping List
+      if (planData.shopping_list) {
+        currentY = addSectionHeader('SHOPPING LIST', currentY);
+        
+        if (Array.isArray(planData.shopping_list)) {
+          planData.shopping_list.forEach((item, index) => {
+            currentY = addContent(`• ${item}`, currentY, 11);
+            currentY += 8;
+          });
+        } else if (typeof planData.shopping_list === 'string') {
+          currentY = addContent(planData.shopping_list, currentY);
+        } else {
+          currentY = addContent(JSON.stringify(planData.shopping_list, null, 2), currentY, 10);
+        }
+        currentY += 10;
+      }
+
+      // Preparation Tips
+      if (planData.preparation_tips) {
+        currentY = addSectionHeader('PREPARATION TIPS', currentY);
+        
+        if (Array.isArray(planData.preparation_tips)) {
+          planData.preparation_tips.forEach((tip, index) => {
+            currentY = addContent(`${index + 1}. ${tip}`, currentY, 11);
+            currentY += 8;
+          });
+        } else if (typeof planData.preparation_tips === 'string') {
+          currentY = addContent(planData.preparation_tips, currentY);
+        } else {
+          currentY = addContent(JSON.stringify(planData.preparation_tips, null, 2), currentY, 10);
+        }
+        currentY += 10;
+      }
+
+      // Weekly Plans - ENTERPRISE-LEVEL PROFESSIONAL FORMAT
+      if (planData.weekly_plans) {
+        currentY = addSectionHeader('WEEKLY MEAL PLANS', currentY);
+        
+        // Check if we need a new page for weekly plans
+        checkPageBreak(300);
+        
+        if (Array.isArray(planData.weekly_plans)) {
+          planData.weekly_plans.forEach((week, weekIndex) => {
+            // Add week header with professional styling
+            doc.rect(0, currentY, doc.page.width, 25)
+               .fill('#F8FAFC') // Very light blue background
+               .stroke('#3B82F6'); // Blue border
+            
+            doc.fontSize(16)
+               .fill('#1E40AF') // Dark blue text
+               .text(`Week ${week.week_number || weekIndex + 1}`, 15, currentY + 5);
+            
+            if (week.start_date && week.end_date) {
+              doc.fontSize(10)
+                 .fill('#6B7280')
+                 .text(`${week.start_date} - ${week.end_date}`, 15, currentY + 20);
+            }
+            
+            currentY += 30;
+            
+            // Handle daily plans structure
+            if (week.daily_plans && Array.isArray(week.daily_plans)) {
+              week.daily_plans.forEach((day, dayIndex) => {
+                // Day header
+                doc.rect(0, currentY, doc.page.width, 20)
+                   .fill('#EFF6FF') // Light blue background
+                   .stroke('#93C5FD'); // Light blue border
+                
+                doc.fontSize(12)
+                   .fill('#1E40AF')
+                   .text(`Day ${day.day_of_week || dayIndex + 1}`, 20, currentY + 5);
+                
+                currentY += 25;
+                
+                // Daily nutritional summary
+                if (day.total_calories || day.total_protein || day.total_carbs || day.total_fats) {
+                  currentY = addContent('Daily Nutritional Summary:', currentY, 11);
+                  currentY += 10;
+                  
+                  const nutritionInfo = [];
+                  if (day.total_calories) nutritionInfo.push(`Calories: ${day.total_calories.toFixed(0)}`);
+                  if (day.total_protein) nutritionInfo.push(`Protein: ${day.total_protein.toFixed(0)}g`);
+                  if (day.total_carbs) nutritionInfo.push(`Carbs: ${day.total_carbs.toFixed(0)}g`);
+                  if (day.total_fats) nutritionInfo.push(`Fats: ${day.total_fats.toFixed(0)}g`);
+                  
+                  currentY = addContent(`  ${nutritionInfo.join(' | ')}`, currentY, 10);
+                  currentY += 15;
+                }
+                
+                // Meals
+                if (day.meals && Array.isArray(day.meals)) {
+                  day.meals.forEach((meal, mealIndex) => {
+                    // Meal header
+                    doc.fontSize(11)
+                       .fill('#059669') // Green text for meal types
+                       .text(`${meal.meal_type || `Meal ${mealIndex + 1}`}:`, 25, currentY);
+                    
+                    currentY += 15;
+                    
+                    // Meal time if available
+                    if (meal.time) {
+                      currentY = addContent(`  Time: ${meal.time}`, currentY, 10);
+                      currentY += 10;
+                    }
+                    
+                    // Meal items
+                    if (meal.items && Array.isArray(meal.items)) {
+                      meal.items.forEach((item, itemIndex) => {
+                        const itemText = `${item.food_name} - ${item.quantity}${item.unit}`;
+                        currentY = addContent(`  • ${itemText}`, currentY, 10);
+                        currentY += 8;
+                        
+                        // Item nutritional info
+                        const itemNutrition = [];
+                        if (item.calories) itemNutrition.push(`${item.calories.toFixed(0)} cal`);
+                        if (item.protein) itemNutrition.push(`${item.protein.toFixed(0)}g protein`);
+                        if (item.carbs) itemNutrition.push(`${item.carbs.toFixed(0)}g carbs`);
+                        if (item.fats) itemNutrition.push(`${item.fats.toFixed(0)}g fats`);
+                        
+                        if (itemNutrition.length > 0) {
+                          currentY = addContent(`    (${itemNutrition.join(', ')})`, currentY, 9);
+                          currentY += 8;
+                        }
+                      });
+                    }
+                    
+                    // Meal notes
+                    if (meal.notes) {
+                      currentY = addContent(`  Notes: ${meal.notes}`, currentY, 10);
+                      currentY += 10;
+                    }
+                    
+                    // Meal nutritional summary
+                    if (meal.calories || meal.protein || meal.carbs || meal.fats) {
+                      const mealNutrition = [];
+                      if (meal.calories) mealNutrition.push(`${meal.calories.toFixed(0)} cal`);
+                      if (meal.protein) mealNutrition.push(`${meal.protein.toFixed(0)}g protein`);
+                      if (meal.carbs) mealNutrition.push(`${meal.carbs.toFixed(0)}g carbs`);
+                      if (meal.fats) mealNutrition.push(`${meal.fats.toFixed(0)}g fats`);
+                      
+                      currentY = addContent(`  Total: ${mealNutrition.join(' | ')}`, currentY, 10);
+                      currentY += 10;
+                    }
+                    
+                    currentY += 5;
+                  });
+                }
+                
+                // Day notes
+                if (day.notes) {
+                  currentY = addContent(`Day Notes: ${day.notes}`, currentY, 10);
+                  currentY += 10;
+                }
+                
+                // Cheat day indicator
+                if (day.is_cheat_day) {
+                  doc.fontSize(10)
+                     .fill('#DC2626') // Red text for cheat day
+                     .text('  ⚠️ CHEAT DAY', 25, currentY);
+                  currentY += 15;
+                }
+                
+                currentY += 10;
+              });
+            }
+            
+            // Weekly goals if available
+            if (week.weekly_goals) {
+              currentY = addContent('Weekly Goals:', currentY, 11);
+              currentY += 10;
+              
+              const goals = week.weekly_goals;
+              if (goals.target_calories) currentY = addContent(`  Target Calories: ${goals.target_calories}`, currentY, 10);
+              if (goals.target_protein) currentY = addContent(`  Target Protein: ${goals.target_protein}g`, currentY, 10);
+              if (goals.target_carbs) currentY = addContent(`  Target Carbs: ${goals.target_carbs}g`, currentY, 10);
+              if (goals.target_fats) currentY = addContent(`  Target Fats: ${goals.target_fats}g`, currentY, 10);
+              if (goals.cheat_days_allowed) currentY = addContent(`  Cheat Days Allowed: ${goals.cheat_days_allowed}`, currentY, 10);
+              
+              currentY += 15;
+            }
+            
+            currentY += 15;
+          });
+        } else {
+          // Fallback for other structures
+          currentY = addContent('Weekly plans data structure not recognized. Please contact support.', currentY, 11);
+          currentY += 20;
+        }
+      } else {
+        // No weekly plans data
+        currentY = addContent('No weekly meal plans data available', currentY, 11);
+        currentY += 20;
+      }
+
+      // Progress Tracking
+      if (planData.current_step || planData.total_steps) {
+        currentY = addSectionHeader('PROGRESS TRACKING', currentY);
+        
+        if (planData.current_step) currentY = addContent(`Current Step: ${planData.current_step}`, currentY);
+        if (planData.total_steps) currentY = addContent(`Total Steps: ${planData.total_steps}`, currentY);
+        
+        currentY += 10;
+      }
+
+      // Professional note about plan customization
+      currentY = addContent('This plan has been customized based on your specific needs and goals.', currentY, 10);
+      currentY += 10;
+
+      // Professional footer note
+      currentY = addContent('This diet plan has been professionally designed by your nutritionist.', currentY, 10);
+      currentY += 10;
+    }
+
+    // Add footer with better styling
+    doc.rect(0, doc.page.height - 60, doc.page.width, 60)
+       .fill('#F3F4F6') // Light background
+       .stroke('#6B7280'); // Dark border
+    
+    doc.fontSize(10)
+       .fill('#000000') // BLACK text for visibility
+       .text('Generated by Finova Fitness Nutrition Portal', 0, doc.page.height - 50, { align: 'center', width: doc.page.width })
+       .text(`Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 0, doc.page.height - 35, { align: 'center', width: doc.page.width });
+
+    // Finalize PDF
+    doc.end();
+
+  } catch (error) {
+    console.error('Download diet plan PDF error:', error);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+};
+
+// Debug endpoint to inspect comprehensive plan data structure
+export const debugDietPlanData = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { requestId } = req.params;
+
+    // Get the diet plan request with comprehensive data
+    const result = await query(
+      `SELECT 
+         dpr.*,
+         u.first_name, u.last_name, u.email,
+         m.first_name as member_first_name, m.last_name as member_last_name,
+         n.first_name as nutritionist_first_name, n.last_name as nutritionist_last_name, n.email as nutritionist_email
+       FROM diet_plan_requests dpr
+       JOIN users u ON dpr.nutritionist_id = u.id
+       JOIN users m ON dpr.user_id = m.id
+       JOIN users n ON dpr.nutritionist_id = n.id
+       WHERE dpr.id = $1 AND dpr.nutritionist_id = $2`,
+      [requestId, nutritionistId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Diet plan request not found' });
+    }
+
+    const request = result.rows[0];
+    
+    // Return detailed information about the data structure
+    res.json({
+      request_id: request.id,
+      status: request.status,
+      client_name: `${request.member_first_name} ${request.member_last_name}`,
+      nutritionist_name: `${request.nutritionist_first_name} ${request.nutritionist_last_name}`,
+      basic_info: {
+        fitness_goal: request.fitness_goal,
+        current_weight: request.current_weight,
+        target_weight: request.target_weight,
+        height: request.height,
+        activity_level: request.activity_level,
+        monthly_budget: request.monthly_budget,
+        dietary_restrictions: request.dietary_restrictions,
+        additional_notes: request.additional_notes,
+        nutritionist_notes: request.nutritionist_notes,
+        meal_plan: request.meal_plan
+      },
+      comprehensive_plan_data: request.comprehensive_plan_data,
+      comprehensive_plan_data_type: typeof request.comprehensive_plan_data,
+      comprehensive_plan_data_keys: request.comprehensive_plan_data ? Object.keys(request.comprehensive_plan_data) : null,
+      weekly_plans_type: request.comprehensive_plan_data?.weekly_plans ? typeof request.comprehensive_plan_data.weekly_plans : null,
+      weekly_plans_length: request.comprehensive_plan_data?.weekly_plans ? request.comprehensive_plan_data.weekly_plans.length : null,
+      weekly_plans_sample: request.comprehensive_plan_data?.weekly_plans ? request.comprehensive_plan_data.weekly_plans[0] : null,
+      plan_created_at: request.plan_created_at,
+      plan_updated_at: request.plan_updated_at,
+      created_at: request.created_at,
+      updated_at: request.updated_at
+    });
+
+  } catch (error) {
+    console.error('Debug diet plan data error:', error);
+    res.status(500).json({ error: 'Failed to debug diet plan data' });
+  }
+};
