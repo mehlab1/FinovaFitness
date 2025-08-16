@@ -48,7 +48,7 @@ export const updateDietPlanRequest = async (req, res) => {
   try {
     const nutritionistId = req.userId;
     const { requestId } = req.params;
-    const { status, nutritionist_notes, meal_plan } = req.body;
+    const { status, nutritionist_notes, preparation_time, meal_plan } = req.body;
 
     // Verify the request belongs to this nutritionist
     const verifyResult = await query(
@@ -63,10 +63,10 @@ export const updateDietPlanRequest = async (req, res) => {
     // Update the request
     const result = await query(
       `UPDATE diet_plan_requests 
-       SET status = $1, nutritionist_notes = $2, meal_plan = $3, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4 AND nutritionist_id = $5
+       SET status = $1, nutritionist_notes = $2, preparation_time = $3, meal_plan = $4, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5 AND nutritionist_id = $6
        RETURNING *`,
-      [status, nutritionist_notes, meal_plan, requestId, nutritionistId]
+      [status, nutritionist_notes, preparation_time, meal_plan, requestId, nutritionistId]
     );
 
     res.json(result.rows[0]);

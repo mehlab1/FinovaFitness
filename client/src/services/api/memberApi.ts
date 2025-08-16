@@ -114,7 +114,9 @@ export const memberApi = {
     nutritionist_id: number;
     fitness_goal: string;
     current_weight: number;
+    height: number;
     target_weight: number;
+    activity_level: string;
     monthly_budget: number;
     dietary_restrictions?: string;
     additional_notes?: string;

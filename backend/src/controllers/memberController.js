@@ -150,7 +150,9 @@ export const createDietPlanRequest = async (req, res) => {
       nutritionist_id,
       fitness_goal,
       current_weight,
+      height,
       target_weight,
+      activity_level,
       monthly_budget,
       dietary_restrictions,
       additional_notes
@@ -158,10 +160,10 @@ export const createDietPlanRequest = async (req, res) => {
 
     const result = await query(
       `INSERT INTO diet_plan_requests 
-       (user_id, nutritionist_id, fitness_goal, current_weight, target_weight, monthly_budget, dietary_restrictions, additional_notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (user_id, nutritionist_id, fitness_goal, current_weight, height, target_weight, activity_level, monthly_budget, dietary_restrictions, additional_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [userId, nutritionist_id, fitness_goal, current_weight, target_weight, monthly_budget, dietary_restrictions, additional_notes]
+      [userId, nutritionist_id, fitness_goal, current_weight, height, target_weight, activity_level, monthly_budget, dietary_restrictions, additional_notes]
     );
 
     res.json(result.rows[0]);

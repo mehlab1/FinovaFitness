@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, DietPlanRequest, MealPlanTemplate, ComprehensiveDietPlan, WeeklyMealPlan, Recipe } from '../types';
 import { useToast } from './Toast';
 import Chat from './Chat';
 import { MessageSquare } from 'lucide-react';
+import { nutritionistApi } from '../services/api/nutritionistApi';
 
 interface NutritionistPortalProps {
   user: User | null;
@@ -928,8 +929,8 @@ const DietPlanRequests = ({
         body: JSON.stringify({
           status: actionType === 'approve' ? 'approved' : actionType === 'reject' ? 'rejected' : 'completed',
           nutritionist_notes: notes,
+          preparation_time: actionType === 'approve' ? preparationTime : undefined,
           meal_plan: actionType === 'approve' || actionType === 'complete' ? mealPlan : selectedRequest.meal_plan,
-
         })
       });
 
@@ -1222,9 +1223,16 @@ const DietPlanRequests = ({
 };
 
 const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [templates, setTemplates] = useState([]);
+  const [activeTab, setActiveTab] = useState<'templates' | 'client-requests'>('templates');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'completed'>('all');
+  const [templates, setTemplates] = useState<MealPlanTemplate[]>([]);
+  const [dietPlanRequests, setDietPlanRequests] = useState<DietPlanRequest[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showDietPlanModal, setShowDietPlanModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<DietPlanRequest | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [newTemplate, setNewTemplate] = useState({
     template_name: '',
@@ -1277,25 +1285,101 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
     notes: ''
   });
 
-  // Fetch templates on component mount
+  // Comprehensive Diet Plan Creation State
+  const [dietPlanCreationStep, setDietPlanCreationStep] = useState(1);
+  const [dietPlanData, setDietPlanData] = useState({
+    plan_name: '',
+    description: '',
+    total_weeks: 4,
+    overall_goals: {
+      target_calories: 0,
+      target_protein: 0,
+      target_carbs: 0,
+      target_fats: 0,
+      target_fiber: 0,
+      target_sodium: 0,
+      target_sugar: 0
+    },
+    dietary_guidelines: [''],
+    shopping_list: [''],
+    preparation_tips: [''],
+    weekly_plans: [] as WeeklyMealPlan[]
+  });
+  const [currentWeek, setCurrentWeek] = useState(1);
+  const [currentDay, setCurrentDay] = useState(1);
+  const [currentMealType, setCurrentMealType] = useState<'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' | 'Pre-Workout' | 'Post-Workout'>('Breakfast');
+  const [customFoods, setCustomFoods] = useState<Array<{
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    unit: string;
+  }>>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [isLoadingRecipes, setIsLoadingRecipes] = useState(false);
+
+  // Meal Planning State
+  const [showMealModal, setShowMealModal] = useState(false);
+  const [showFoodModal, setShowFoodModal] = useState(false);
+  const [newMeal, setNewMeal] = useState({
+    meal_type: 'Breakfast' as const,
+    meal_order: 1,
+    time: '',
+    items: [] as any[],
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fats: 0,
+    notes: ''
+  });
+  const [newFoodItem, setNewFoodItem] = useState({
+    food_name: '',
+    quantity: 0,
+    unit: 'g',
+    calories_per_serving: 0,
+    protein_per_serving: 0,
+    carbs_per_serving: 0,
+    fats_per_serving: 0,
+    notes: ''
+  });
+
+  // Fetch templates and diet plan requests on component mount
   useEffect(() => {
     fetchTemplates();
+    fetchDietPlanRequests();
   }, []);
+
+  // Function to check if a request has existing progress
+  const hasExistingProgress = (requestId: number) => {
+    const savedProgress = localStorage.getItem(`dietPlan_${requestId}`);
+    if (savedProgress) {
+      try {
+        const parsed = JSON.parse(savedProgress);
+        return parsed && parsed.current_step && parsed.current_step > 1;
+      } catch (error) {
+        return false;
+      }
+    }
+    return false;
+  };
+
+  const fetchDietPlanRequests = async () => {
+    try {
+      setIsLoadingRequests(true);
+      const data = await nutritionistApi.getDietPlanRequests();
+      setDietPlanRequests(data);
+    } catch (error) {
+      showToast('Failed to fetch diet plan requests', 'error');
+    } finally {
+      setIsLoadingRequests(false);
+    }
+  };
 
   const fetchTemplates = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:3001/api/meal-plan-templates', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch templates');
-      }
-
-      const data = await response.json();
+      const data = await nutritionistApi.getMealPlanTemplates();
       setTemplates(data);
     } catch (error) {
       showToast('Failed to fetch templates', 'error');
@@ -1322,20 +1406,7 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
         meal_count: newTemplate.meals.length
       };
       
-      const response = await fetch('http://localhost:3001/api/meal-plan-templates', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(cleanTemplate),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create template');
-      }
-
+      await nutritionistApi.createMealPlanTemplate(cleanTemplate);
       showToast('Meal plan template created successfully!', 'success');
       setShowCreateModal(false);
       resetForm();
@@ -1486,6 +1557,450 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
     }));
   };
 
+  const openDietPlanRequest = (request: DietPlanRequest) => {
+    setSelectedRequest(request);
+    setShowRequestModal(true);
+  };
+
+  const closeDietPlanRequest = () => {
+    setSelectedRequest(null);
+    setShowRequestModal(false);
+  };
+
+  const handleUpdateRequestStatus = async (requestId: number, newStatus: 'pending' | 'approved' | 'rejected' | 'completed') => {
+    try {
+      await nutritionistApi.updateDietPlanRequest(requestId, { status: newStatus });
+      showToast(`Request ${newStatus} successfully!`, 'success');
+      fetchDietPlanRequests(); // Refresh the list
+    } catch (error) {
+      showToast('Failed to update request status', 'error');
+    }
+  };
+
+  // Comprehensive Diet Plan Creation Functions
+  const openDietPlanCreation = () => {
+    setShowDietPlanModal(true);
+    
+    // Try to load saved progress
+    if (selectedRequest) {
+      const savedProgress = localStorage.getItem(`dietPlan_${selectedRequest.id}`);
+      if (savedProgress) {
+        try {
+          const parsed = JSON.parse(savedProgress);
+          setDietPlanData(parsed);
+          setDietPlanCreationStep(parsed.current_step || 1);
+          showToast('Previous progress loaded!', 'info');
+        } catch (error) {
+          console.error('Failed to parse saved progress:', error);
+        }
+      } else {
+        setDietPlanCreationStep(1);
+        // Initialize with client's information
+        setDietPlanData(prev => ({
+          ...prev,
+          plan_name: `Diet Plan for ${selectedRequest.client_name}`,
+          description: `Personalized diet plan for ${selectedRequest.client_name} - ${selectedRequest.fitness_goal}`,
+          overall_goals: {
+            ...prev.overall_goals,
+            target_calories: selectedRequest.current_weight * 15, // Basic calculation
+            target_protein: selectedRequest.current_weight * 2, // 2g per kg
+            target_carbs: selectedRequest.current_weight * 3, // 3g per kg
+            target_fats: selectedRequest.current_weight * 0.8, // 0.8g per kg
+          }
+        }));
+      }
+    }
+  };
+
+  const closeDietPlanCreation = () => {
+    setShowDietPlanModal(false);
+    setDietPlanCreationStep(1);
+    setDietPlanData({
+      plan_name: '',
+      description: '',
+      total_weeks: 4,
+      overall_goals: {
+        target_calories: 0,
+        target_protein: 0,
+        target_carbs: 0,
+        target_fats: 0,
+        target_fiber: 0,
+        target_sodium: 0,
+        target_sugar: 0
+      },
+      dietary_guidelines: [''],
+      shopping_list: [''],
+      preparation_tips: [''],
+      weekly_plans: []
+    });
+  };
+
+  const clearSavedProgress = () => {
+    if (selectedRequest) {
+      localStorage.removeItem(`dietPlan_${selectedRequest.id}`);
+      showToast('Saved progress cleared!', 'info');
+      // Reset the modal to show "Create New Plan" instead of "Continue"
+      setShowDietPlanModal(false);
+      setTimeout(() => {
+        openDietPlanCreation();
+      }, 100);
+    }
+  };
+
+  const saveDietPlanProgress = async () => {
+    try {
+      if (!selectedRequest) return;
+      
+      const progressData = {
+        diet_plan_request_id: selectedRequest.id,
+        nutritionist_id: 1, // This should come from the logged-in user
+        client_id: 1, // This should come from the selected request
+        ...dietPlanData,
+        status: 'in_progress' as const,
+        current_step: dietPlanCreationStep,
+        total_steps: 6
+      };
+
+      // Save to backend
+      await nutritionistApi.createComprehensiveDietPlan(progressData);
+      
+      // Also save to localStorage as backup
+      localStorage.setItem(`dietPlan_${selectedRequest.id}`, JSON.stringify(progressData));
+      
+      showToast('Diet plan progress saved successfully!', 'success');
+    } catch (error) {
+      // If backend save fails, still save to localStorage
+      if (selectedRequest) {
+        const progressData = {
+          diet_plan_request_id: selectedRequest.id,
+          nutritionist_id: 1,
+          client_id: 1,
+          ...dietPlanData,
+          status: 'in_progress' as const,
+          current_step: dietPlanCreationStep,
+          total_steps: 6
+        };
+        localStorage.setItem(`dietPlan_${selectedRequest.id}`, JSON.stringify(progressData));
+        showToast('Progress saved locally (backend unavailable)', 'info');
+      } else {
+        showToast('Failed to save progress', 'error');
+      }
+    }
+  };
+
+  const addDietaryGuideline = () => {
+    setDietPlanData(prev => ({
+      ...prev,
+      dietary_guidelines: [...prev.dietary_guidelines, '']
+    }));
+  };
+
+  const updateDietaryGuideline = (index: number, value: string) => {
+    setDietPlanData(prev => ({
+      ...prev,
+      dietary_guidelines: prev.dietary_guidelines.map((guideline, i) => 
+        i === index ? value : guideline
+      )
+    }));
+  };
+
+  const removeDietaryGuideline = (index: number) => {
+    setDietPlanData(prev => ({
+      ...prev,
+      dietary_guidelines: prev.dietary_guidelines.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addShoppingListItem = () => {
+    setDietPlanData(prev => ({
+      ...prev,
+      shopping_list: [...prev.shopping_list, '']
+    }));
+  };
+
+  const updateShoppingListItem = (index: number, value: string) => {
+    setDietPlanData(prev => ({
+      ...prev,
+      shopping_list: prev.shopping_list.map((item, i) => 
+        i === index ? value : item
+      )
+    }));
+  };
+
+  const removeShoppingListItem = (index: number) => {
+    setDietPlanData(prev => ({
+      ...prev,
+      shopping_list: prev.shopping_list.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addPreparationTip = () => {
+    setDietPlanData(prev => ({
+      ...prev,
+      preparation_tips: [...prev.preparation_tips, '']
+    }));
+  };
+
+  const updatePreparationTip = (index: number, value: string) => {
+    setDietPlanData(prev => ({
+      ...prev,
+      preparation_tips: prev.preparation_tips.map((tip, i) => 
+        i === index ? value : tip
+      )
+    }));
+  };
+
+  const removePreparationTip = (index: number) => {
+    setDietPlanData(prev => ({
+      ...prev,
+      preparation_tips: prev.preparation_tips.filter((_, i) => i !== index)
+    }));
+  };
+
+  const nextDietPlanStep = () => {
+    if (dietPlanCreationStep < 6) {
+      setDietPlanCreationStep(prev => prev + 1);
+    }
+  };
+
+  const prevDietPlanStep = () => {
+    if (dietPlanCreationStep > 1) {
+      setDietPlanCreationStep(prev => prev - 1);
+    }
+  };
+
+  // Meal Planning Functions
+  const getCurrentDayMeals = () => {
+    const weekPlan = dietPlanData.weekly_plans.find(w => w.week_number === currentWeek);
+    if (!weekPlan) return [];
+    
+    const dayPlan = weekPlan.daily_plans.find(d => d.day_of_week === currentDay);
+    return dayPlan ? dayPlan.meals : [];
+  };
+
+  const toggleCheatDay = (week: number, day: number, isCheat: boolean) => {
+    setDietPlanData(prev => {
+      const newData = { ...prev };
+      
+      // Find or create week plan
+      let weekPlan = newData.weekly_plans.find(w => w.week_number === week);
+      if (!weekPlan) {
+        weekPlan = {
+          week_number: week,
+          start_date: new Date().toISOString().split('T')[0],
+          end_date: new Date().toISOString().split('T')[0],
+          daily_plans: [],
+          weekly_goals: {
+            target_calories: 0,
+            target_protein: 0,
+            target_carbs: 0,
+            target_fats: 0,
+            cheat_days_allowed: 0
+          }
+        };
+        newData.weekly_plans.push(weekPlan);
+      }
+      
+      // Find or create day plan
+      let dayPlan = weekPlan.daily_plans.find(d => d.day_of_week === day);
+      if (!dayPlan) {
+        dayPlan = {
+          day_of_week: day,
+          is_cheat_day: false,
+          meals: [],
+          total_calories: 0,
+          total_protein: 0,
+          total_carbs: 0,
+          total_fats: 0
+        };
+        weekPlan.daily_plans.push(dayPlan);
+      }
+      
+      dayPlan.is_cheat_day = isCheat;
+      return newData;
+    });
+  };
+
+  const addMealToDay = () => {
+    if (newMeal.items.length === 0) {
+      showToast('Please add at least one food item to the meal', 'error');
+      return;
+    }
+
+    // Calculate total nutrition for the meal
+    const totalCalories = newMeal.items.reduce((sum, item) => sum + (item.calories || 0), 0);
+    const totalProtein = newMeal.items.reduce((sum, item) => sum + (item.protein || 0), 0);
+    const totalCarbs = newMeal.items.reduce((sum, item) => sum + (item.carbs || 0), 0);
+    const totalFats = newMeal.items.reduce((sum, item) => sum + (item.fats || 0), 0);
+
+    const mealToAdd = {
+      ...newMeal,
+      calories: totalCalories,
+      protein: totalProtein,
+      carbs: totalCarbs,
+      fats: totalFats
+    };
+
+    setDietPlanData(prev => {
+      const newData = { ...prev };
+      
+      // Find or create week plan
+      let weekPlan = newData.weekly_plans.find(w => w.week_number === currentWeek);
+      if (!weekPlan) {
+        weekPlan = {
+          week_number: currentWeek,
+          start_date: new Date().toISOString().split('T')[0],
+          end_date: new Date().toISOString().split('T')[0],
+          daily_plans: [],
+          weekly_goals: {
+            target_calories: 0,
+            target_protein: 0,
+            target_carbs: 0,
+            target_fats: 0,
+            cheat_days_allowed: 0
+          }
+        };
+        newData.weekly_plans.push(weekPlan);
+      }
+      
+      // Find or create day plan
+      let dayPlan = weekPlan.daily_plans.find(d => d.day_of_week === currentDay);
+      if (!dayPlan) {
+        dayPlan = {
+          day_of_week: currentDay,
+          is_cheat_day: false,
+          meals: [],
+          total_calories: 0,
+          total_protein: 0,
+          total_carbs: 0,
+          total_fats: 0
+        };
+        weekPlan.daily_plans.push(dayPlan);
+      }
+      
+      // Add meal to day plan
+      dayPlan.meals.push(mealToAdd);
+      
+      // Update daily totals
+      dayPlan.total_calories = dayPlan.meals.reduce((sum, meal) => sum + meal.calories, 0);
+      dayPlan.total_protein = dayPlan.meals.reduce((sum, meal) => sum + meal.protein, 0);
+      dayPlan.total_carbs = dayPlan.meals.reduce((sum, meal) => sum + meal.carbs, 0);
+      dayPlan.total_fats = dayPlan.meals.reduce((sum, meal) => sum + meal.fats, 0);
+      
+      return newData;
+    });
+
+    // Reset meal form
+    setNewMeal({
+      meal_type: 'Breakfast',
+      meal_order: 1,
+      time: '',
+      items: [],
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fats: 0,
+      notes: ''
+    });
+
+    setShowMealModal(false);
+    showToast('Meal added successfully!', 'success');
+  };
+
+  const removeMealFromDay = (week: number, day: number, mealIndex: number) => {
+    setDietPlanData(prev => {
+      const newData = { ...prev };
+      const weekPlan = newData.weekly_plans.find(w => w.week_number === week);
+      if (weekPlan) {
+        const dayPlan = weekPlan.daily_plans.find(d => d.day_of_week === day);
+        if (dayPlan) {
+          dayPlan.meals.splice(mealIndex, 1);
+          
+          // Update daily totals
+          dayPlan.total_calories = dayPlan.meals.reduce((sum, meal) => sum + meal.calories, 0);
+          dayPlan.total_protein = dayPlan.meals.reduce((sum, meal) => sum + meal.protein, 0);
+          dayPlan.total_carbs = dayPlan.meals.reduce((sum, meal) => sum + meal.carbs, 0);
+          dayPlan.total_fats = dayPlan.meals.reduce((sum, meal) => sum + meal.fats, 0);
+        }
+      }
+      return newData;
+    });
+    showToast('Meal removed successfully!', 'success');
+  };
+
+  const addFoodItemToMeal = () => {
+    if (!newFoodItem.food_name || newFoodItem.quantity <= 0) {
+      showToast('Please fill in all required fields', 'error');
+      return;
+    }
+
+    // Calculate nutrition values based on quantity
+    const multiplier = newFoodItem.quantity / 100; // Assuming 100g is the base serving
+    const calories = newFoodItem.calories_per_serving * multiplier;
+    const protein = newFoodItem.protein_per_serving * multiplier;
+    const carbs = newFoodItem.carbs_per_serving * multiplier;
+    const fats = newFoodItem.fats_per_serving * multiplier;
+
+    const foodItem = {
+      type: 'food' as const,
+      food_name: newFoodItem.food_name,
+      quantity: newFoodItem.quantity,
+      unit: newFoodItem.unit,
+      calories,
+      protein,
+      carbs,
+      fats,
+      notes: newFoodItem.notes
+    };
+
+    setNewMeal(prev => ({
+      ...prev,
+      items: [...prev.items, foodItem]
+    }));
+
+    // Reset food item form
+    setNewFoodItem({
+      food_name: '',
+      quantity: 0,
+      unit: 'g',
+      calories_per_serving: 0,
+      protein_per_serving: 0,
+      carbs_per_serving: 0,
+      fats_per_serving: 0,
+      notes: ''
+    });
+
+    setShowFoodModal(false);
+    showToast('Food item added to meal!', 'success');
+  };
+
+  const removeFoodItem = (index: number) => {
+    setNewMeal(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
+  };
+
+  const getDailyTotalCalories = () => {
+    const meals = getCurrentDayMeals();
+    return meals.reduce((sum, meal) => sum + meal.calories, 0);
+  };
+
+  const getDailyTotalProtein = () => {
+    const meals = getCurrentDayMeals();
+    return meals.reduce((sum, meal) => sum + meal.protein, 0);
+  };
+
+  const getDailyTotalCarbs = () => {
+    const meals = getCurrentDayMeals();
+    return meals.reduce((sum, meal) => sum + meal.carbs, 0);
+  };
+
+  const getDailyTotalFats = () => {
+    const meals = getCurrentDayMeals();
+    return meals.reduce((sum, meal) => sum + meal.fats, 0);
+  };
+
   const validateStep = (step) => {
     switch (step) {
       case 1:
@@ -1525,16 +2040,50 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
 
   return (
     <div className="animate-fade-in">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-bold text-purple-400">Meal Plan Templates</h3>
+      {/* Tabs */}
+      <div className="flex space-x-1 mb-6 bg-gray-800/50 p-1 rounded-xl">
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:scale-105 shadow-lg"
+          onClick={() => setActiveTab('templates')}
+          className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
+            activeTab === 'templates'
+              ? 'bg-purple-500 text-white shadow-lg'
+              : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+          }`}
         >
-          <i className="fas fa-plus mr-2"></i>
-          Create New Template
+          <i className="fas fa-folder mr-2"></i>
+          Templates
+        </button>
+        <button
+          onClick={() => setActiveTab('client-requests')}
+          className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
+            activeTab === 'client-requests'
+              ? 'bg-purple-500 text-white shadow-lg'
+              : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+          }`}
+        >
+          <i className="fas fa-users mr-2"></i>
+          Client Requests
+          {dietPlanRequests.filter(r => r.status === 'approved').length > 0 && (
+            <span className="ml-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+              {dietPlanRequests.filter(r => r.status === 'approved').length}
+            </span>
+          )}
         </button>
       </div>
+
+      {/* Templates Tab */}
+      {activeTab === 'templates' && (
+        <>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-purple-400">Meal Plan Templates</h3>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:scale-105 shadow-lg"
+            >
+              <i className="fas fa-plus mr-2"></i>
+              Create New Template
+            </button>
+          </div>
 
       {/* Templates Grid */}
       {isLoading ? (
@@ -1603,6 +2152,162 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
           </div>
         ))}
       </div>
+      )}
+        </>
+      )}
+
+      {/* Client Requests Tab */}
+      {activeTab === 'client-requests' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-purple-400">Client Diet Plan Requests</h3>
+            <button
+              onClick={fetchDietPlanRequests}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              <i className="fas fa-sync-alt mr-2"></i>
+              Refresh
+            </button>
+          </div>
+
+          {/* Status Filter */}
+          <div className="flex space-x-2 mb-6">
+            {['all', 'pending', 'approved', 'rejected', 'completed'].map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  statusFilter === status
+                    ? 'bg-purple-500 text-white'
+                    : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'
+                }`}
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {status === 'all' && ` (${dietPlanRequests.length})`}
+                {status !== 'all' && ` (${dietPlanRequests.filter(r => r.status === status).length})`}
+              </button>
+            ))}
+          </div>
+
+          {/* Requests List */}
+          {isLoadingRequests ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+            </div>
+          ) : dietPlanRequests.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-24 h-24 mx-auto mb-4 bg-gray-800/50 rounded-full flex items-center justify-center border border-gray-700/50">
+                <i className="fas fa-clipboard-list text-3xl text-gray-600"></i>
+              </div>
+              <p className="text-lg font-medium text-gray-400">No diet plan requests yet</p>
+              <p className="text-sm text-gray-500 mt-1">Clients will appear here when they submit requests</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {dietPlanRequests
+                .filter(request => {
+                  if (statusFilter === 'all') return true;
+                  return request.status === statusFilter;
+                })
+                .map((request) => (
+                  <div key={request.id} className="glass-card p-6 rounded-xl border border-gray-700/50 hover:shadow-lg transition-all">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h4 className="text-lg font-semibold text-white mb-2">{request.client_name}</h4>
+                        <div className="flex items-center space-x-4 text-sm text-gray-300">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            request.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                            request.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                            request.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                          </span>
+                          <span>Goal: {request.fitness_goal}</span>
+                          <span>Budget: ${request.monthly_budget}</span>
+                        </div>
+                        
+                        {/* Progress Indicator */}
+                        {request.status === 'approved' && hasExistingProgress(request.id) && (
+                          <div className="mt-2 flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                            <span className="text-xs text-orange-400 font-medium">Progress Saved</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right text-sm text-gray-400">
+                        <div>Requested: {new Date(request.created_at).toLocaleDateString()}</div>
+                        {request.updated_at !== request.created_at && (
+                          <div>Updated: {new Date(request.updated_at).toLocaleDateString()}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+                      <div>
+                        <span className="text-gray-400">Current Weight:</span>
+                        <div className="font-medium text-white">{request.current_weight} kg</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Height:</span>
+                        <div className="font-medium text-white">{request.height} cm</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Target Weight:</span>
+                        <div className="font-medium text-white">{request.target_weight} kg</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Activity Level:</span>
+                        <div className="font-medium text-white">{request.activity_level}</div>
+                      </div>
+                    </div>
+
+                    {request.dietary_restrictions && (
+                      <div className="mb-4">
+                        <span className="text-gray-400 text-sm">Dietary Restrictions:</span>
+                        <div className="text-white mt-1">{request.dietary_restrictions}</div>
+                      </div>
+                    )}
+
+                    {request.additional_notes && (
+                      <div className="mb-4">
+                        <span className="text-gray-400 text-sm">Additional Notes:</span>
+                        <div className="text-white mt-1">{request.additional_notes}</div>
+                      </div>
+                    )}
+
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => openDietPlanRequest(request)}
+                        className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-medium transition-colors"
+                      >
+                        <i className="fas fa-eye mr-2"></i>
+                        View Details
+                      </button>
+                      {request.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateRequestStatus(request.id, 'approved')}
+                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition-colors"
+                          >
+                            <i className="fas fa-check mr-2"></i>
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleUpdateRequestStatus(request.id, 'rejected')}
+                            className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-medium transition-colors"
+                          >
+                            <i className="fas fa-times mr-2"></i>
+                            Reject
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Create Template Modal */}
@@ -2305,6 +3010,1109 @@ const MealPlanTemplates = ({ showToast }: { showToast: (message: string, type?: 
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Diet Plan Request Modal */}
+      {showRequestModal && selectedRequest && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-6 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-purple-400">Diet Plan Request Details</h3>
+              <button 
+                onClick={closeDietPlanRequest}
+                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                title="Close"
+              >
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+
+            {/* Client Information */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-purple-300 border-b border-gray-600 pb-2">Client Information</h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-gray-400 text-sm">Client Name:</span>
+                    <div className="font-medium text-white text-lg">{selectedRequest.client_name}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-sm">Fitness Goal:</span>
+                    <div className="font-medium text-white">{selectedRequest.fitness_goal}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-sm">Current Weight:</span>
+                    <div className="font-medium text-white">{selectedRequest.current_weight} kg</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-sm">Height:</span>
+                    <div className="font-medium text-white">{selectedRequest.height} cm</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-sm">Target Weight:</span>
+                    <div className="font-medium text-white">{selectedRequest.target_weight} kg</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-sm">Activity Level:</span>
+                    <div className="font-medium text-white">{selectedRequest.activity_level}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-sm">Monthly Budget:</span>
+                    <div className="font-medium text-white">${selectedRequest.monthly_budget}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-sm">Status:</span>
+                    <div className={`font-medium px-2 py-1 rounded-full text-xs ${
+                      selectedRequest.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                      selectedRequest.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                      selectedRequest.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                      'bg-blue-500/20 text-blue-400'
+                    }`}>
+                      {selectedRequest.status.charAt(0).toUpperCase() + selectedRequest.status.slice(1)}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedRequest.dietary_restrictions && (
+                  <div>
+                    <span className="text-gray-400 text-sm">Dietary Restrictions:</span>
+                    <div className="text-white mt-1 bg-gray-800/50 p-3 rounded-lg">{selectedRequest.dietary_restrictions}</div>
+                  </div>
+                )}
+
+                {selectedRequest.additional_notes && (
+                  <div>
+                    <span className="text-gray-400 text-sm">Additional Notes:</span>
+                    <div className="text-white mt-1 bg-gray-800/50 p-3 rounded-lg">{selectedRequest.additional_notes}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-purple-300 border-b border-gray-600 pb-2">Create Diet Plan</h4>
+                
+                <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-700/50">
+                  <p className="text-gray-300 text-sm mb-4">
+                    Based on the client's information, create a personalized diet plan. You can use existing templates as a starting point or create a completely new plan.
+                  </p>
+                  
+                  {/* Progress Indicator */}
+                  {(() => {
+                    const savedProgress = selectedRequest && localStorage.getItem(`dietPlan_${selectedRequest.id}`);
+                    if (savedProgress) {
+                      try {
+                        const parsed = JSON.parse(savedProgress);
+                        const progressPercentage = Math.round((parsed.current_step / parsed.total_steps) * 100);
+                        return (
+                          <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-orange-400 font-medium text-sm">Progress Saved</span>
+                              <span className="text-orange-300 text-xs">{progressPercentage}% Complete</span>
+                            </div>
+                            <div className="w-full bg-gray-700 rounded-full h-2">
+                              <div 
+                                className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
+                                style={{ width: `${progressPercentage}%` }}
+                              ></div>
+                            </div>
+                            <p className="text-orange-300 text-xs mt-2">
+                              Step {parsed.current_step} of {parsed.total_steps} - {parsed.plan_name}
+                            </p>
+                          </div>
+                        );
+                      } catch (error) {
+                        return null;
+                      }
+                    }
+                    return null;
+                  })()}
+                  
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => showToast('Create from template functionality coming soon!', 'info')}
+                      className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-medium transition-colors"
+                    >
+                      <i className="fas fa-copy mr-2"></i>
+                      Create from Template
+                    </button>
+                    
+                    {(() => {
+                      const hasExistingProgress = selectedRequest && localStorage.getItem(`dietPlan_${selectedRequest.id}`);
+                      return (
+                        <button
+                          onClick={openDietPlanCreation}
+                          className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                            hasExistingProgress 
+                              ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+                              : 'bg-green-500 hover:bg-green-600 text-white'
+                          }`}
+                        >
+                          <i className={`${hasExistingProgress ? 'fas fa-play' : 'fas fa-plus'} mr-2`}></i>
+                          {hasExistingProgress ? 'Continue Plan' : 'Create New Plan'}
+                        </button>
+                      );
+                    })()}
+                    
+                    <button
+                      onClick={() => showToast('AI assistance functionality coming soon!', 'info')}
+                      className="w-full bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-lg font-medium transition-colors"
+                    >
+                      <i className="fas fa-robot mr-2"></i>
+                      AI-Assisted Creation
+                    </button>
+                  </div>
+                </div>
+
+                {selectedRequest.status === 'pending' && (
+                  <div className="bg-yellow-500/10 p-4 rounded-xl border border-yellow-500/20">
+                    <h5 className="text-yellow-400 font-semibold mb-2">Action Required</h5>
+                    <p className="text-yellow-300 text-sm mb-3">This request is pending your review. Please approve or reject it.</p>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => handleUpdateRequestStatus(selectedRequest.id, 'approved')}
+                        className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition-colors"
+                      >
+                        <i className="fas fa-check mr-2"></i>
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleUpdateRequestStatus(selectedRequest.id, 'rejected')}
+                        className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-medium transition-colors"
+                      >
+                        <i className="fas fa-times mr-2"></i>
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedRequest.status === 'approved' && (
+                  <div className="bg-green-500/10 p-4 rounded-xl border border-green-500/20">
+                    <h5 className="text-green-400 font-semibold mb-2">Request Approved</h5>
+                    <p className="text-green-300 text-sm">This request has been approved. You can now create a personalized diet plan for the client.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Request Timeline */}
+            <div className="border-t border-gray-600 pt-6">
+              <h4 className="text-lg font-semibold text-purple-300 mb-4">Request Timeline</h4>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-gray-300">Request submitted by {selectedRequest.client_name}</span>
+                  <span className="text-gray-500 text-sm">{new Date(selectedRequest.created_at).toLocaleString()}</span>
+                </div>
+                {selectedRequest.updated_at !== selectedRequest.created_at && (
+                  <div className="flex items-center space-x-3">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span className="text-gray-300">Request updated</span>
+                    <span className="text-gray-500 text-sm">{new Date(selectedRequest.updated_at).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comprehensive Diet Plan Creation Modal */}
+      {showDietPlanModal && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-6 rounded-2xl max-w-7xl w-full max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-purple-400">Create Comprehensive Diet Plan</h3>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={saveDietPlanProgress}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  <i className="fas fa-save mr-2"></i>
+                  Save Progress
+                </button>
+                {selectedRequest && localStorage.getItem(`dietPlan_${selectedRequest.id}`) && (
+                  <button
+                    onClick={clearSavedProgress}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    title="Clear saved progress and start over"
+                  >
+                    <i className="fas fa-trash mr-2"></i>
+                    Clear Progress
+                  </button>
+                )}
+                <button 
+                  onClick={closeDietPlanCreation}
+                  className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                  title="Close"
+                >
+                  <i className="fas fa-times text-xl"></i>
+                </button>
+              </div>
+            </div>
+
+            {/* Progress Steps */}
+            <div className="flex items-center justify-center mb-6">
+              {[1, 2, 3, 4, 5, 6].map((step) => (
+                <div key={step} className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                    dietPlanCreationStep >= step ? 'bg-purple-500 text-white' : 'bg-gray-600 text-gray-300'
+                  }`}>
+                    {step}
+                  </div>
+                  {step < 6 && (
+                    <div className={`w-16 h-1 mx-2 ${
+                      dietPlanCreationStep > step ? 'bg-purple-500' : 'bg-gray-600'
+                    }`}></div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Progress Indicator */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-400">Step {dietPlanCreationStep} of 6</span>
+                <span className="text-sm text-purple-400">{Math.round((dietPlanCreationStep / 6) * 100)}% Complete</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(dietPlanCreationStep / 6) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Step 1: Basic Plan Information */}
+            {dietPlanCreationStep === 1 && (
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">1</span>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Basic Plan Information</h4>
+                    <p className="text-sm text-gray-400">Set the foundation for your comprehensive diet plan</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Plan Name *</label>
+                    <input
+                      type="text"
+                      value={dietPlanData.plan_name}
+                      onChange={(e) => setDietPlanData(prev => ({ ...prev, plan_name: e.target.value }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                      placeholder="e.g., Weight Loss Plan for John Doe"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Total Weeks *</label>
+                    <select
+                      value={dietPlanData.total_weeks}
+                      onChange={(e) => setDietPlanData(prev => ({ ...prev, total_weeks: parseInt(e.target.value) }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                    >
+                      {[1, 2, 3, 4, 6, 8, 12].map(weeks => (
+                        <option key={weeks} value={weeks}>{weeks} week{weeks > 1 ? 's' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                  <textarea
+                    value={dietPlanData.description}
+                    onChange={(e) => setDietPlanData(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                    rows={3}
+                    placeholder="Describe the overall approach and goals of this diet plan..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Overall Nutritional Goals */}
+            {dietPlanCreationStep === 2 && (
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">2</span>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Overall Nutritional Goals</h4>
+                    <p className="text-sm text-gray-400">Set the macro and micronutrient targets for the entire plan</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Calories *</label>
+                    <input
+                      type="number"
+                      value={dietPlanData.overall_goals.target_calories}
+                      onChange={(e) => setDietPlanData(prev => ({
+                        ...prev,
+                        overall_goals: { ...prev.overall_goals, target_calories: parseInt(e.target.value) || 0 }
+                      }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Protein (g)</label>
+                    <input
+                      type="number"
+                      value={dietPlanData.overall_goals.target_protein}
+                      onChange={(e) => setDietPlanData(prev => ({
+                        ...prev,
+                        overall_goals: { ...prev.overall_goals, target_protein: parseInt(e.target.value) || 0 }
+                      }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Carbs (g)</label>
+                    <input
+                      type="number"
+                      value={dietPlanData.overall_goals.target_carbs}
+                      onChange={(e) => setDietPlanData(prev => ({
+                        ...prev,
+                        overall_goals: { ...prev.overall_goals, target_carbs: parseInt(e.target.value) || 0 }
+                      }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Fats (g)</label>
+                    <input
+                      type="number"
+                      value={dietPlanData.overall_goals.target_fats}
+                      onChange={(e) => setDietPlanData(prev => ({
+                        ...prev,
+                        overall_goals: { ...prev.overall_goals, target_fats: parseInt(e.target.value) || 0 }
+                      }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Fiber (g)</label>
+                    <input
+                      type="number"
+                      value={dietPlanData.overall_goals.target_fiber}
+                      onChange={(e) => setDietPlanData(prev => ({
+                        ...prev,
+                        overall_goals: { ...prev.overall_goals, target_fiber: parseInt(e.target.value) || 0 }
+                      }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Sodium (mg)</label>
+                    <input
+                      type="number"
+                      value={dietPlanData.overall_goals.target_sodium}
+                      onChange={(e) => setDietPlanData(prev => ({
+                        ...prev,
+                        overall_goals: { ...prev.overall_goals, target_sodium: parseInt(e.target.value) || 0 }
+                      }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Sugar (g)</label>
+                    <input
+                      type="number"
+                      value={dietPlanData.overall_goals.target_sugar}
+                      onChange={(e) => setDietPlanData(prev => ({
+                        ...prev,
+                        overall_goals: { ...prev.overall_goals, target_sugar: parseInt(e.target.value) || 0 }
+                      }))}
+                      className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Dietary Guidelines */}
+            {dietPlanCreationStep === 3 && (
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">3</span>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Dietary Guidelines</h4>
+                    <p className="text-sm text-gray-400">Set the rules and guidelines for the diet plan</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {dietPlanData.dietary_guidelines.map((guideline, index) => (
+                    <div key={index} className="flex items-center space-x-3">
+                      <input
+                        type="text"
+                        value={guideline}
+                        onChange={(e) => updateDietaryGuideline(index, e.target.value)}
+                        className="flex-1 px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        placeholder="e.g., Avoid processed foods, Drink 8 glasses of water daily..."
+                      />
+                      <button
+                        onClick={() => removeDietaryGuideline(index)}
+                        className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-500/20 rounded-lg"
+                        title="Remove guideline"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
+                  ))}
+                  
+                  <button
+                    onClick={addDietaryGuideline}
+                    className="w-full py-3 border-2 border-dashed border-gray-600 rounded-xl text-gray-400 hover:text-gray-300 hover:border-gray-500 transition-colors"
+                  >
+                    <i className="fas fa-plus mr-2"></i>
+                    Add Dietary Guideline
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Shopping List */}
+            {dietPlanCreationStep === 4 && (
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">4</span>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Shopping List</h4>
+                    <p className="text-sm text-gray-400">Create a comprehensive shopping list for the client</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {dietPlanData.shopping_list.map((item, index) => (
+                    <div key={index} className="flex items-center space-x-3">
+                      <input
+                        type="text"
+                        value={item}
+                        onChange={(e) => updateShoppingListItem(index, e.target.value)}
+                        className="flex-1 px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        placeholder="e.g., 2 lbs chicken breast, 1 bag spinach, 1 dozen eggs..."
+                      />
+                      <button
+                        onClick={() => removeShoppingListItem(index)}
+                        className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-500/20 rounded-lg"
+                        title="Remove item"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
+                  ))}
+                  
+                  <button
+                    onClick={addShoppingListItem}
+                    className="w-full py-3 border-2 border-dashed border-gray-600 rounded-xl text-gray-400 hover:text-gray-300 hover:border-gray-500 transition-colors"
+                  >
+                    <i className="fas fa-plus mr-2"></i>
+                    Add Shopping List Item
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 5: Preparation Tips */}
+            {dietPlanCreationStep === 5 && (
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">5</span>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Preparation Tips</h4>
+                    <p className="text-sm text-gray-400">Provide helpful tips for meal preparation and planning</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {dietPlanData.preparation_tips.map((tip, index) => (
+                    <div key={index} className="flex items-center space-x-3">
+                      <input
+                        type="text"
+                        value={tip}
+                        onChange={(e) => updatePreparationTip(index, e.target.value)}
+                        className="flex-1 px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        placeholder="e.g., Meal prep on Sundays, Use slow cooker for batch cooking..."
+                      />
+                      <button
+                        onClick={() => removePreparationTip(index)}
+                        className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-500/20 rounded-lg"
+                        title="Remove tip"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
+                  ))}
+                  
+                  <button
+                    onClick={addPreparationTip}
+                    className="w-full py-3 border-2 border-dashed border-gray-600 rounded-xl text-gray-400 hover:text-gray-300 hover:border-gray-500 transition-colors"
+                  >
+                    <i className="fas fa-plus mr-2"></i>
+                    Add Preparation Tip
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 6: Weekly Meal Planning */}
+            {dietPlanCreationStep === 6 && (
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">6</span>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Weekly Meal Planning</h4>
+                    <p className="text-sm text-gray-400">Plan meals for each week with daily breakdowns</p>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-800/30 p-6 rounded-xl border border-gray-700/50">
+                  <div className="text-center mb-6">
+                    <h5 className="text-lg font-semibold text-purple-300 mb-2">Weekly Meal Planning</h5>
+                    <p className="text-gray-400 text-sm">
+                      Create detailed meal plans for each week. Add specific meals, mark cheat days, and plan your client's nutrition journey.
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="space-y-4">
+                      <h6 className="text-md font-semibold text-white">Week Selection</h6>
+                      <div className="flex flex-wrap gap-2">
+                        {Array.from({ length: dietPlanData.total_weeks }, (_, i) => (
+                          <button
+                            key={i + 1}
+                            onClick={() => setCurrentWeek(i + 1)}
+                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                              currentWeek === i + 1
+                                ? 'bg-purple-500 text-white'
+                                : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'
+                            }`}
+                          >
+                            Week {i + 1}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <h6 className="text-md font-semibold text-white">Day Selection</h6>
+                      <div className="grid grid-cols-7 gap-2">
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
+                          <button
+                            key={day}
+                            onClick={() => setCurrentDay(index + 1)}
+                            className={`px-3 py-2 rounded-lg font-medium transition-colors text-sm ${
+                              currentDay === index + 1
+                                ? 'bg-purple-500 text-white'
+                                : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-700/30 p-6 rounded-lg">
+                    <div className="flex items-center justify-between mb-6">
+                      <h6 className="text-lg font-semibold text-white">
+                        Week {currentWeek} - {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][currentDay - 1]}
+                      </h6>
+                      <div className="flex items-center space-x-3">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={dietPlanData.weekly_plans.find(w => w.week_number === currentWeek)?.daily_plans.find(d => d.day_of_week === currentDay)?.is_cheat_day || false}
+                            onChange={(e) => toggleCheatDay(currentWeek, currentDay, e.target.checked)}
+                            className="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500"
+                          />
+                          <span className="text-sm text-gray-300">Cheat Day</span>
+                        </label>
+                        <button 
+                          onClick={() => setShowMealModal(true)}
+                          className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                        >
+                          <i className="fas fa-plus mr-1"></i>
+                          Add Meal
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Daily Meal Plan Display */}
+                    <div className="space-y-4">
+                      {getCurrentDayMeals().length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          <i className="fas fa-utensils text-3xl mb-3"></i>
+                          <p>No meals planned for this day yet</p>
+                          <p className="text-sm mt-2">Click "Add Meal" to start planning</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {getCurrentDayMeals().map((meal, mealIndex) => (
+                            <div key={mealIndex} className="bg-gray-800/50 p-4 rounded-lg border border-gray-600/30">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center space-x-3">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    meal.meal_type === 'Breakfast' ? 'bg-orange-500/20 text-orange-300' :
+                                    meal.meal_type === 'Lunch' ? 'bg-green-500/20 text-green-300' :
+                                    meal.meal_type === 'Dinner' ? 'bg-blue-500/20 text-blue-300' :
+                                    'bg-purple-500/20 text-purple-300'
+                                  }`}>
+                                    {meal.meal_type}
+                                  </span>
+                                  {meal.time && (
+                                    <span className="text-gray-400 text-sm">
+                                      <i className="fas fa-clock mr-1"></i>
+                                      {meal.time}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm text-gray-400">
+                                    {meal.calories} cal | {meal.protein}g protein | {meal.carbs}g carbs | {meal.fats}g fats
+                                  </span>
+                                                                      <button
+                                      onClick={() => removeMealFromDay(currentWeek, currentDay, mealIndex)}
+                                      className="text-red-400 hover:text-red-300 transition-colors p-1 hover:bg-red-500/20 rounded"
+                                      title="Remove meal"
+                                    >
+                                      <i className="fas fa-trash text-sm"></i>
+                                    </button>
+                                </div>
+                              </div>
+                              
+                              {/* Meal Items */}
+                              <div className="space-y-2">
+                                {meal.items.map((item, itemIndex) => (
+                                  <div key={itemIndex} className="flex items-center justify-between bg-gray-700/30 p-2 rounded">
+                                    <div className="flex items-center space-x-3">
+                                      <span className="text-sm text-gray-300">
+                                        {item.quantity} {item.unit} {item.food_name || item.recipe_name}
+                                      </span>
+                                      {item.notes && (
+                                        <span className="text-xs text-gray-500">({item.notes})</span>
+                                      )}
+                                    </div>
+                                    <span className="text-xs text-gray-400">
+                                      {item.calories} cal
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              {meal.notes && (
+                                <div className="mt-3 p-2 bg-gray-700/20 rounded text-sm text-gray-300">
+                                  <strong>Notes:</strong> {meal.notes}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Daily Nutrition Summary */}
+                    {getCurrentDayMeals().length > 0 && (
+                      <div className="mt-6 p-4 bg-gray-600/20 rounded-lg border border-gray-600/30">
+                        <h6 className="text-md font-semibold text-white mb-3">Daily Nutrition Summary</h6>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-orange-400">{getDailyTotalCalories()}</div>
+                            <div className="text-gray-400">Total Calories</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-green-400">{getDailyTotalProtein()}</div>
+                            <div className="text-gray-400">Protein (g)</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-400">{getDailyTotalCarbs()}</div>
+                            <div className="text-gray-400">Carbs (g)</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-purple-400">{getDailyTotalFats()}</div>
+                            <div className="text-gray-400">Fats (g)</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Add Meal Modal */}
+            {showMealModal && (
+              <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                <div className="glass-card p-6 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-purple-400">Add Meal to {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][currentDay - 1]}</h3>
+                    <button 
+                      onClick={() => setShowMealModal(false)}
+                      className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                      title="Close"
+                    >
+                      <i className="fas fa-times text-xl"></i>
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    {/* Meal Basic Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Meal Type *</label>
+                        <select
+                          value={newMeal.meal_type}
+                          onChange={(e) => setNewMeal(prev => ({ ...prev, meal_type: e.target.value as any }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        >
+                          <option value="Breakfast">Breakfast</option>
+                          <option value="Lunch">Lunch</option>
+                          <option value="Dinner">Dinner</option>
+                          <option value="Snack">Snack</option>
+                          <option value="Pre-Workout">Pre-Workout</option>
+                          <option value="Post-Workout">Post-Workout</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Time (Optional)</label>
+                        <input
+                          type="time"
+                          value={newMeal.time}
+                          onChange={(e) => setNewMeal(prev => ({ ...prev, time: e.target.value }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Order</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={newMeal.meal_order}
+                          onChange={(e) => setNewMeal(prev => ({ ...prev, meal_order: parseInt(e.target.value) || 1 }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Food Items */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h6 className="text-md font-semibold text-white">Food Items</h6>
+                        <button
+                          onClick={() => setShowFoodModal(true)}
+                          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                        >
+                          <i className="fas fa-plus mr-2"></i>
+                          Add Food Item
+                        </button>
+                      </div>
+                      
+                      {newMeal.items.length === 0 ? (
+                        <div className="text-center py-6 text-gray-500 border-2 border-dashed border-gray-600 rounded-lg">
+                          <i className="fas fa-utensils text-2xl mb-2"></i>
+                          <p>No food items added yet</p>
+                          <p className="text-sm">Click "Add Food Item" to start building your meal</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {newMeal.items.map((item, index) => (
+                            <div key={index} className="flex items-center justify-between bg-gray-700/30 p-3 rounded-lg">
+                              <div className="flex items-center space-x-3">
+                                <span className="text-sm text-gray-300">
+                                  {item.quantity} {item.unit} {item.food_name || item.recipe_name}
+                                </span>
+                                {item.notes && (
+                                  <span className="text-xs text-gray-500">({item.notes})</span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-3">
+                                <span className="text-xs text-gray-400">
+                                  {item.calories} cal | {item.protein}g | {item.carbs}g | {item.fats}g
+                                </span>
+                                <button
+                                  onClick={() => removeFoodItem(index)}
+                                  className="text-red-400 hover:text-red-300 transition-colors p-1 hover:bg-red-500/20 rounded"
+                                  title="Remove item"
+                                >
+                                  <i className="fas fa-times"></i>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Meal Notes */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Meal Notes (Optional)</label>
+                      <textarea
+                        value={newMeal.notes}
+                        onChange={(e) => setNewMeal(prev => ({ ...prev, notes: e.target.value }))}
+                        className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        rows={3}
+                        placeholder="Add any special instructions, cooking tips, or notes for this meal..."
+                      />
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-600">
+                      <button
+                        onClick={() => setShowMealModal(false)}
+                        className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      
+                      <button
+                        onClick={addMealToDay}
+                        disabled={newMeal.items.length === 0}
+                        className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                          newMeal.items.length === 0
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-purple-500 hover:bg-purple-600 text-white'
+                        }`}
+                      >
+                        <i className="fas fa-plus mr-2"></i>
+                        Add Meal to Day
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Add Food Item Modal */}
+            {showFoodModal && (
+              <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                <div className="glass-card p-6 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-purple-400">Add Food Item</h3>
+                    <button 
+                      onClick={() => setShowFoodModal(false)}
+                      className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-700"
+                      title="Close"
+                    >
+                      <i className="fas fa-times text-xl"></i>
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Food Name *</label>
+                        <input
+                          type="text"
+                          value={newFoodItem.food_name}
+                          onChange={(e) => setNewFoodItem(prev => ({ ...prev, food_name: e.target.value }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                          placeholder="e.g., Chicken Breast, Brown Rice..."
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Quantity *</label>
+                        <input
+                          type="number"
+                          min="0.1"
+                          step="0.1"
+                          value={newFoodItem.quantity}
+                          onChange={(e) => setNewFoodItem(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                          placeholder="0"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Unit *</label>
+                        <select
+                          value={newFoodItem.unit}
+                          onChange={(e) => setNewFoodItem(prev => ({ ...prev, unit: e.target.value }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        >
+                          <option value="g">grams (g)</option>
+                          <option value="kg">kilograms (kg)</option>
+                          <option value="oz">ounces (oz)</option>
+                          <option value="lb">pounds (lb)</option>
+                          <option value="cup">cup</option>
+                          <option value="tbsp">tablespoon (tbsp)</option>
+                          <option value="tsp">teaspoon (tsp)</option>
+                          <option value="piece">piece</option>
+                          <option value="slice">slice</option>
+                          <option value="whole">whole</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Calories per serving</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={newFoodItem.calories_per_serving}
+                          onChange={(e) => setNewFoodItem(prev => ({ ...prev, calories_per_serving: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Protein (g)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={newFoodItem.protein_per_serving}
+                          onChange={(e) => setNewFoodItem(prev => ({ ...prev, protein_per_serving: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                          placeholder="0"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Carbs (g)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={newFoodItem.carbs_per_serving}
+                          onChange={(e) => setNewFoodItem(prev => ({ ...prev, carbs_per_serving: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                          placeholder="0"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Fats (g)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={newFoodItem.fats_per_serving}
+                          onChange={(e) => setNewFoodItem(prev => ({ ...prev, fats_per_serving: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Notes (Optional)</label>
+                      <input
+                        type="text"
+                        value={newFoodItem.notes}
+                        onChange={(e) => setNewFoodItem(prev => ({ ...prev, notes: e.target.value }))}
+                        className="w-full px-4 py-3 bg-gray-800/70 border border-gray-600/50 rounded-xl focus:border-purple-400/70 focus:outline-none text-white"
+                        placeholder="e.g., organic, cooked, raw..."
+                      />
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-600">
+                      <button
+                        onClick={() => setShowFoodModal(false)}
+                        className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      
+                      <button
+                        onClick={addFoodItemToMeal}
+                        disabled={!newFoodItem.food_name || newFoodItem.quantity <= 0}
+                        className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                          !newFoodItem.food_name || newFoodItem.quantity <= 0
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-green-500 hover:bg-green-600 text-white'
+                        }`}
+                      >
+                        <i className="fas fa-plus mr-2"></i>
+                        Add to Meal
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Navigation Buttons */}
+            <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-600">
+              <button
+                onClick={prevDietPlanStep}
+                disabled={dietPlanCreationStep === 1}
+                className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                  dietPlanCreationStep === 1
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-500 hover:bg-gray-600 text-white'
+                }`}
+              >
+                <i className="fas fa-arrow-left mr-2"></i>
+                Previous
+              </button>
+              
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={saveDietPlanProgress}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                >
+                  <i className="fas fa-save mr-2"></i>
+                  Save Progress
+                </button>
+                
+                {dietPlanCreationStep < 6 ? (
+                  <button
+                    onClick={nextDietPlanStep}
+                    className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Next
+                    <i className="fas fa-arrow-right ml-2"></i>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => showToast('Diet plan creation completed!', 'success')}
+                    className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    <i className="fas fa-check mr-2"></i>
+                    Complete Plan
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

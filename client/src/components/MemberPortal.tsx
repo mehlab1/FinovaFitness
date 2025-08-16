@@ -5188,8 +5188,11 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
   const [selectedChatRequest, setSelectedChatRequest] = useState<any>(null);
   const [dietForm, setDietForm] = useState({
     fitnessGoal: '',
+    customGoal: '',
     currentWeight: '',
+    height: '',
     targetWeight: '',
+    activityLevel: '',
     budget: '',
     dietaryRestrictions: '',
     additionalNotes: ''
@@ -5234,9 +5237,11 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
     try {
       const requestData = {
         nutritionist_id: selectedNutritionist.id,
-        fitness_goal: dietForm.fitnessGoal,
+        fitness_goal: dietForm.fitnessGoal === 'custom' ? dietForm.customGoal : dietForm.fitnessGoal,
         current_weight: parseFloat(dietForm.currentWeight),
+        height: parseFloat(dietForm.height),
         target_weight: parseFloat(dietForm.targetWeight),
+        activity_level: dietForm.activityLevel,
         monthly_budget: parseFloat(dietForm.budget),
         dietary_restrictions: dietForm.dietaryRestrictions,
         additional_notes: dietForm.additionalNotes
@@ -5252,12 +5257,15 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
     setShowDietForm(false);
     setDietForm({
       fitnessGoal: '',
+      customGoal: '',
       currentWeight: '',
+      height: '',
       targetWeight: '',
+      activityLevel: '',
       budget: '',
-        dietaryRestrictions: '',
-        additionalNotes: ''
-      });
+      dietaryRestrictions: '',
+      additionalNotes: ''
+    });
       setSelectedNutritionist(null);
     } catch (error) {
       console.error('Failed to submit diet request:', error);
@@ -5466,7 +5474,13 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
                           <strong className="text-white">Current Weight:</strong> {request.current_weight} kg
                         </div>
                         <div>
+                          <strong className="text-white">Height:</strong> {request.height} cm
+                        </div>
+                        <div>
                           <strong className="text-white">Target Weight:</strong> {request.target_weight} kg
+                        </div>
+                        <div>
+                          <strong className="text-white">Activity Level:</strong> {request.activity_level?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                         </div>
                         <div>
                           <strong className="text-white">Monthly Budget:</strong> PKR {request.monthly_budget}
@@ -5486,7 +5500,11 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
                             <strong className="text-white">Nutritionist Notes:</strong> {request.nutritionist_notes}
                           </div>
                         )}
-                        
+                        {request.preparation_time && (
+                          <div className="md:col-span-2">
+                            <strong className="text-white">Preparation Time:</strong> {request.preparation_time}
+                          </div>
+                        )}
                         {request.meal_plan && (
                           <div className="md:col-span-2">
                             <strong className="text-white">Meal Plan:</strong> {request.meal_plan}
@@ -5557,32 +5575,75 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
                   <option value="muscle-gain">Muscle Gain</option>
                   <option value="maintenance">Maintenance</option>
                   <option value="performance">Performance</option>
+                  <option value="custom">Custom Goal</option>
                 </select>
               </div>
               
+              {dietForm.fitnessGoal === 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white">Custom Goal Description</label>
+                  <input
+                    type="text"
+                    value={dietForm.customGoal || ''}
+                    onChange={(e) => setDietForm({...dietForm, customGoal: e.target.value})}
+                    className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
+                    placeholder="Describe your specific fitness goal..."
+                  />
+                </div>
+              )}
+              
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+                <div>
                   <label className="block text-sm font-medium mb-2 text-white">Current Weight (kg)</label>
-                <input
-                  type="number"
-                  value={dietForm.currentWeight}
-                  onChange={(e) => setDietForm({...dietForm, currentWeight: e.target.value})}
+                  <input
+                    type="number"
+                    value={dietForm.currentWeight}
+                    onChange={(e) => setDietForm({...dietForm, currentWeight: e.target.value})}
                     className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
-                  placeholder="70"
+                    placeholder="70"
                     inputMode="decimal"
-                />
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white">Height (cm)</label>
+                  <input
+                    type="number"
+                    value={dietForm.height}
+                    onChange={(e) => setDietForm({...dietForm, height: e.target.value})}
+                    className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
+                    placeholder="170"
+                    inputMode="decimal"
+                  />
+                </div>
               </div>
-              <div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
                   <label className="block text-sm font-medium mb-2 text-white">Target Weight (kg)</label>
-                <input
-                  type="number"
-                  value={dietForm.targetWeight}
-                  onChange={(e) => setDietForm({...dietForm, targetWeight: e.target.value})}
+                  <input
+                    type="number"
+                    value={dietForm.targetWeight}
+                    onChange={(e) => setDietForm({...dietForm, targetWeight: e.target.value})}
                     className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
-                  placeholder="65"
+                    placeholder="65"
                     inputMode="decimal"
-                />
-              </div>
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white">Activity Level</label>
+                  <select
+                    value={dietForm.activityLevel}
+                    onChange={(e) => setDietForm({...dietForm, activityLevel: e.target.value})}
+                    className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
+                  >
+                    <option value="">Select Activity Level</option>
+                    <option value="sedentary">Sedentary (Little to no exercise)</option>
+                    <option value="lightly_active">Lightly Active (Light exercise 1-3 days/week)</option>
+                    <option value="moderately_active">Moderately Active (Moderate exercise 3-5 days/week)</option>
+                    <option value="very_active">Very Active (Hard exercise 6-7 days/week)</option>
+                    <option value="extremely_active">Extremely Active (Very hard exercise, physical job)</option>
+                  </select>
+                </div>
               </div>
               
               <div>
@@ -5622,7 +5683,7 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   onClick={handleDietRequest}
-                  disabled={!dietForm.fitnessGoal || !dietForm.currentWeight || !dietForm.targetWeight || !dietForm.budget}
+                  disabled={!dietForm.fitnessGoal || !dietForm.currentWeight || !dietForm.height || !dietForm.targetWeight || !dietForm.activityLevel || !dietForm.budget}
                   className="flex-1 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-colors touch-manipulation min-h-[44px]"
                 >
                   Submit Request

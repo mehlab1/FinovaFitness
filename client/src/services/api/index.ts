@@ -3,6 +3,7 @@ export { trainerApi } from './trainerApi';
 export { memberApi } from './memberApi';
 export { userApi } from './userApi';
 export { adminApi } from './adminApi';
+export { nutritionistApi } from './nutritionistApi';
 
 // Common API utilities
 export const API_BASE_URL = 'http://localhost:3001/api';
