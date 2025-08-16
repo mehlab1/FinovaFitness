@@ -48,7 +48,7 @@ export const updateDietPlanRequest = async (req, res) => {
   try {
     const nutritionistId = req.userId;
     const { requestId } = req.params;
-    const { status, nutritionist_notes, meal_plan, preparation_time } = req.body;
+    const { status, nutritionist_notes, meal_plan } = req.body;
 
     // Verify the request belongs to this nutritionist
     const verifyResult = await query(
@@ -63,10 +63,10 @@ export const updateDietPlanRequest = async (req, res) => {
     // Update the request
     const result = await query(
       `UPDATE diet_plan_requests 
-       SET status = $1, nutritionist_notes = $2, meal_plan = $3, preparation_time = $4, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5 AND nutritionist_id = $6
+       SET status = $1, nutritionist_notes = $2, meal_plan = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4 AND nutritionist_id = $5
        RETURNING *`,
-      [status, nutritionist_notes, meal_plan, preparation_time, requestId, nutritionistId]
+      [status, nutritionist_notes, meal_plan, requestId, nutritionistId]
     );
 
     res.json(result.rows[0]);
@@ -106,24 +106,403 @@ export const getNutritionistDashboard = async (req, res) => {
       [nutritionistId]
     );
 
+    // Get session stats
+    const sessionStatsResult = await query(
+      `SELECT 
+         status,
+         COUNT(*) as count
+       FROM nutritionist_sessions 
+       WHERE nutritionist_id = $1
+       GROUP BY status`,
+      [nutritionistId]
+    );
+
+    // Get upcoming sessions
+    const upcomingSessionsResult = await query(
+      `SELECT 
+         ns.*,
+         u.first_name, u.last_name
+       FROM nutritionist_sessions ns
+       JOIN users u ON ns.client_id = u.id
+       WHERE ns.nutritionist_id = $1 
+         AND ns.session_date >= CURRENT_DATE
+         AND ns.status IN ('confirmed', 'pending')
+       ORDER BY ns.session_date, ns.start_time
+       LIMIT 5`,
+      [nutritionistId]
+    );
+
     const stats = {
-      pending: 0,
-      approved: 0,
-      rejected: 0,
-      completed: 0
+      diet_requests: statsResult.rows.reduce((acc, row) => {
+        acc[row.status] = parseInt(row.count);
+        return acc;
+      }, {}),
+      sessions: sessionStatsResult.rows.reduce((acc, row) => {
+        acc[row.status] = parseInt(row.count);
+        return acc;
+      }, {}),
+      recent_requests: recentRequestsResult.rows,
+      upcoming_sessions: upcomingSessionsResult.rows
     };
 
-    statsResult.rows.forEach(row => {
-      stats[row.status] = parseInt(row.count);
-    });
-
-    res.json({
-      stats,
-      recentRequests: recentRequestsResult.rows
-    });
+    res.json(stats);
 
   } catch (error) {
     console.error('Get nutritionist dashboard error:', error);
     res.status(500).json({ error: 'Failed to get nutritionist dashboard' });
+  }
+};
+
+// Get nutritionist availability
+export const getAvailability = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    
+    const result = await query(
+      `SELECT * FROM nutritionist_availability 
+       WHERE nutritionist_id = $1 
+       ORDER BY day_of_week`,
+      [nutritionistId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Get availability error:', error);
+    res.status(500).json({ error: 'Failed to get availability' });
+  }
+};
+
+// Update nutritionist availability
+export const updateAvailability = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const availability = req.body;
+
+    // Begin transaction
+    await query('BEGIN');
+
+    for (const day of availability) {
+      if (day.isAvailable) {
+        // Insert or update availability for this day
+        await query(
+          `INSERT INTO nutritionist_availability 
+           (nutritionist_id, day_of_week, start_time, end_time, session_duration_minutes, max_sessions_per_day, break_duration_minutes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (nutritionist_id, day_of_week) 
+           DO UPDATE SET 
+             start_time = EXCLUDED.start_time,
+             end_time = EXCLUDED.end_time,
+             session_duration_minutes = EXCLUDED.session_duration_minutes,
+             max_sessions_per_day = EXCLUDED.max_sessions_per_day,
+             break_duration_minutes = EXCLUDED.break_duration_minutes`,
+          [nutritionistId, day.dayOfWeek, day.startTime, day.endTime, day.sessionDuration, day.maxSessions, day.breakDuration]
+        );
+      } else {
+        // Remove availability for this day
+        await query(
+          'DELETE FROM nutritionist_availability WHERE nutritionist_id = $1 AND day_of_week = $2',
+          [nutritionistId, day.dayOfWeek]
+        );
+      }
+    }
+
+    await query('COMMIT');
+    res.json({ message: 'Availability updated successfully' });
+
+  } catch (error) {
+    await query('ROLLBACK');
+    console.error('Update availability error:', error);
+    res.status(500).json({ error: 'Failed to update availability' });
+  }
+};
+
+// Generate time slots based on availability
+export const generateTimeSlots = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    
+    console.log(`Generating time slots for nutritionist ${nutritionistId}`);
+    
+    // Get the nutritionist's availability
+    const availabilityResult = await query(
+      `SELECT * FROM nutritionist_availability 
+       WHERE nutritionist_id = $1 AND is_available = true
+       ORDER BY day_of_week`,
+      [nutritionistId]
+    );
+    
+    if (availabilityResult.rows.length === 0) {
+      return res.status(400).json({ error: 'No availability settings found. Please set up your schedule first.' });
+    }
+    
+    console.log(`Found ${availabilityResult.rows.length} available days`);
+    
+    // Clear existing time slots for this nutritionist
+    await query(
+      'DELETE FROM nutritionist_schedules WHERE nutritionist_id = $1',
+      [nutritionistId]
+    );
+    
+    // Generate time slots for each available day
+    for (const day of availabilityResult.rows) {
+      const { day_of_week, start_time, end_time, session_duration_minutes, break_duration_minutes } = day;
+      
+      console.log(`Generating slots for day ${day_of_week}: ${start_time} to ${end_time}`);
+      
+      let currentTime = new Date(`2000-01-01 ${start_time}`);
+      const endTime = new Date(`2000-01-01 ${end_time}`);
+      
+      while (currentTime < endTime) {
+        const timeSlot = currentTime.toTimeString().slice(0, 5);
+        
+        // Insert the time slot
+        await query(
+          `INSERT INTO nutritionist_schedules (nutritionist_id, day_of_week, time_slot, status, created_at, updated_at)
+           VALUES ($1, $2, $3, 'available', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [nutritionistId, day_of_week, timeSlot]
+        );
+        
+        // Move to next slot (session duration + break duration)
+        currentTime.setMinutes(currentTime.getMinutes() + session_duration_minutes + break_duration_minutes);
+      }
+    }
+    
+    // Get the count of generated slots
+    const countResult = await query(
+      'SELECT COUNT(*) as slot_count FROM nutritionist_schedules WHERE nutritionist_id = $1',
+      [nutritionistId]
+    );
+    
+    console.log(`Generated ${countResult.rows[0].slot_count} time slots`);
+    
+    res.json({ 
+      message: 'Time slots generated successfully',
+      slotsGenerated: countResult.rows[0].slot_count
+    });
+
+  } catch (error) {
+    console.error('Generate time slots error:', error);
+    res.status(500).json({ error: 'Failed to generate time slots' });
+  }
+};
+
+// Get available slots for a specific date
+export const getAvailableSlots = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { date } = req.params;
+    
+    const dayOfWeek = new Date(date).getDay();
+    
+    const result = await query(
+      `SELECT 
+         ns.id,
+         ns.time_slot,
+         ns.status,
+         ns.booking_id,
+         ns.client_id,
+         u.first_name,
+         u.last_name
+       FROM nutritionist_schedules ns
+       LEFT JOIN users u ON ns.client_id = u.id
+       WHERE ns.nutritionist_id = $1 
+         AND ns.day_of_week = $2
+       ORDER BY ns.time_slot`,
+      [nutritionistId, dayOfWeek]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Get available slots error:', error);
+    res.status(500).json({ error: 'Failed to get available slots' });
+  }
+};
+
+// Get nutritionist schedule
+export const getSchedule = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    
+    // Get blocked time slots
+    const timeOffResult = await query(
+      `SELECT * FROM nutritionist_time_off 
+       WHERE nutritionist_id = $1 
+         AND end_date >= CURRENT_DATE
+       ORDER BY start_date`,
+      [nutritionistId]
+    );
+
+    // Get upcoming sessions
+    const sessionsResult = await query(
+      `SELECT 
+         ns.*,
+         u.first_name, u.last_name
+       FROM nutritionist_sessions ns
+       JOIN users u ON ns.client_id = u.id
+       WHERE ns.nutritionist_id = $1 
+         AND ns.session_date >= CURRENT_DATE
+       ORDER BY ns.session_date, ns.start_time`,
+      [nutritionistId]
+    );
+
+    res.json({
+      timeOff: timeOffResult.rows,
+      sessions: sessionsResult.rows
+    });
+
+  } catch (error) {
+    console.error('Get schedule error:', error);
+    res.status(500).json({ error: 'Failed to get schedule' });
+  }
+};
+
+// Block time slots
+export const blockTimeSlots = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { date, startTime, endTime, reason } = req.body;
+
+    const result = await query(
+      `INSERT INTO nutritionist_time_off 
+       (nutritionist_id, start_date, end_date, start_time, end_time, reason)
+       VALUES ($1, $2, $2, $3, $4, $5)
+       RETURNING *`,
+      [nutritionistId, date, startTime, endTime, reason]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error('Block time slots error:', error);
+    res.status(500).json({ error: 'Failed to block time slots' });
+  }
+};
+
+// Unblock time slots
+export const unblockTimeSlots = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { blockId } = req.params;
+
+    await query(
+      'DELETE FROM nutritionist_time_off WHERE id = $1 AND nutritionist_id = $2',
+      [blockId, nutritionistId]
+    );
+
+    res.json({ message: 'Time slots unblocked successfully' });
+
+  } catch (error) {
+    console.error('Unblock time slots error:', error);
+    res.status(500).json({ error: 'Failed to unblock time slots' });
+  }
+};
+
+// Get session requests
+export const getSessionRequests = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    
+    const result = await query(
+      `SELECT 
+         nsr.*,
+         u.first_name, u.last_name, u.email
+       FROM nutritionist_session_requests nsr
+       JOIN users u ON nsr.requester_id = u.id
+       WHERE nsr.nutritionist_id = $1
+       ORDER BY nsr.created_at DESC`,
+      [nutritionistId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Get session requests error:', error);
+    res.status(500).json({ error: 'Failed to get session requests' });
+  }
+};
+
+// Update session request status
+export const updateSessionRequest = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { requestId } = req.params;
+    const { status, nutritionist_response, approved_date, approved_time, session_price } = req.body;
+
+    // Verify the request belongs to this nutritionist
+    const verifyResult = await query(
+      'SELECT id FROM nutritionist_session_requests WHERE id = $1 AND nutritionist_id = $2',
+      [requestId, nutritionistId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Session request not found' });
+    }
+
+    // Update the request
+    const result = await query(
+      `UPDATE nutritionist_session_requests 
+       SET status = $1, nutritionist_response = $2, approved_date = $3, approved_time = $4, session_price = $5, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6 AND nutritionist_id = $7
+       RETURNING *`,
+      [status, nutritionist_response, approved_date, approved_time, session_price, requestId, nutritionistId]
+    );
+
+    // If approved, create a session
+    if (status === 'approved' && approved_date && approved_time) {
+      const request = result.rows[0];
+      
+      // Calculate end time (assuming 60 minutes by default)
+      const startTime = new Date(`2000-01-01T${approved_time}`);
+      const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+      
+      await query(
+        `INSERT INTO nutritionist_sessions 
+         (nutritionist_id, client_id, session_date, start_time, end_time, session_type, status, price, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, 'confirmed', $7, $8)`,
+        [nutritionistId, request.requester_id, approved_date, approved_time, endTime.toTimeString().slice(0, 5), request.session_type, session_price, request.message]
+      );
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error('Update session request error:', error);
+    res.status(500).json({ error: 'Failed to update session request' });
+  }
+};
+
+// Mark session as completed
+export const markSessionCompleted = async (req, res) => {
+  try {
+    const nutritionistId = req.userId;
+    const { sessionId } = req.params;
+    const { notes } = req.body;
+
+    // Verify the session belongs to this nutritionist
+    const verifyResult = await query(
+      'SELECT id FROM nutritionist_sessions WHERE id = $1 AND nutritionist_id = $2',
+      [sessionId, nutritionistId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Update the session
+    const result = await query(
+      `UPDATE nutritionist_sessions 
+       SET status = 'completed', nutritionist_notes = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND nutritionist_id = $3
+       RETURNING *`,
+      [notes, sessionId, nutritionistId]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error('Mark session completed error:', error);
+    res.status(500).json({ error: 'Failed to mark session as completed' });
   }
 };

@@ -10,6 +10,7 @@ import memberRoutes from './routes/members.js';
 import adminRoutes from './routes/admin.js';
 import nutritionistRoutes from './routes/nutritionists.js';
 import chatRoutes from './routes/chat.js';
+import mealPlanTemplateRoutes from './routes/mealPlanTemplates.js';
 
 // Load environment variables
 dotenv.config();
@@ -54,6 +55,7 @@ app.use('/api/members', memberRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/nutritionists', nutritionistRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/meal-plan-templates', mealPlanTemplateRoutes);
 
 // API routes will be added here
 app.get('/api', (req, res) => {
@@ -148,13 +150,51 @@ app.get('/api/check-chat-messages', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
+// Temporary endpoint to fix meal plan template numeric fields
+app.post('/api/fix-meal-plan-schema', async (req, res) => {
+  try {
+    const { query } = await import('./config/database.js');
+    
+    // Alter the numeric fields to allow larger values
+    await query(`
+      ALTER TABLE meal_plan_templates 
+      ALTER COLUMN target_protein TYPE DECIMAL(8,2),
+      ALTER COLUMN target_carbs TYPE DECIMAL(8,2),
+      ALTER COLUMN target_fats TYPE DECIMAL(8,2),
+      ALTER COLUMN target_fiber TYPE DECIMAL(8,2),
+      ALTER COLUMN target_sodium TYPE DECIMAL(10,2),
+      ALTER COLUMN target_sugar TYPE DECIMAL(8,2)
+    `);
+    
+    await query(`
+      ALTER TABLE meal_plan_template_meals 
+      ALTER COLUMN target_protein TYPE DECIMAL(8,2),
+      ALTER COLUMN target_carbs TYPE DECIMAL(8,2),
+      ALTER COLUMN target_fats TYPE DECIMAL(8,2)
+    `);
+    
+    await query(`
+      ALTER TABLE meal_plan_template_foods 
+      ALTER COLUMN calories_per_serving TYPE DECIMAL(8,2),
+      ALTER COLUMN protein_per_serving TYPE DECIMAL(8,2),
+      ALTER COLUMN carbs_per_serving TYPE DECIMAL(8,2),
+      ALTER COLUMN fats_per_serving TYPE DECIMAL(8,2),
+      ALTER COLUMN fiber_per_serving TYPE DECIMAL(8,2)
+    `);
+    
+    res.json({ 
+      success: true, 
+      message: 'Meal plan template schema updated successfully' 
+    });
+  } catch (error) {
+    console.error('Error updating meal plan schema:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update meal plan schema',
+      error: error.message 
+    });
+  }
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {

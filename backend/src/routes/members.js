@@ -2599,4 +2599,56 @@ router.get('/diet-plan-requests', verifyMemberToken, async (req, res) => {
   }
 });
 
+// Request nutritionist session
+router.post('/nutritionist-session-request', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const {
+      nutritionist_id,
+      preferred_date,
+      preferred_time,
+      session_type,
+      message
+    } = req.body;
+
+    const result = await query(
+      `INSERT INTO nutritionist_session_requests 
+       (requester_id, nutritionist_id, preferred_date, preferred_time, session_type, message)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [userId, nutritionist_id, preferred_date, preferred_time, session_type, message]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error('Nutritionist session request error:', error);
+    res.status(500).json({ error: 'Failed to create nutritionist session request' });
+  }
+});
+
+// Get nutritionist session requests for member
+router.get('/nutritionist-session-requests', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const result = await query(
+      `SELECT 
+         nsr.*,
+         u.first_name, u.last_name, u.email
+       FROM nutritionist_session_requests nsr
+       JOIN users u ON nsr.nutritionist_id = u.id
+       WHERE nsr.requester_id = $1
+       ORDER BY nsr.created_at DESC`,
+      [userId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Nutritionist session requests error:', error);
+    res.status(500).json({ error: 'Failed to get nutritionist session requests' });
+  }
+});
+
 export default router;

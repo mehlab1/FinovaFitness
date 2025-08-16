@@ -135,6 +135,38 @@ export const memberApi = {
     return handleResponse(response);
   },
 
+  // Get nutritionist available slots
+  getNutritionistSlots: async (nutritionistId: number, date: string) => {
+    const response = await fetch(`${BASE_URL}/nutritionists/${nutritionistId}/available-slots/${date}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Request nutritionist session
+  requestNutritionistSession: async (requestData: {
+    nutritionist_id: number;
+    preferred_date: string;
+    preferred_time: string;
+    session_type: string;
+    message?: string;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/nutritionist-session-request`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(requestData),
+    });
+    return handleResponse(response);
+  },
+
+  // Get nutritionist session requests
+  getNutritionistSessionRequests: async () => {
+    const response = await fetch(`${BASE_URL}/members/nutritionist-session-requests`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
   // Get workout schedule
   getWorkoutSchedule: async () => {
     const response = await fetch(`${BASE_URL}/members/workout-schedule`, {

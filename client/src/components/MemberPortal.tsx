@@ -5179,6 +5179,7 @@ const MemberAnnouncements = ({ showToast }: { showToast: (message: string, type?
 const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void; user: User | null }) => {
   const [selectedNutritionist, setSelectedNutritionist] = useState<any>(null);
   const [showDietForm, setShowDietForm] = useState(false);
+  const [showSessionForm, setShowSessionForm] = useState(false);
   const [nutritionists, setNutritionists] = useState<any[]>([]);
   const [dietRequests, setDietRequests] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('nutritionists');
@@ -5193,6 +5194,14 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
     dietaryRestrictions: '',
     additionalNotes: ''
   });
+  const [sessionForm, setSessionForm] = useState({
+    preferredDate: '',
+    preferredTime: '',
+    sessionType: 'initial_consultation',
+    message: ''
+  });
+  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   // Fetch nutritionists and diet requests on component mount
   useEffect(() => {
@@ -5239,13 +5248,13 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
       const updatedRequests = await memberApi.getDietPlanRequests();
       setDietRequests(updatedRequests);
       
-      showToast('Diet plan request submitted successfully!', 'success');
-      setShowDietForm(false);
-      setDietForm({
-        fitnessGoal: '',
-        currentWeight: '',
-        targetWeight: '',
-        budget: '',
+    showToast('Diet plan request submitted successfully!', 'success');
+    setShowDietForm(false);
+    setDietForm({
+      fitnessGoal: '',
+      currentWeight: '',
+      targetWeight: '',
+      budget: '',
         dietaryRestrictions: '',
         additionalNotes: ''
       });
@@ -5253,6 +5262,60 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
     } catch (error) {
       console.error('Failed to submit diet request:', error);
       showToast('Failed to submit diet plan request', 'error');
+    }
+  };
+
+  const fetchAvailableSlots = async (date: string) => {
+    if (!selectedNutritionist) return;
+    
+    try {
+      setLoadingSlots(true);
+      const slots = await memberApi.getNutritionistSlots(selectedNutritionist.id, date);
+      setAvailableSlots(slots);
+    } catch (error) {
+      console.error('Failed to fetch available slots:', error);
+      showToast('Failed to fetch available slots', 'error');
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleSessionRequest = async () => {
+    if (!selectedNutritionist) {
+      showToast('Please select a nutritionist first', 'error');
+      return;
+    }
+
+    if (!sessionForm.preferredDate || !sessionForm.preferredTime) {
+      showToast('Please select a date and time', 'error');
+      return;
+    }
+
+    try {
+      const requestData = {
+        nutritionist_id: selectedNutritionist.id,
+        preferred_date: sessionForm.preferredDate,
+        preferred_time: sessionForm.preferredTime,
+        session_type: sessionForm.sessionType,
+        message: sessionForm.message
+      };
+
+      await memberApi.requestNutritionistSession(requestData);
+      
+      showToast('Session request submitted successfully!', 'success');
+      setShowSessionForm(false);
+      setSessionForm({
+        preferredDate: '',
+        preferredTime: '',
+        sessionType: 'initial_consultation',
+        message: ''
+      });
+      setSelectedNutritionist(null);
+      setAvailableSlots([]);
+    } catch (error) {
+      console.error('Failed to submit session request:', error);
+      showToast('Failed to submit session request', 'error');
     }
   };
 
@@ -5286,8 +5349,8 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
   });
 
   if (loading) {
-    return (
-      <div className="animate-fade-in">
+  return (
+    <div className="animate-fade-in">
         <div className="flex items-center justify-center h-64">
           <div className="text-purple-400 text-lg">Loading nutritionist data...</div>
         </div>
@@ -5324,33 +5387,44 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
       {/* Nutritionists Tab */}
       {activeTab === 'nutritionists' && (
         <div>
-          <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-            Our Nutritionists
-          </h2>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {nutritionists.map((nutritionist) => (
-              <div key={nutritionist.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
+      <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+        Our Nutritionists
+      </h2>
+      
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {nutritionists.map((nutritionist) => (
+          <div key={nutritionist.id} className="glass-card p-6 rounded-2xl text-center hover-glow transition-all duration-300">
                 <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-purple-400 bg-gray-700 flex items-center justify-center">
                   <i className="fas fa-user-md text-3xl text-purple-400"></i>
-                </div>
+            </div>
                 <h3 className="text-xl font-bold text-purple-400 mb-2">
                   {nutritionist.first_name} {nutritionist.last_name}
                 </h3>
                 <p className="text-green-400 mb-2">Registered Nutritionist</p>
                 <p className="text-gray-300 text-sm mb-4">Specialized in personalized nutrition plans and dietary guidance.</p>
-                <button
-                  onClick={() => {
-                    setSelectedNutritionist(nutritionist);
-                    setShowDietForm(true);
-                  }}
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Request Diet Plan
-                </button>
-              </div>
-            ))}
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setSelectedNutritionist(nutritionist);
+                  setShowDietForm(true);
+                }}
+                className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg font-semibold transition-colors"
+              >
+                Request Diet Plan
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedNutritionist(nutritionist);
+                  setShowSessionForm(true);
+                }}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors"
+              >
+                Book a Session
+              </button>
+            </div>
           </div>
+        ))}
+      </div>
         </div>
       )}
 
@@ -5412,11 +5486,7 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
                             <strong className="text-white">Nutritionist Notes:</strong> {request.nutritionist_notes}
                           </div>
                         )}
-                        {request.preparation_time && (
-                          <div className="md:col-span-2">
-                            <strong className="text-white">Preparation Time:</strong> {request.preparation_time}
-                          </div>
-                        )}
+                        
                         {request.meal_plan && (
                           <div className="md:col-span-2">
                             <strong className="text-white">Meal Plan:</strong> {request.meal_plan}
@@ -5491,28 +5561,28 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+              <div>
                   <label className="block text-sm font-medium mb-2 text-white">Current Weight (kg)</label>
-                  <input
-                    type="number"
-                    value={dietForm.currentWeight}
-                    onChange={(e) => setDietForm({...dietForm, currentWeight: e.target.value})}
+                <input
+                  type="number"
+                  value={dietForm.currentWeight}
+                  onChange={(e) => setDietForm({...dietForm, currentWeight: e.target.value})}
                     className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
-                    placeholder="70"
+                  placeholder="70"
                     inputMode="decimal"
-                  />
-                </div>
-                <div>
+                />
+              </div>
+              <div>
                   <label className="block text-sm font-medium mb-2 text-white">Target Weight (kg)</label>
-                  <input
-                    type="number"
-                    value={dietForm.targetWeight}
-                    onChange={(e) => setDietForm({...dietForm, targetWeight: e.target.value})}
+                <input
+                  type="number"
+                  value={dietForm.targetWeight}
+                  onChange={(e) => setDietForm({...dietForm, targetWeight: e.target.value})}
                     className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white touch-manipulation"
-                    placeholder="65"
+                  placeholder="65"
                     inputMode="decimal"
-                  />
-                </div>
+                />
+              </div>
               </div>
               
               <div>
@@ -5559,6 +5629,120 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
                 </button>
                 <button
                   onClick={() => setShowDietForm(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition-colors touch-manipulation min-h-[44px]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Booking Modal */}
+      {showSessionForm && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-4 sm:p-6 rounded-2xl w-full max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-blue-400">Book a Session</h3>
+              <button 
+                onClick={() => setShowSessionForm(false)} 
+                className="close-button text-gray-300 hover:text-white p-2 rounded-lg touch-manipulation" 
+                title="Close"
+              >
+                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
+              </button>
+            </div>
+            
+            {selectedNutritionist && (
+              <div className="mb-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                <p className="text-sm text-blue-300">
+                  <strong>Selected Nutritionist:</strong> {selectedNutritionist.first_name} {selectedNutritionist.last_name}
+                </p>
+              </div>
+            )}
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-white">Session Type</label>
+                <select
+                  value={sessionForm.sessionType}
+                  onChange={(e) => setSessionForm({...sessionForm, sessionType: e.target.value})}
+                  className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none text-white touch-manipulation"
+                >
+                  <option value="initial_consultation">Initial Consultation</option>
+                  <option value="follow_up">Follow Up</option>
+                  <option value="meal_plan_review">Meal Plan Review</option>
+                  <option value="progress_check">Progress Check</option>
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white">Preferred Date</label>
+                  <input
+                    type="date"
+                    value={sessionForm.preferredDate}
+                    onChange={(e) => {
+                      setSessionForm({...sessionForm, preferredDate: e.target.value});
+                      if (e.target.value) {
+                        fetchAvailableSlots(e.target.value);
+                      }
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none text-white touch-manipulation"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-white">Preferred Time</label>
+                  <select
+                    value={sessionForm.preferredTime}
+                    onChange={(e) => setSessionForm({...sessionForm, preferredTime: e.target.value})}
+                    className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none text-white touch-manipulation"
+                  >
+                    <option value="">Select Time</option>
+                    {availableSlots.map((slot) => (
+                      <option key={slot.id} value={slot.time_slot}>
+                        {slot.time_slot}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {loadingSlots && (
+                <div className="text-center py-2">
+                  <div className="text-blue-400 text-sm">Loading available slots...</div>
+                </div>
+              )}
+              
+              {availableSlots.length === 0 && sessionForm.preferredDate && !loadingSlots && (
+                <div className="text-center py-2">
+                  <div className="text-gray-400 text-sm">No available slots for this date</div>
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium mb-2 text-white">Message (Optional)</label>
+                <textarea
+                  value={sessionForm.message}
+                  onChange={(e) => setSessionForm({...sessionForm, message: e.target.value})}
+                  className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none text-white touch-manipulation resize-none"
+                  rows={2}
+                  placeholder="Any specific concerns or goals for this session..."
+                />
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  onClick={handleSessionRequest}
+                  disabled={!sessionForm.preferredDate || !sessionForm.preferredTime}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-colors touch-manipulation min-h-[44px]"
+                >
+                  Book Session
+                </button>
+                <button
+                  onClick={() => setShowSessionForm(false)}
                   className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition-colors touch-manipulation min-h-[44px]"
                 >
                   Cancel
