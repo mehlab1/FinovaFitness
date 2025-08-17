@@ -5466,7 +5466,9 @@ const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast:
   const [nutritionists, setNutritionists] = useState<any[]>([]);
   const [dietRequests, setDietRequests] = useState<any[]>([]);
   const [nutritionistSessionRequests, setNutritionistSessionRequests] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState('nutritionists');
+  const [activeMainTab, setActiveMainTab] = useState('nutritionists');
+  const [activeDietTab, setActiveDietTab] = useState('pending');
+  const [activeSessionTab, setActiveSessionTab] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [selectedChatRequest, setSelectedChatRequest] = useState<any>(null);
@@ -5634,11 +5636,19 @@ const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast:
     }
   };
 
-  const filteredRequests = dietRequests.filter(request => {
-    if (activeTab === 'pending') return request.status === 'pending';
-    if (activeTab === 'approved') return request.status === 'approved';
-    if (activeTab === 'rejected') return request.status === 'rejected';
-    if (activeTab === 'completed') return request.status === 'completed';
+  const filteredDietRequests = dietRequests.filter(request => {
+    if (activeDietTab === 'pending') return request.status === 'pending';
+    if (activeDietTab === 'approved') return request.status === 'approved';
+    if (activeDietTab === 'rejected') return request.status === 'rejected';
+    if (activeDietTab === 'completed') return request.status === 'completed';
+    return true;
+  });
+
+  const filteredSessionRequests = nutritionistSessionRequests.filter(request => {
+    if (activeSessionTab === 'pending') return request.status === 'pending';
+    if (activeSessionTab === 'approved') return request.status === 'approved';
+    if (activeSessionTab === 'rejected') return request.status === 'rejected';
+    if (activeSessionTab === 'completed') return request.status === 'completed';
     return true;
   });
 
@@ -5654,21 +5664,18 @@ const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast:
 
   return (
     <div className="animate-fade-in">
-      {/* Tab Navigation */}
+      {/* Main Tab Navigation */}
       <div className="flex space-x-1 mb-6 bg-gray-800 p-1 rounded-lg">
         {[
           { id: 'nutritionists', label: 'Our Nutritionists', icon: 'fas fa-user-md' },
-          { id: 'pending', label: 'Pending Requests', icon: 'fas fa-clock' },
-          { id: 'approved', label: 'Approved Requests', icon: 'fas fa-check-circle' },
-          { id: 'rejected', label: 'Rejected Requests', icon: 'fas fa-times-circle' },
-          { id: 'completed', label: 'Completed Plans', icon: 'fas fa-star' },
-          { id: 'sessions', label: 'Session Requests', icon: 'fas fa-calendar' }
+          { id: 'diet-plan-requests', label: 'Diet Plan Requests', icon: 'fas fa-apple-alt' },
+          { id: 'session-requests', label: 'Session Requests', icon: 'fas fa-calendar' }
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => setActiveMainTab(tab.id)}
             className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md transition-all ${
-              activeTab === tab.id
+              activeMainTab === tab.id
                 ? 'bg-purple-500 text-white shadow-lg'
                 : 'text-gray-400 hover:text-white hover:bg-gray-700'
             }`}
@@ -5680,7 +5687,7 @@ const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast:
       </div>
 
       {/* Nutritionists Tab */}
-      {activeTab === 'nutritionists' && (
+      {activeMainTab === 'nutritionists' && (
         <div>
       <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
         Our Nutritionists
@@ -5723,24 +5730,44 @@ const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast:
         </div>
       )}
 
-      {/* Request Status Tabs */}
-      {activeTab !== 'nutritionists' && (
+      {/* Diet Plan Requests Tab */}
+      {activeMainTab === 'diet-plan-requests' && (
         <div>
+          {/* Diet Plan Status Tabs */}
+          <div className="flex space-x-1 mb-6 bg-gray-700 p-1 rounded-lg">
+            {[
+              { id: 'pending', label: 'Pending', icon: 'fas fa-clock' },
+              { id: 'approved', label: 'Approved', icon: 'fas fa-check-circle' },
+              { id: 'rejected', label: 'Rejected', icon: 'fas fa-times-circle' },
+              { id: 'completed', label: 'Completed', icon: 'fas fa-star' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveDietTab(tab.id)}
+                className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md transition-all ${
+                  activeDietTab === tab.id
+                    ? 'bg-green-500 text-white shadow-lg'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-600'
+                }`}
+              >
+                <i className={tab.icon}></i>
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
           <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-            {activeTab === 'pending' && 'Pending Requests'}
-            {activeTab === 'approved' && 'Approved Requests'}
-            {activeTab === 'rejected' && 'Rejected Requests'}
-            {activeTab === 'completed' && 'Completed Plans'}
+            Diet Plan Requests - {activeDietTab.charAt(0).toUpperCase() + activeDietTab.slice(1)}
           </h2>
           
-          {filteredRequests.length === 0 ? (
+          {filteredDietRequests.length === 0 ? (
             <div className="text-center py-12">
               <i className="fas fa-inbox text-4xl text-gray-500 mb-4"></i>
-              <p className="text-gray-400 text-lg">No {activeTab} requests found</p>
+              <p className="text-gray-400 text-lg">No {activeDietTab} diet plan requests found</p>
             </div>
             ) : (
             <div className="space-y-4">
-              {filteredRequests.map((request) => (
+              {filteredDietRequests.map((request) => (
                 <div key={request.id} className="glass-card p-6 rounded-xl">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -5846,21 +5873,44 @@ const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast:
         </div>
       )}
 
-      {/* Nutritionist Session Requests Tab */}
-      {activeTab === 'sessions' && (
+      {/* Session Requests Tab */}
+      {activeMainTab === 'session-requests' && (
         <div>
+          {/* Session Status Tabs */}
+          <div className="flex space-x-1 mb-6 bg-gray-700 p-1 rounded-lg">
+            {[
+              { id: 'pending', label: 'Pending', icon: 'fas fa-clock' },
+              { id: 'approved', label: 'Approved', icon: 'fas fa-check-circle' },
+              { id: 'rejected', label: 'Rejected', icon: 'fas fa-times-circle' },
+              { id: 'completed', label: 'Completed', icon: 'fas fa-star' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSessionTab(tab.id)}
+                className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md transition-all ${
+                  activeSessionTab === tab.id
+                    ? 'bg-blue-500 text-white shadow-lg'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-600'
+                }`}
+              >
+                <i className={tab.icon}></i>
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
           <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-            Nutritionist Session Requests
+            Session Requests - {activeSessionTab.charAt(0).toUpperCase() + activeSessionTab.slice(1)}
           </h2>
           
-          {nutritionistSessionRequests.length === 0 ? (
+          {filteredSessionRequests.length === 0 ? (
             <div className="text-center py-12">
               <i className="fas fa-calendar text-4xl text-gray-500 mb-4"></i>
-              <p className="text-gray-400 text-lg">No session requests found</p>
+              <p className="text-gray-400 text-lg">No {activeSessionTab} session requests found</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {nutritionistSessionRequests.map((request) => (
+              {filteredSessionRequests.map((request) => (
                 <div key={request.id} className="glass-card p-6 rounded-xl">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
