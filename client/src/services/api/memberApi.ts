@@ -207,6 +207,22 @@ export const memberApi = {
     return handleResponse(response);
   },
 
+  // Get completed nutritionist session requests
+  getCompletedNutritionistSessions: async () => {
+    const response = await fetch(`${BASE_URL}/members/completed-nutritionist-sessions`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Get completed diet plan requests
+  getCompletedDietPlanRequests: async () => {
+    const response = await fetch(`${BASE_URL}/members/completed-diet-plan-requests`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
   // Cancel nutritionist session request
   cancelNutritionistSessionRequest: async (requestId: number) => {
     const response = await fetch(`${BASE_URL}/members/nutritionist-session-request/${requestId}`, {

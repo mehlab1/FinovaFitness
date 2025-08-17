@@ -100,11 +100,12 @@ router.put('/sessions/:sessionId/complete', nutritionistController.markSessionCo
 // Get nutritionist ratings and reviews
 router.get('/ratings', async (req, res) => {
   try {
-    const nutritionistId = req.nutritionist.id;
+    const nutritionistId = req.user.id;
     
     // Get session ratings
     const sessionRatings = await query(
       `SELECT 
+         nsr.id,
          nsr.rating,
          nsr.review_text,
          nsr.nutritional_guidance,
@@ -115,10 +116,10 @@ router.get('/ratings', async (req, res) => {
          nsr.created_at,
          CONCAT(u.first_name, ' ', u.last_name) as client_name,
          nsr.session_request_id,
-         nsr.session_type
+         nsr_req.session_type
        FROM nutritionist_session_ratings nsr
        JOIN users u ON nsr.client_id = u.id
-       JOIN nutritionist_session_requests nsr2 ON nsr.session_request_id = nsr2.id
+       JOIN nutritionist_session_requests nsr_req ON nsr.session_request_id = nsr_req.id
        WHERE nsr.nutritionist_id = $1
        ORDER BY nsr.created_at DESC`,
       [nutritionistId]
@@ -127,6 +128,7 @@ router.get('/ratings', async (req, res) => {
     // Get diet plan ratings
     const dietPlanRatings = await query(
       `SELECT 
+         ndpr.id,
          ndpr.rating,
          ndpr.review_text,
          ndpr.meal_plan_quality,
@@ -160,8 +162,8 @@ router.get('/ratings', async (req, res) => {
     res.json({
       sessionRatings: sessionRatings.rows,
       dietPlanRatings: dietPlanRatings.rows,
-      overallRating: overallRating.rows[0]?.avg_rating || 0,
-      totalReviews: overallRating.rows[0]?.total_reviews || 0
+      overallRating: parseFloat(overallRating.rows[0]?.avg_rating) || 0,
+      totalReviews: parseInt(overallRating.rows[0]?.total_reviews) || 0
     });
 
   } catch (error) {

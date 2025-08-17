@@ -2891,4 +2891,76 @@ router.delete('/diet-plan-request/:requestId', verifyMemberToken, async (req, re
   }
 });
 
+// Get completed nutritionist session requests for member
+router.get('/completed-nutritionist-sessions', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const result = await query(
+      `SELECT 
+         nsr.id,
+         nsr.session_type,
+         nsr.preferred_date as session_date,
+         nsr.preferred_time as start_time,
+         nsr.preferred_time as end_time,
+         nsr.status,
+         nsr.created_at,
+         nsr.has_review,
+         u.first_name as nutritionist_first_name,
+         u.last_name as nutritionist_last_name,
+         u.email as nutritionist_email,
+         CONCAT(u.first_name, ' ', u.last_name) as nutritionist_name
+       FROM nutritionist_session_requests nsr
+       JOIN users u ON nsr.nutritionist_id = u.id
+       WHERE nsr.requester_id = $1 AND nsr.status = 'completed'
+       ORDER BY nsr.preferred_date DESC, nsr.preferred_time DESC`,
+      [userId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Completed nutritionist sessions error:', error);
+    res.status(500).json({ error: 'Failed to get completed nutritionist sessions' });
+  }
+});
+
+// Get completed diet plan requests for member
+router.get('/completed-diet-plan-requests', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const result = await query(
+      `SELECT 
+         dpr.id,
+         dpr.fitness_goal,
+         dpr.current_weight,
+         dpr.height,
+         dpr.target_weight,
+         dpr.activity_level,
+         dpr.monthly_budget,
+         dpr.dietary_restrictions,
+         dpr.additional_notes,
+         dpr.status,
+         dpr.created_at,
+         dpr.has_review,
+         u.first_name as nutritionist_first_name,
+         u.last_name as nutritionist_last_name,
+         u.email as nutritionist_email,
+         CONCAT(u.first_name, ' ', u.last_name) as nutritionist_name
+       FROM diet_plan_requests dpr
+       JOIN users u ON dpr.nutritionist_id = u.id
+       WHERE dpr.user_id = $1 AND dpr.status = 'completed'
+       ORDER BY dpr.created_at DESC`,
+      [userId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Completed diet plan requests error:', error);
+    res.status(500).json({ error: 'Failed to get completed diet plan requests' });
+  }
+});
+
 export default router;

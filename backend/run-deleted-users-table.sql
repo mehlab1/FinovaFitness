@@ -37,3 +37,11 @@ COMMENT ON TABLE deleted_users IS 'Log of permanently deleted users for audit pu
 
 -- Verify table creation
 SELECT 'deleted_users table created successfully' as status;
+
+-- Add has_review field to nutritionist_session_requests table
+ALTER TABLE nutritionist_session_requests 
+ADD COLUMN IF NOT EXISTS has_review BOOLEAN DEFAULT false;
+
+-- Add has_review field to diet_plan_requests table
+ALTER TABLE diet_plan_requests 
+ADD COLUMN IF NOT EXISTS has_review BOOLEAN DEFAULT false;

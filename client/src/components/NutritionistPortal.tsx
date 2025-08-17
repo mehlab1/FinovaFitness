@@ -5497,8 +5497,8 @@ const NutritionistReviews = ({ showToast }: { showToast: (message: string, type?
       const response = await nutritionistApi.getRatings();
       setSessionRatings(response.sessionRatings || []);
       setDietPlanRatings(response.dietPlanRatings || []);
-      setOverallRating(response.overallRating || 0);
-      setTotalReviews(response.totalReviews || 0);
+      setOverallRating(parseFloat(response.overallRating) || 0);
+      setTotalReviews(parseInt(response.totalReviews) || 0);
       setTotalPages(Math.ceil(response.totalReviews / reviewsPerPage));
     } catch (error) {
       console.error('Error fetching ratings:', error);
@@ -5605,14 +5605,14 @@ const NutritionistReviews = ({ showToast }: { showToast: (message: string, type?
         <div className="glass-card p-6 rounded-2xl border border-purple-200/20">
           <div className="flex items-center gap-6">
             <div className="text-center">
-              <div className="text-4xl font-bold text-purple-400">{overallRating.toFixed(1)}</div>
+              <div className="text-4xl font-bold text-purple-400">{typeof overallRating === 'number' ? overallRating.toFixed(1) : '0.0'}</div>
               <div className="text-sm text-gray-300">Overall Rating</div>
               <div className="flex items-center justify-center mt-2">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <i
                     key={star}
                     className={`fas fa-star text-lg ${
-                      star <= overallRating ? 'text-yellow-400' : 'text-gray-400'
+                      star <= (typeof overallRating === 'number' ? overallRating : 0) ? 'text-yellow-400' : 'text-gray-400'
                     }`}
                   ></i>
                 ))}

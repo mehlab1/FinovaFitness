@@ -155,7 +155,10 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
           setCurrentPage('reviews');
         }} />;
       case 'nutritionists':
-        return <NutritionistsTab showToast={showToast} user={user} />;
+        return <NutritionistsTab showToast={showToast} user={user} onNavigateToReviews={(session) => {
+          setPendingReviewSession(session);
+          setCurrentPage('reviews');
+        }} />;
       case 'facilities':
         return <FacilitiesBooking showToast={showToast} />;
       case 'store':
@@ -4604,33 +4607,49 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
   const [professionalism, setProfessionalism] = useState(5);
   const [submitting, setSubmitting] = useState(false);
   const [completedSessions, setCompletedSessions] = useState<any[]>([]);
+  const [completedNutritionistSessions, setCompletedNutritionistSessions] = useState<any[]>([]);
+  const [completedDietPlanRequests, setCompletedDietPlanRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'trainers' | 'nutritionists'>('trainers');
 
   useEffect(() => {
-    fetchCompletedSessions();
+    fetchAllCompletedServices();
   }, []);
 
   // Auto-open review modal if there's a pending review session
   useEffect(() => {
-    if (pendingReviewSession && completedSessions.length > 0) {
-      // Find the session in completed sessions
-      const session = completedSessions.find(s => s.id === pendingReviewSession.id);
+    if (pendingReviewSession && (completedSessions.length > 0 || completedNutritionistSessions.length > 0 || completedDietPlanRequests.length > 0)) {
+      // Find the session in completed services
+      let session = completedSessions.find(s => s.id === pendingReviewSession.id);
+      if (!session) {
+        session = completedNutritionistSessions.find(s => s.id === pendingReviewSession.id);
+      }
+      if (!session) {
+        session = completedDietPlanRequests.find(s => s.id === pendingReviewSession.id);
+      }
+      
       if (session && !session.has_review) {
         handleReview(session);
         // Clear the pending review session after opening the modal
         // This will be handled by the parent component
       }
     }
-  }, [pendingReviewSession, completedSessions]);
+  }, [pendingReviewSession, completedSessions, completedNutritionistSessions, completedDietPlanRequests]);
 
-  const fetchCompletedSessions = async () => {
+  const fetchAllCompletedServices = async () => {
     try {
       setLoading(true);
-      const sessions = await memberApi.getCompletedSessions();
+      const [sessions, nutritionistSessions, dietPlanRequests] = await Promise.all([
+        memberApi.getCompletedSessions(),
+        memberApi.getCompletedNutritionistSessions(),
+        memberApi.getCompletedDietPlanRequests()
+      ]);
       setCompletedSessions(sessions);
+      setCompletedNutritionistSessions(nutritionistSessions);
+      setCompletedDietPlanRequests(dietPlanRequests);
     } catch (error) {
-      console.error('Failed to fetch completed sessions:', error);
-      showToast('Failed to load completed sessions', 'error');
+      console.error('Failed to fetch completed services:', error);
+      showToast('Failed to load completed services', 'error');
     } finally {
       setLoading(false);
     }
@@ -4653,15 +4672,43 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
     try {
       setSubmitting(true);
       
-      await memberApi.submitSessionReview({
-        session_id: selectedSession.id,
-        rating,
-        review_text: reviewText,
-        training_effectiveness: trainingEffectiveness,
-        communication,
-        punctuality,
-        professionalism
-      });
+      // Determine the type of review and submit accordingly
+      if (selectedSession.session_type) {
+        // This is a nutritionist session review
+        await memberApi.submitNutritionistSessionReview({
+          session_request_id: selectedSession.id,
+          rating,
+          review_text: reviewText,
+          nutritional_guidance: trainingEffectiveness, // Map to nutritional_guidance
+          communication,
+          punctuality,
+          professionalism,
+          session_effectiveness: trainingEffectiveness // Map to session_effectiveness
+        });
+      } else if (selectedSession.fitness_goal) {
+        // This is a diet plan review
+        await memberApi.submitNutritionistDietPlanReview({
+          diet_plan_request_id: selectedSession.id,
+          rating,
+          review_text: reviewText,
+          meal_plan_quality: trainingEffectiveness, // Map to meal_plan_quality
+          nutritional_accuracy: communication, // Map to nutritional_accuracy
+          customization_level: punctuality, // Map to customization_level
+          support_quality: professionalism, // Map to support_quality
+          follow_up_support: trainingEffectiveness // Map to follow_up_support
+        });
+      } else {
+        // This is a trainer session review
+        await memberApi.submitSessionReview({
+          session_id: selectedSession.id,
+          rating,
+          review_text: reviewText,
+          training_effectiveness: trainingEffectiveness,
+          communication,
+          punctuality,
+          professionalism
+        });
+      }
 
       showToast('Thank you for your review!', 'success');
       setShowReviewModal(false);
@@ -4671,8 +4718,8 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
         onClearPendingReview();
       }
       
-      // Refresh the completed sessions to show updated review status
-      await fetchCompletedSessions();
+      // Refresh the completed services to show updated review status
+      await fetchAllCompletedServices();
       
     } catch (error) {
       console.error('Failed to submit review:', error);
@@ -4707,7 +4754,7 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
       <div className="animate-fade-in flex items-center justify-center h-64">
         <div className="text-center">
           <i className="fas fa-spinner fa-spin text-4xl text-blue-400 mb-4"></i>
-          <p className="text-gray-300">Loading completed sessions...</p>
+          <p className="text-gray-300">Loading completed services...</p>
         </div>
       </div>
     );
@@ -4716,15 +4763,45 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
   return (
     <div className="animate-fade-in">
       <div className="glass-card p-6 rounded-2xl">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-xl font-bold text-blue-400 mb-2">Training Session Reviews</h3>
-            <p className="text-gray-300 text-sm">Review your completed training sessions and help trainers improve</p>
-          </div>
-          <div className="text-sm text-gray-400">
-            {completedSessions.filter(s => s.has_review).length} of {completedSessions.length} reviewed
+        {/* Tab Navigation */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-gray-800 rounded-xl p-1 flex space-x-1">
+            <button
+              onClick={() => setActiveTab('trainers')}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+                activeTab === 'trainers' 
+                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg' 
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+              }`}
+            >
+              <i className="fas fa-dumbbell w-4 h-4" />
+              <span className="font-medium text-sm">Training Sessions</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('nutritionists')}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+                activeTab === 'nutritionists' 
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' 
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+              }`}
+            >
+              <i className="fas fa-apple-alt w-4 h-4" />
+              <span className="font-medium text-sm">Nutritionist Services</span>
+            </button>
           </div>
         </div>
+
+        {activeTab === 'trainers' && (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-blue-400 mb-2">Training Session Reviews</h3>
+                <p className="text-gray-300 text-sm">Review your completed training sessions and help trainers improve</p>
+              </div>
+              <div className="text-sm text-gray-400">
+                {completedSessions.filter(s => s.has_review).length} of {completedSessions.length} reviewed
+              </div>
+            </div>
 
         {completedSessions.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
@@ -4792,6 +4869,146 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
             ))}
           </div>
         )}
+          </>
+        )}
+
+        {activeTab === 'nutritionists' && (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-purple-400 mb-2">Nutritionist Service Reviews</h3>
+                <p className="text-gray-300 text-sm">Review your completed nutritionist sessions and diet plans</p>
+              </div>
+              <div className="text-sm text-gray-400">
+                {(completedNutritionistSessions.filter(s => s.has_review).length + completedDietPlanRequests.filter(s => s.has_review).length)} of {(completedNutritionistSessions.length + completedDietPlanRequests.length)} reviewed
+              </div>
+            </div>
+
+            {/* Nutritionist Sessions */}
+            {completedNutritionistSessions.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-purple-400 mb-4">Nutritionist Sessions</h4>
+                <div className="space-y-4">
+                  {completedNutritionistSessions.map((session) => (
+                    <div key={session.id} className="p-4 border border-gray-600 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                            <i className="fas fa-apple-alt text-white w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-white text-sm">
+                              {session.session_type}
+                            </h4>
+                            <p className="text-gray-300 text-xs">
+                              with {session.nutritionist_name}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-400">#{session.id}</span>
+                          {getReviewStatus(session)}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Date & Time</p>
+                          <p className="text-white font-medium">
+                            {new Date(session.session_date).toLocaleDateString('en-US', { 
+                              weekday: 'short', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                          <p className="text-gray-300 text-xs">
+                            {session.start_time}
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Service Type</p>
+                          <p className="text-white font-medium">
+                            {session.session_type}
+                          </p>
+                          <p className="text-gray-300 text-xs">
+                            Nutritionist Session
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Diet Plan Requests */}
+            {completedDietPlanRequests.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-pink-400 mb-4">Diet Plan Requests</h4>
+                <div className="space-y-4">
+                  {completedDietPlanRequests.map((request) => (
+                    <div key={request.id} className="p-4 border border-gray-600 rounded-lg bg-gradient-to-r from-pink-500/10 to-purple-500/10">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center">
+                            <i className="fas fa-utensils text-white w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-white text-sm">
+                              Diet Plan: {request.fitness_goal}
+                            </h4>
+                            <p className="text-gray-300 text-xs">
+                              with {request.nutritionist_name}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-400">#{request.id}</span>
+                          {getReviewStatus(request)}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Goal</p>
+                          <p className="text-white font-medium">
+                            {request.fitness_goal}
+                          </p>
+                          <p className="text-gray-300 text-xs">
+                            {request.current_weight}kg → {request.target_weight}kg
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Request Date</p>
+                          <p className="text-white font-medium">
+                            {new Date(request.created_at).toLocaleDateString('en-US', { 
+                              weekday: 'short', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                          <p className="text-gray-300 text-xs">
+                            Diet Plan Request
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {completedNutritionistSessions.length === 0 && completedDietPlanRequests.length === 0 && (
+              <div className="text-center py-12 text-gray-400">
+                <i className="fas fa-apple-alt w-16 h-16 mx-auto mb-4 text-gray-500" />
+                <h4 className="text-lg font-semibold text-gray-300 mb-2">No completed nutritionist services yet</h4>
+                <p className="text-sm">Complete a nutritionist session or diet plan request to leave a review</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
       
       {/* Enhanced Review Modal */}
@@ -4804,7 +5021,9 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
                 <Star className="w-10 h-10 text-white" />
               </div>
               <h3 className="text-3xl font-bold text-white mb-2">Share Your Experience</h3>
-              <p className="text-gray-300 text-lg">Help {selectedSession.trainer_first_name} improve their services</p>
+              <p className="text-gray-300 text-lg">
+                Help {selectedSession.trainer_first_name || selectedSession.nutritionist_first_name} improve their services
+              </p>
             </div>
 
             {/* Close Button */}
@@ -4821,32 +5040,84 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
               <i className="fas fa-times text-2xl"></i>
             </button>
 
-            {/* Session Details Card */}
-            <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 p-6 rounded-2xl mb-8 border border-blue-500/30 backdrop-blur-sm">
+            {/* Service Details Card */}
+            <div className={`p-6 rounded-2xl mb-8 border backdrop-blur-sm ${
+              selectedSession.session_type 
+                ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-purple-500/30' 
+                : selectedSession.fitness_goal 
+                ? 'bg-gradient-to-r from-pink-600/20 to-purple-600/20 border-pink-500/30'
+                : 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30'
+            }`}>
               <div className="flex items-center justify-center mb-4">
-                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mr-4">
-                  <i className="fas fa-dumbbell text-white text-xl"></i>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-4 ${
+                  selectedSession.session_type 
+                    ? 'bg-purple-500' 
+                    : selectedSession.fitness_goal 
+                    ? 'bg-pink-500'
+                    : 'bg-blue-500'
+                }`}>
+                  <i className={`text-white text-xl ${
+                    selectedSession.session_type 
+                      ? 'fas fa-apple-alt' 
+                      : selectedSession.fitness_goal 
+                      ? 'fas fa-utensils'
+                      : 'fas fa-dumbbell'
+                  }`}></i>
                 </div>
-                <h4 className="text-2xl font-bold text-white">Session Details</h4>
+                <h4 className="text-2xl font-bold text-white">
+                  {selectedSession.session_type ? 'Session Details' : selectedSession.fitness_goal ? 'Diet Plan Details' : 'Session Details'}
+                </h4>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
-                      <i className="fas fa-user-tie text-blue-400 text-sm"></i>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      selectedSession.session_type 
+                        ? 'bg-purple-500/20' 
+                        : selectedSession.fitness_goal 
+                        ? 'bg-pink-500/20'
+                        : 'bg-blue-500/20'
+                    }`}>
+                      <i className={`text-sm ${
+                        selectedSession.session_type 
+                          ? 'fas fa-user-md text-purple-400' 
+                          : selectedSession.fitness_goal 
+                          ? 'fas fa-user-md text-pink-400'
+                          : 'fas fa-user-tie text-blue-400'
+                      }`}></i>
                     </div>
                     <div>
-                      <p className="text-gray-400 text-sm">Trainer</p>
-                      <p className="text-white font-semibold text-lg">{selectedSession.trainer_first_name} {selectedSession.trainer_last_name}</p>
+                      <p className="text-gray-400 text-sm">
+                        {selectedSession.session_type ? 'Nutritionist' : selectedSession.fitness_goal ? 'Nutritionist' : 'Trainer'}
+                      </p>
+                      <p className="text-white font-semibold text-lg">
+                        {selectedSession.trainer_first_name || selectedSession.nutritionist_first_name} {selectedSession.trainer_last_name || selectedSession.nutritionist_last_name}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
-                      <i className="fas fa-dumbbell text-green-400 text-sm"></i>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      selectedSession.session_type 
+                        ? 'bg-green-500/20' 
+                        : selectedSession.fitness_goal 
+                        ? 'bg-green-500/20'
+                        : 'bg-green-500/20'
+                    }`}>
+                      <i className={`text-sm ${
+                        selectedSession.session_type 
+                          ? 'fas fa-apple-alt text-green-400' 
+                          : selectedSession.fitness_goal 
+                          ? 'fas fa-utensils text-green-400'
+                          : 'fas fa-dumbbell text-green-400'
+                      }`}></i>
                     </div>
                     <div>
-                      <p className="text-gray-400 text-sm">Session Type</p>
-                      <p className="text-white font-semibold text-lg">{selectedSession.session_type}</p>
+                      <p className="text-gray-400 text-sm">
+                        {selectedSession.session_type ? 'Session Type' : selectedSession.fitness_goal ? 'Goal' : 'Session Type'}
+                      </p>
+                      <p className="text-white font-semibold text-lg">
+                        {selectedSession.session_type || selectedSession.fitness_goal || 'Training Session'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -4858,7 +5129,7 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
                     <div>
                       <p className="text-gray-400 text-sm">Date</p>
                       <p className="text-white font-semibold text-lg">
-                        {new Date(selectedSession.session_date).toLocaleDateString('en-US', { 
+                        {new Date(selectedSession.session_date || selectedSession.created_at).toLocaleDateString('en-US', { 
                           weekday: 'long', 
                           month: 'long', 
                           day: 'numeric',
@@ -4872,8 +5143,12 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
                       <i className="fas fa-clock text-orange-400 text-sm"></i>
                     </div>
                     <div>
-                      <p className="text-gray-400 text-sm">Time</p>
-                      <p className="text-white font-semibold text-lg">{selectedSession.start_time} - {selectedSession.end_time}</p>
+                      <p className="text-gray-400 text-sm">
+                        {selectedSession.session_type ? 'Time' : selectedSession.fitness_goal ? 'Request Date' : 'Time'}
+                      </p>
+                      <p className="text-white font-semibold text-lg">
+                        {selectedSession.start_time || new Date(selectedSession.created_at).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -5043,12 +5318,20 @@ const Reviews = ({ showToast, pendingReviewSession, onClearPendingReview }: { sh
                 <textarea
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Tell us about your experience... What went well? What could be improved? Any specific feedback for the trainer?"
+                  placeholder={
+                    selectedSession.session_type 
+                      ? "Tell us about your nutritionist session experience... What went well? What could be improved? Any specific feedback for the nutritionist?"
+                      : selectedSession.fitness_goal 
+                      ? "Tell us about your diet plan experience... What went well? What could be improved? Any specific feedback for the nutritionist?"
+                      : "Tell us about your training session experience... What went well? What could be improved? Any specific feedback for the trainer?"
+                  }
                   className="w-full px-6 py-4 bg-gray-800/80 border-2 border-gray-600/50 rounded-xl focus:border-blue-500 focus:outline-none text-white text-lg placeholder-gray-500 resize-none transition-all duration-300"
                   rows={4}
                 />
                 <div className="flex justify-between items-center mt-3">
-                  <p className="text-xs text-gray-400">Your feedback helps trainers improve their services</p>
+                  <p className="text-xs text-gray-400">
+                    Your feedback helps {selectedSession.session_type || selectedSession.fitness_goal ? 'nutritionists' : 'trainers'} improve their services
+                  </p>
                   <p className="text-xs text-gray-400">{reviewText.length}/500 characters</p>
                 </div>
               </div>
@@ -5176,12 +5459,13 @@ const MemberAnnouncements = ({ showToast }: { showToast: (message: string, type?
   );
 };
 
-const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void; user: User | null }) => {
+const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void; user: User | null; onNavigateToReviews?: (session: any) => void }) => {
   const [selectedNutritionist, setSelectedNutritionist] = useState<any>(null);
   const [showDietForm, setShowDietForm] = useState(false);
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [nutritionists, setNutritionists] = useState<any[]>([]);
   const [dietRequests, setDietRequests] = useState<any[]>([]);
+  const [nutritionistSessionRequests, setNutritionistSessionRequests] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('nutritionists');
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
@@ -5211,12 +5495,14 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [nutritionistsData, requestsData] = await Promise.all([
+        const [nutritionistsData, requestsData, sessionRequestsData] = await Promise.all([
           memberApi.getNutritionists(),
-          memberApi.getDietPlanRequests()
+          memberApi.getDietPlanRequests(),
+          memberApi.getNutritionistSessionRequests()
         ]);
         setNutritionists(nutritionistsData);
         setDietRequests(requestsData);
+        setNutritionistSessionRequests(sessionRequestsData);
       } catch (error) {
         console.error('Failed to fetch data:', error);
         showToast('Failed to load nutritionist data', 'error');
@@ -5375,7 +5661,8 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
           { id: 'pending', label: 'Pending Requests', icon: 'fas fa-clock' },
           { id: 'approved', label: 'Approved Requests', icon: 'fas fa-check-circle' },
           { id: 'rejected', label: 'Rejected Requests', icon: 'fas fa-times-circle' },
-          { id: 'completed', label: 'Completed Plans', icon: 'fas fa-star' }
+          { id: 'completed', label: 'Completed Plans', icon: 'fas fa-star' },
+          { id: 'sessions', label: 'Session Requests', icon: 'fas fa-calendar' }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -5515,9 +5802,10 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
                         </div>
                       </div>
                       
-                      {/* Chat button for approved requests */}
-                      {request.status === 'approved' && (
-                        <div className="mt-4 flex justify-end">
+                      {/* Action buttons */}
+                      <div className="mt-4 flex justify-end space-x-2">
+                        {/* Chat button for approved requests */}
+                        {request.status === 'approved' && (
                           <button
                             onClick={() => {
                               setSelectedChatRequest(request);
@@ -5528,8 +5816,121 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
                             <MessageSquare className="w-4 h-4" />
                             Chat with Nutritionist
                           </button>
+                        )}
+                        
+                        {/* Review button for completed requests */}
+                        {request.status === 'completed' && !request.has_review && onNavigateToReviews && (
+                          <button
+                            onClick={() => onNavigateToReviews(request)}
+                            className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-4 py-2 rounded-lg transition-colors"
+                          >
+                            <i className="fas fa-star w-4 h-4" />
+                            Review
+                          </button>
+                        )}
+                        
+                        {/* Review submitted indicator */}
+                        {request.status === 'completed' && request.has_review && (
+                          <div className="flex items-center gap-2 bg-green-600/20 text-green-400 px-4 py-2 rounded-lg border border-green-500/30">
+                            <i className="fas fa-check-circle w-4 h-4" />
+                            Review Submitted
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Nutritionist Session Requests Tab */}
+      {activeTab === 'sessions' && (
+        <div>
+          <h2 className="text-2xl font-bold mb-6 text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+            Nutritionist Session Requests
+          </h2>
+          
+          {nutritionistSessionRequests.length === 0 ? (
+            <div className="text-center py-12">
+              <i className="fas fa-calendar text-4xl text-gray-500 mb-4"></i>
+              <p className="text-gray-400 text-lg">No session requests found</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {nutritionistSessionRequests.map((request) => (
+                <div key={request.id} className="glass-card p-6 rounded-xl">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <h4 className="font-bold text-white text-lg">
+                          {request.nutritionist_first_name} {request.nutritionist_last_name}
+                        </h4>
+                        <span className={getStatusBadge(request.status)}>
+                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+                        <div>
+                          <strong className="text-white">Session Type:</strong> {request.session_type}
                         </div>
-                      )}
+                        <div>
+                          <strong className="text-white">Preferred Date:</strong> {new Date(request.preferred_date).toLocaleDateString()}
+                        </div>
+                        <div>
+                          <strong className="text-white">Preferred Time:</strong> {request.preferred_time}
+                        </div>
+                        <div>
+                          <strong className="text-white">Status:</strong> {request.status}
+                        </div>
+                        {request.message && (
+                          <div className="md:col-span-2">
+                            <strong className="text-white">Message:</strong> {request.message}
+                          </div>
+                        )}
+                        <div className="md:col-span-2 text-xs text-gray-500">
+                          Requested on: {new Date(request.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      
+                      {/* Action buttons */}
+                      <div className="mt-4 flex justify-end space-x-2">
+                        {/* Chat button for approved requests */}
+                        {request.status === 'approved' && (
+                          <button
+                            onClick={() => {
+                              setSelectedChatRequest(request);
+                              setShowChat(true);
+                            }}
+                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            Chat with Nutritionist
+                          </button>
+                        )}
+                        
+                        {/* Review button for completed requests */}
+                        {request.status === 'completed' && !request.has_review && onNavigateToReviews && (
+                          <button
+                            onClick={() => onNavigateToReviews(request)}
+                            className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-4 py-2 rounded-lg transition-colors"
+                          >
+                            <i className="fas fa-star w-4 h-4" />
+                            Review
+                          </button>
+                        )}
+                        
+                        {/* Review submitted indicator */}
+                        {request.status === 'completed' && request.has_review && (
+                          <div className="flex items-center gap-2 bg-green-600/20 text-green-400 px-4 py-2 rounded-lg border border-green-500/30">
+                            <i className="fas fa-check-circle w-4 h-4" />
+                            Review Submitted
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
