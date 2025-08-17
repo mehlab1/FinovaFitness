@@ -4463,9 +4463,10 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
   // Session requests state
   const [sessionRequests, setSessionRequests] = useState<any[]>([]);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [activeSessionTab, setActiveSessionTab] = useState<'pending' | 'approved' | 'rejected' | 'completed'>('pending');
   const [selectedSessionRequest, setSelectedSessionRequest] = useState<any>(null);
   const [showSessionActionModal, setShowSessionActionModal] = useState(false);
-  const [sessionActionType, setSessionActionType] = useState<'approve' | 'reject'>('approve');
+  const [sessionActionType, setSessionActionType] = useState<'approve' | 'reject' | 'complete'>('approve');
   const [sessionResponse, setSessionResponse] = useState('');
   const [approvedDate, setApprovedDate] = useState('');
   const [approvedTime, setApprovedTime] = useState('');
@@ -4552,7 +4553,7 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          status: sessionActionType === 'approve' ? 'approved' : 'rejected',
+          status: sessionActionType === 'approve' ? 'approved' : sessionActionType === 'reject' ? 'rejected' : 'completed',
           nutritionist_response: sessionResponse,
           approved_date: sessionActionType === 'approve' ? approvedDate : undefined,
           approved_time: sessionActionType === 'approve' ? approvedTime : undefined,
@@ -4569,7 +4570,7 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
         setApprovedTime('');
         setSessionPrice('');
         
-        const actionText = sessionActionType === 'approve' ? 'approved' : 'rejected';
+        const actionText = sessionActionType === 'approve' ? 'approved' : sessionActionType === 'reject' ? 'rejected' : 'completed';
         showToast(`Session request ${actionText} successfully`, 'success');
       } else {
         const errorData = await fetchResponse.json();
@@ -4743,14 +4744,39 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
       {/* Session Requests Tab */}
       {activeMainTab === 'session-requests' && (
         <div>
-          {sessionRequests.length === 0 ? (
-            <div className="text-center py-12">
-              <i className="fas fa-calendar-times text-4xl text-gray-500 mb-4"></i>
-              <p className="text-gray-400 text-lg">No session requests found</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {sessionRequests.map((request) => (
+          {/* Session Requests Sub-tabs */}
+          <div className="flex space-x-1 mb-6 bg-gray-800 rounded-lg p-1">
+            {['pending', 'approved', 'rejected', 'completed'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveSessionTab(tab as any)}
+                className={`flex-1 px-4 py-2 rounded-md font-medium transition-colors ${
+                  activeSessionTab === tab
+                    ? 'bg-purple-500 text-white'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Filtered session requests */}
+          {(() => {
+            const filteredRequests = sessionRequests.filter(request => request.status === activeSessionTab);
+            
+            if (filteredRequests.length === 0) {
+              return (
+                <div className="text-center py-12">
+                  <i className="fas fa-calendar-times text-4xl text-gray-500 mb-4"></i>
+                  <p className="text-gray-400 text-lg">No {activeSessionTab} session requests found</p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                {filteredRequests.map((request) => (
                 <div key={request.id} className="glass-card p-6 rounded-xl">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -4798,7 +4824,7 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
                         )}
                       </div>
                       
-                      {/* Action buttons for pending requests */}
+                      {/* Action buttons based on status */}
                       {request.status === 'pending' && (
                         <div className="mt-4 flex space-x-2">
                           <button
@@ -4821,17 +4847,29 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
                           >
                             Reject
                           </button>
-                          {/* No chat option for session requests - chat is only available for diet requests */}
                         </div>
                       )}
 
-                      {/* No chat option for session requests - chat is only available for diet requests */}
+                      {request.status === 'approved' && (
+                        <div className="mt-4 flex space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedSessionRequest(request);
+                              setSessionActionType('complete');
+                              setShowSessionActionModal(true);
+                            }}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                          >
+                            Mark as Completed
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          )})()}
         </div>
       )}
 
@@ -5047,7 +5085,7 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
           <div className="glass-card p-6 rounded-2xl w-full max-w-lg mx-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-purple-400">
-                {sessionActionType === 'approve' ? 'Approve' : 'Reject'} Session Request
+                {sessionActionType === 'approve' ? 'Approve' : sessionActionType === 'reject' ? 'Reject' : 'Complete'} Session Request
               </h3>
               <button 
                 onClick={() => setShowSessionActionModal(false)} 
@@ -5064,7 +5102,11 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
                 <textarea
                   value={sessionResponse}
                   onChange={(e) => setSessionResponse(e.target.value)}
-                  placeholder={sessionActionType === 'approve' ? 'Add any notes or instructions...' : 'Reason for rejection...'}
+                  placeholder={
+                    sessionActionType === 'approve' ? 'Add any notes or instructions...' : 
+                    sessionActionType === 'reject' ? 'Reason for rejection...' : 
+                    'Add completion notes...'
+                  }
                   className="w-full px-3 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-purple-400 focus:outline-none text-white"
                   rows={3}
                 />
@@ -5117,10 +5159,12 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
                   className={`px-4 py-2 text-white rounded-lg transition-colors ${
                     sessionActionType === 'approve' 
                       ? 'bg-green-600 hover:bg-green-700' 
-                      : 'bg-red-600 hover:bg-red-700'
+                      : sessionActionType === 'reject'
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                 >
-                  {sessionActionType === 'approve' ? 'Approve' : 'Reject'}
+                  {sessionActionType === 'approve' ? 'Approve' : sessionActionType === 'reject' ? 'Reject' : 'Complete'}
                 </button>
               </div>
             </div>
