@@ -101,6 +101,44 @@ export const memberApi = {
     return handleResponse(response);
   },
 
+  // Submit nutritionist session review
+  submitNutritionistSessionReview: async (reviewData: {
+    session_request_id: number;
+    rating: number;
+    review_text: string;
+    nutritional_guidance: number;
+    communication: number;
+    punctuality: number;
+    professionalism: number;
+    session_effectiveness: number;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/nutritionist-session-review`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reviewData),
+    });
+    return handleResponse(response);
+  },
+
+  // Submit nutritionist diet plan review
+  submitNutritionistDietPlanReview: async (reviewData: {
+    diet_plan_request_id: number;
+    rating: number;
+    review_text: string;
+    meal_plan_quality: number;
+    nutritional_accuracy: number;
+    customization_level: number;
+    support_quality: number;
+    follow_up_support: number;
+  }) => {
+    const response = await fetch(`${BASE_URL}/members/nutritionist-diet-plan-review`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reviewData),
+    });
+    return handleResponse(response);
+  },
+
   // Get nutritionists
   getNutritionists: async () => {
     const response = await fetch(`${BASE_URL}/members/nutritionists`, {
@@ -164,6 +202,24 @@ export const memberApi = {
   // Get nutritionist session requests
   getNutritionistSessionRequests: async () => {
     const response = await fetch(`${BASE_URL}/members/nutritionist-session-requests`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Cancel nutritionist session request
+  cancelNutritionistSessionRequest: async (requestId: number) => {
+    const response = await fetch(`${BASE_URL}/members/nutritionist-session-request/${requestId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  // Cancel diet plan request
+  cancelDietPlanRequest: async (requestId: number) => {
+    const response = await fetch(`${BASE_URL}/members/diet-plan-request/${requestId}`, {
+      method: 'DELETE',
       headers: getAuthHeaders(),
     });
     return handleResponse(response);

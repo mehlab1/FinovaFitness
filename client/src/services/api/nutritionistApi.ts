@@ -111,4 +111,14 @@ export const nutritionistApi = {
       method: 'DELETE',
     });
   },
+
+  // Get nutritionist ratings and reviews
+  getRatings: async (): Promise<{
+    sessionRatings: any[];
+    dietPlanRatings: any[];
+    overallRating: number;
+    totalReviews: number;
+  }> => {
+    return apiCall('/nutritionists/ratings');
+  },
 };

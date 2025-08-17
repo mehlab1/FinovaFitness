@@ -41,6 +41,8 @@ export const NutritionistPortal = ({ user, onLogout }: NutritionistPortalProps) 
         return <MealPlanTemplates user={user} showToast={showToast} />;
       case 'notes':
         return <ClientNotes showToast={showToast} />;
+      case 'reviews':
+        return <NutritionistReviews showToast={showToast} />;
       case 'announcements':
         return <NutritionistAnnouncements showToast={showToast} />;
       case 'subscription':
@@ -67,6 +69,7 @@ export const NutritionistPortal = ({ user, onLogout }: NutritionistPortalProps) 
             { id: 'session-requests', icon: 'fas fa-calendar-check', label: 'My Requests', color: 'text-cyan-400' },
             { id: 'templates', icon: 'fas fa-folder', label: 'Meal Plan Templates', color: 'text-pink-400' },
             { id: 'notes', icon: 'fas fa-sticky-note', label: 'Client Notes', color: 'text-orange-400' },
+            { id: 'reviews', icon: 'fas fa-star', label: 'Reviews', color: 'text-yellow-400' },
             { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
             { id: 'subscription', icon: 'fas fa-credit-card', label: 'Subscription', color: 'text-blue-400' }
           ].map((item) => (
@@ -5469,6 +5472,260 @@ const NutritionistAnnouncements = ({ showToast }: { showToast: (message: string,
           </div>
         ))}
       </div>
+    </div>
+  );
+};
+
+const NutritionistReviews = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  const [activeTab, setActiveTab] = useState<'sessions' | 'diet-plans'>('sessions');
+  const [sessionRatings, setSessionRatings] = useState<any[]>([]);
+  const [dietPlanRatings, setDietPlanRatings] = useState<any[]>([]);
+  const [overallRating, setOverallRating] = useState<number>(0);
+  const [totalReviews, setTotalReviews] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const reviewsPerPage = 10;
+
+  useEffect(() => {
+    fetchRatings();
+  }, []);
+
+  const fetchRatings = async () => {
+    try {
+      setLoading(true);
+      const response = await nutritionistApi.getRatings();
+      setSessionRatings(response.sessionRatings || []);
+      setDietPlanRatings(response.dietPlanRatings || []);
+      setOverallRating(response.overallRating || 0);
+      setTotalReviews(response.totalReviews || 0);
+      setTotalPages(Math.ceil(response.totalReviews / reviewsPerPage));
+    } catch (error) {
+      console.error('Error fetching ratings:', error);
+      showToast('Failed to fetch ratings', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCurrentReviews = () => {
+    const reviews = activeTab === 'sessions' ? sessionRatings : dietPlanRatings;
+    const startIndex = (currentPage - 1) * reviewsPerPage;
+    const endIndex = startIndex + reviewsPerPage;
+    return reviews.slice(startIndex, endIndex);
+  };
+
+  const renderStars = (rating: number) => {
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <i
+            key={star}
+            className={`fas fa-star text-sm ${
+              star <= rating ? 'text-yellow-400' : 'text-gray-300'
+            }`}
+          ></i>
+        ))}
+        <div className="ml-2 text-sm text-gray-600">({rating}/5)</div>
+      </div>
+    );
+  };
+
+  const renderReviewFields = (review: any) => {
+    if (activeTab === 'sessions') {
+      return (
+        <div className="grid grid-cols-2 gap-4 mt-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Nutritional Guidance:</span>
+            {renderStars(review.nutritional_guidance)}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Communication:</span>
+            {renderStars(review.communication)}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Punctuality:</span>
+            {renderStars(review.punctuality)}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Professionalism:</span>
+            {renderStars(review.professionalism)}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Session Effectiveness:</span>
+            {renderStars(review.session_effectiveness)}
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className="grid grid-cols-2 gap-4 mt-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Meal Plan Quality:</span>
+            {renderStars(review.meal_plan_quality)}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Nutritional Accuracy:</span>
+            {renderStars(review.nutritional_accuracy)}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Customization Level:</span>
+            {renderStars(review.customization_level)}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Support Quality:</span>
+            {renderStars(review.support_quality)}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Follow-up Support:</span>
+            {renderStars(review.follow_up_support)}
+          </div>
+        </div>
+      );
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="glass-card p-6 rounded-2xl">
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-fade-in">
+      {/* Header with Overall Rating */}
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold text-purple-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
+          Reviews & Ratings
+        </h2>
+        <div className="glass-card p-6 rounded-2xl border border-purple-200/20">
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <div className="text-4xl font-bold text-purple-400">{overallRating.toFixed(1)}</div>
+              <div className="text-sm text-gray-300">Overall Rating</div>
+              <div className="flex items-center justify-center mt-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <i
+                    key={star}
+                    className={`fas fa-star text-lg ${
+                      star <= overallRating ? 'text-yellow-400' : 'text-gray-400'
+                    }`}
+                  ></i>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1">
+              <div className="text-2xl font-semibold text-white mb-2">Total Reviews: {totalReviews}</div>
+              <div className="text-gray-300">
+                {sessionRatings.length} Session Reviews • {dietPlanRatings.length} Diet Plan Reviews
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex border-b border-purple-200/20 mb-6">
+        <button
+          onClick={() => setActiveTab('sessions')}
+          className={`px-6 py-3 font-medium text-sm transition-colors duration-200 ${
+            activeTab === 'sessions'
+              ? 'text-purple-400 border-b-2 border-purple-400'
+              : 'text-gray-300 hover:text-white'
+          }`}
+        >
+          Session Reviews ({sessionRatings.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('diet-plans')}
+          className={`px-6 py-3 font-medium text-sm transition-colors duration-200 ${
+            activeTab === 'diet-plans'
+              ? 'text-purple-400 border-b-2 border-purple-400'
+              : 'text-gray-300 hover:text-white'
+          }`}
+        >
+          Diet Plan Reviews ({dietPlanRatings.length})
+        </button>
+      </div>
+
+      {/* Reviews List */}
+      <div className="space-y-6">
+        {getCurrentReviews().length === 0 ? (
+          <div className="text-center py-12">
+            <i className="fas fa-star text-4xl text-gray-400 mb-4"></i>
+            <p className="text-gray-300 text-lg">No {activeTab === 'sessions' ? 'session' : 'diet plan'} reviews yet</p>
+          </div>
+      ) : (
+          getCurrentReviews().map((review) => (
+            <div key={review.id} className="glass-card p-6 rounded-2xl hover:shadow-lg transition-shadow duration-200">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100/20 rounded-full flex items-center justify-center">
+                    <i className="fas fa-user text-purple-400"></i>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white">Client #{review.client_id}</div>
+                    <div className="text-sm text-gray-400">
+                      {new Date(review.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-semibold text-white">{review.rating}/5</div>
+                  {renderStars(review.rating)}
+                </div>
+              </div>
+
+              {review.review_text && (
+                <div className="mb-4">
+                  <p className="text-gray-300 italic">"{review.review_text}"</p>
+                </div>
+              )}
+
+              {renderReviewFields(review)}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-8">
+          <button
+            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-2 border border-purple-200/20 text-gray-300 rounded-lg hover:bg-purple-100/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+          >
+            <i className="fas fa-chevron-left"></i>
+          </button>
+          
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-3 py-2 rounded-lg transition-colors duration-200 ${
+                currentPage === page
+                  ? 'bg-purple-400 text-white'
+                  : 'border border-purple-200/20 text-gray-300 hover:bg-purple-100/10'
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+          
+          <button
+            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-2 border border-purple-200/20 text-gray-300 rounded-lg hover:bg-purple-100/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+          >
+            <i className="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

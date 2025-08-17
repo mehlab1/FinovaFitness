@@ -2447,6 +2447,142 @@ router.post('/session-review', verifyMemberToken, async (req, res) => {
   }
 });
 
+// Submit nutritionist session review
+router.post('/nutritionist-session-review', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { session_request_id, rating, review_text, nutritional_guidance, communication, punctuality, professionalism, session_effectiveness } = req.body;
+    
+    // Check if session request exists, belongs to user, and is completed
+    const sessionCheck = await query(
+      'SELECT * FROM nutritionist_session_requests WHERE id = $1 AND requester_id = $2 AND status = $3',
+      [session_request_id, userId, 'completed']
+    );
+    
+    if (sessionCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Session request not found or not completed' });
+    }
+    
+    // Check if review already exists
+    const existingReview = await query(
+      'SELECT * FROM nutritionist_session_ratings WHERE session_request_id = $1',
+      [session_request_id]
+    );
+    
+    if (existingReview.rows.length > 0) {
+      return res.status(400).json({ error: 'Review already submitted for this session' });
+    }
+    
+    // Insert review
+    const result = await query(
+      `INSERT INTO nutritionist_session_ratings 
+       (nutritionist_id, client_id, session_request_id, rating, review_text, nutritional_guidance, communication, punctuality, professionalism, session_effectiveness)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [sessionCheck.rows[0].nutritionist_id, userId, session_request_id, rating, review_text, nutritional_guidance, communication, punctuality, professionalism, session_effectiveness]
+    );
+    
+    // Mark session request as reviewed
+    await query(
+      'UPDATE nutritionist_session_requests SET has_review = true WHERE id = $1',
+      [session_request_id]
+    );
+    
+    // Update nutritionist's average rating
+    await query(
+      `UPDATE users 
+       SET rating = (
+         SELECT AVG(rating) 
+         FROM (
+           SELECT rating FROM nutritionist_session_ratings WHERE nutritionist_id = $1
+           UNION ALL
+           SELECT rating FROM nutritionist_diet_plan_ratings WHERE nutritionist_id = $1
+         ) all_ratings
+       )
+       WHERE id = $1`,
+      [sessionCheck.rows[0].nutritionist_id]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Session review submitted successfully',
+      review: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Error submitting nutritionist session review:', error);
+    res.status(500).json({ error: 'Failed to submit session review' });
+  }
+});
+
+// Submit nutritionist diet plan review
+router.post('/nutritionist-diet-plan-review', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { diet_plan_request_id, rating, review_text, meal_plan_quality, nutritional_accuracy, customization_level, support_quality, follow_up_support } = req.body;
+    
+    // Check if diet plan request exists, belongs to user, and is completed
+    const requestCheck = await query(
+      'SELECT * FROM diet_plan_requests WHERE id = $1 AND user_id = $2 AND status = $3',
+      [diet_plan_request_id, userId, 'completed']
+    );
+    
+    if (requestCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Diet plan request not found or not completed' });
+    }
+    
+    // Check if review already exists
+    const existingReview = await query(
+      'SELECT * FROM nutritionist_diet_plan_ratings WHERE diet_plan_request_id = $1',
+      [diet_plan_request_id]
+    );
+    
+    if (existingReview.rows.length > 0) {
+      return res.status(400).json({ error: 'Review already submitted for this diet plan' });
+    }
+    
+    // Insert review
+    const result = await query(
+      `INSERT INTO nutritionist_diet_plan_ratings 
+       (nutritionist_id, client_id, diet_plan_request_id, rating, review_text, meal_plan_quality, nutritional_accuracy, customization_level, support_quality, follow_up_support)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [requestCheck.rows[0].nutritionist_id, userId, diet_plan_request_id, rating, review_text, meal_plan_quality, nutritional_accuracy, customization_level, support_quality, follow_up_support]
+    );
+    
+    // Mark diet plan request as reviewed
+    await query(
+      'UPDATE diet_plan_requests SET has_review = true WHERE id = $1',
+      [diet_plan_request_id]
+    );
+    
+    // Update nutritionist's average rating
+    await query(
+      `UPDATE users 
+       SET rating = (
+         SELECT AVG(rating) 
+         FROM (
+           SELECT rating FROM nutritionist_session_ratings WHERE nutritionist_id = $1
+           UNION ALL
+           SELECT rating FROM nutritionist_diet_plan_ratings WHERE nutritionist_id = $1
+         ) all_ratings
+       )
+       WHERE id = $1`,
+      [requestCheck.rows[0].nutritionist_id]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Diet plan review submitted successfully',
+      review: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Error submitting nutritionist diet plan review:', error);
+    res.status(500).json({ error: 'Failed to submit diet plan review' });
+  }
+});
+
 // Get available membership plans
 router.get('/membership-plans', verifyMemberToken, async (req, res) => {
   try {
@@ -2650,6 +2786,108 @@ router.get('/nutritionist-session-requests', verifyMemberToken, async (req, res)
   } catch (error) {
     console.error('Nutritionist session requests error:', error);
     res.status(500).json({ error: 'Failed to get nutritionist session requests' });
+  }
+});
+
+// Cancel/Delete nutritionist session request
+router.delete('/nutritionist-session-request/:requestId', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { requestId } = req.params;
+    
+    // Verify the request belongs to this user and is pending
+    const verifyResult = await query(
+      `SELECT id, nutritionist_id, preferred_date, preferred_time, status 
+       FROM nutritionist_session_requests 
+       WHERE id = $1 AND requester_id = $2 AND status = 'pending'`,
+      [requestId, userId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Session request not found or cannot be cancelled' });
+    }
+
+    const request = verifyResult.rows[0];
+
+    // Start transaction
+    await query('BEGIN');
+
+    try {
+      // Delete the session request
+      await query(
+        'DELETE FROM nutritionist_session_requests WHERE id = $1',
+        [requestId]
+      );
+
+      // Free up the time slot in nutritionist_schedules if it was blocked
+      await query(
+        `UPDATE nutritionist_schedules 
+         SET status = 'available', 
+             booking_id = NULL, 
+             client_id = NULL, 
+             session_date = NULL, 
+             updated_at = CURRENT_TIMESTAMP
+         WHERE nutritionist_id = $1 
+           AND day_of_week = EXTRACT(DOW FROM $2::date)
+           AND time_slot = $3
+           AND status = 'booked'`,
+        [request.nutritionist_id, request.preferred_date, request.preferred_time]
+      );
+
+      await query('COMMIT');
+
+      res.json({ 
+        success: true, 
+        message: 'Session request cancelled successfully',
+        freedSlot: {
+          nutritionist_id: request.nutritionist_id,
+          date: request.preferred_date,
+          time: request.preferred_time
+        }
+      });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Cancel session request error:', error);
+    res.status(500).json({ error: 'Failed to cancel session request' });
+  }
+});
+
+// Cancel/Delete diet plan request
+router.delete('/diet-plan-request/:requestId', verifyMemberToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { requestId } = req.params;
+    
+    // Verify the request belongs to this user and is pending
+    const verifyResult = await query(
+      `SELECT id FROM diet_plan_requests 
+       WHERE id = $1 AND user_id = $2 AND status = 'pending'`,
+      [requestId, userId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Diet plan request not found or cannot be cancelled' });
+    }
+
+    // Delete the diet plan request
+    await query(
+      'DELETE FROM diet_plan_requests WHERE id = $1',
+      [requestId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Diet plan request cancelled successfully' 
+    });
+
+  } catch (error) {
+    console.error('Cancel diet plan request error:', error);
+    res.status(500).json({ error: 'Failed to cancel diet plan request' });
   }
 });
 

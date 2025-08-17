@@ -5480,7 +5480,7 @@ const NutritionistsTab = ({ showToast, user }: { showToast: (message: string, ty
                           <strong className="text-white">Target Weight:</strong> {request.target_weight} kg
                         </div>
                         <div>
-                          <strong className="text-white">Activity Level:</strong> {request.activity_level?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          <strong className="text-white">Activity Level:</strong> {request.activity_level?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                         </div>
                         <div>
                           <strong className="text-white">Monthly Budget:</strong> PKR {request.monthly_budget}
