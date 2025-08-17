@@ -4821,36 +4821,11 @@ const SessionRequests = ({ showToast, setSelectedChatRequest, setShowChat }: {
                           >
                             Reject
                           </button>
-                          {setSelectedChatRequest && setShowChat && (
-                            <button
-                              onClick={() => {
-                                setSelectedChatRequest(request);
-                                setShowChat(true);
-                              }}
-                              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                            >
-                              <i className="fas fa-comments mr-2"></i>
-                              Chat
-                            </button>
-                          )}
+                          {/* No chat option for session requests - chat is only available for diet requests */}
                         </div>
                       )}
 
-                      {/* Chat button for all session requests */}
-                      {setSelectedChatRequest && setShowChat && (
-                        <div className="mt-4 flex space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedChatRequest(request);
-                              setShowChat(true);
-                            }}
-                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                          >
-                            <i className="fas fa-comments mr-2"></i>
-                            Chat with Client
-                          </button>
-                        </div>
-                      )}
+                      {/* No chat option for session requests - chat is only available for diet requests */}
                     </div>
                   </div>
                 </div>

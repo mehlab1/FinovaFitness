@@ -5831,8 +5831,8 @@ const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast:
                       
                       {/* Action buttons */}
                       <div className="mt-4 flex justify-end space-x-2">
-                        {/* Chat button for approved requests */}
-                        {request.status === 'approved' && (
+                        {/* Chat button for approved and completed requests - ONLY for diet requests */}
+                        {(request.status === 'approved' || request.status === 'completed') && (
                           <button
                             onClick={() => {
                               setSelectedChatRequest(request);
@@ -5948,19 +5948,7 @@ const NutritionistsTab = ({ showToast, user, onNavigateToReviews }: { showToast:
                       
                       {/* Action buttons */}
                       <div className="mt-4 flex justify-end space-x-2">
-                        {/* Chat button for approved requests */}
-                        {request.status === 'approved' && (
-                          <button
-                            onClick={() => {
-                              setSelectedChatRequest(request);
-                              setShowChat(true);
-                            }}
-                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                            Chat with Nutritionist
-                          </button>
-                        )}
+                        {/* No chat option for session requests - chat is only available for diet requests */}
                         
                         {/* Review button for completed requests */}
                         {request.status === 'completed' && !request.has_review && onNavigateToReviews && (
