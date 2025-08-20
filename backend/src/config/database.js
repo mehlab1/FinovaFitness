@@ -15,7 +15,7 @@ const dbConfig = {
 const pool = new Pool(dbConfig);
 
 // Query function with logging
-export const query = async (text, params) => {
+const query = async (text, params) => {
   const start = Date.now();
   try {
     const result = await pool.query(text, params);
@@ -38,7 +38,7 @@ export const query = async (text, params) => {
 };
 
 // Test database connection
-export const testConnection = async () => {
+const testConnection = async () => {
   try {
     const result = await query('SELECT NOW() as current_time');
     console.log('✅ Successfully connected to Neon PostgreSQL database');
@@ -50,7 +50,7 @@ export const testConnection = async () => {
 };
 
 // Close database connection
-export const closeConnection = async () => {
+const closeConnection = async () => {
   try {
     await pool.end();
     console.log('Database connection closed');
@@ -59,4 +59,5 @@ export const closeConnection = async () => {
   }
 };
 
-export default { query, testConnection, closeConnection };
+export { query, testConnection, closeConnection };
+export default pool;

@@ -11,6 +11,8 @@ import adminRoutes from './routes/admin.js';
 import nutritionistRoutes from './routes/nutritionists.js';
 import chatRoutes from './routes/chat.js';
 import mealPlanTemplateRoutes from './routes/mealPlanTemplates.js';
+import facilityRoutes from './routes/facilities.js';
+import storeRoutes from './routes/store.js';
 
 // Load environment variables
 dotenv.config();
@@ -56,6 +58,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/nutritionists', nutritionistRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/meal-plan-templates', mealPlanTemplateRoutes);
+app.use('/api/facilities', facilityRoutes);
+app.use('/api/store', storeRoutes);
 
 // API routes will be added here
 app.get('/api', (req, res) => {
@@ -73,7 +77,13 @@ app.get('/api', (req, res) => {
       '/api/bookings',
       '/api/trainers',
       '/api/memberships',
-      '/api/payments'
+      '/api/payments',
+      '/api/store',
+      '/api/store/categories',
+      '/api/store/items',
+      '/api/store/cart',
+      '/api/store/checkout',
+      '/api/store/orders'
     ]
   });
 });

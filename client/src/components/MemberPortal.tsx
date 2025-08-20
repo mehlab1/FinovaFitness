@@ -3,6 +3,7 @@ import { User } from '../types';
 import { facilities, exercises } from '../data/mockData';
 import { useToast } from './Toast';
 import { memberApi } from '../services/api/memberApi';
+import { publicFacilitiesApi, userFacilitiesApi } from '../services/api/facilitiesApi';
 import { TrainersTab } from './member/TrainersTab';
 import { CheckCircle, Star, MessageSquare } from 'lucide-react';
 import { Button } from './ui/button';
@@ -4303,55 +4304,442 @@ const BookSessions = ({ showToast }: { showToast: (message: string, type?: 'succ
 };
 
 const FacilitiesBooking = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [bookings, setBookings] = useState<{ [key: string]: boolean }>({});
+  const [facilities, setFacilities] = useState<any[]>([]);
+  const [selectedFacility, setSelectedFacility] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState(() => {
+    // Get today's date in local timezone, not UTC
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [myBookings, setMyBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [cancellingBookingId, setCancellingBookingId] = useState<number | null>(null);
 
-  const handleReserve = (facility: string, time: string) => {
-    const key = `${facility}-${time}`;
-    setBookings({ ...bookings, [key]: true });
-    showToast(`${facility} reserved for ${time}`, 'success');
+  // Helper function to normalize dates for comparison (handle timezone issues)
+  const normalizeDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   };
 
+  const today = new Date();
+  const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  
+  const maxDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const maxDateString = `${maxDate.getFullYear()}-${String(maxDate.getMonth() + 1).padStart(2, '0')}-${String(maxDate.getDate()).padStart(2, '0')}`;
+
+  useEffect(() => {
+    fetchFacilities();
+    fetchMyBookings();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDate && selectedFacility !== 'all') {
+      fetchAvailableSlots();
+    }
+  }, [selectedDate, selectedFacility]);
+
+  const fetchFacilities = async () => {
+    try {
+      // Call API to fetch available facilities
+      const response = await publicFacilitiesApi.getAvailableFacilities();
+      setFacilities(response);
+    } catch (error) {
+      console.error('Error fetching facilities:', error);
+      showToast('Failed to load facilities', 'error');
+      setFacilities([]); // Set empty array on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAvailableSlots = async () => {
+    try {
+      if (selectedFacility === 'all') {
+        setAvailableSlots([]);
+        return;
+      }
+      
+      // Find the facility ID from the selected facility name
+      const facility = facilities.find(f => f.name === selectedFacility);
+      if (!facility) {
+        setAvailableSlots([]);
+        return;
+      }
+      
+      console.log('Fetching slots for:', {
+        facilityId: facility.id,
+        selectedDate: selectedDate,
+        facilityName: facility.name
+      });
+      
+      // Call API to fetch available slots
+      const response = await publicFacilitiesApi.getAvailableSlots(facility.id, selectedDate);
+      console.log('Received slots:', response);
+      
+      // Check for date mismatches
+      const mismatchedSlots = response.filter(slot => {
+        const slotDate = new Date(slot.date);
+        const selectedDateObj = new Date(selectedDate);
+        return slotDate.toDateString() !== selectedDateObj.toDateString();
+      });
+      
+      if (mismatchedSlots.length > 0) {
+        console.warn('Found slots with mismatched dates:', mismatchedSlots);
+        console.warn('Selected date:', selectedDate);
+        console.warn('Slot dates:', mismatchedSlots.map(s => ({ id: s.id, date: s.date, parsed: new Date(s.date).toDateString() })));
+      }
+      
+      setAvailableSlots(response);
+    } catch (error) {
+      console.error('Error fetching slots:', error);
+      showToast('Failed to load available slots', 'error');
+      setAvailableSlots([]); // Set empty array on error
+    }
+  };
+
+  const fetchMyBookings = async () => {
+    try {
+      // Call API to fetch user's bookings
+      const response = await userFacilitiesApi.getUserBookings();
+      console.log('Fetched user bookings:', response);
+      setMyBookings(response);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+      showToast('Failed to load your bookings', 'error');
+      setMyBookings([]); // Set empty array on error
+    }
+  };
+
+  const handleBookSlot = async (slot: any) => {
+    if (slot.status !== 'available') return;
+    
+    setBookingLoading(true);
+    try {
+      // Debug: Log current user's bookings before attempting to book
+      console.log('Current user bookings before booking:', myBookings);
+      console.log('Attempting to book slot:', slot);
+      console.log('Selected date:', selectedDate);
+      
+      // Check if user has conflicting bookings for the same time
+      const normalizedSelectedDate = normalizeDate(selectedDate);
+      
+      const conflictingBooking = myBookings.find(booking => {
+        const normalizedBookingDate = normalizeDate(booking.booking_date);
+        return normalizedBookingDate.getTime() === normalizedSelectedDate.getTime() && 
+               booking.start_time === slot.start_time &&
+               ['confirmed', 'pending'].includes(booking.status);
+      });
+      
+      if (conflictingBooking) {
+        showToast(`You already have a booking for ${slot.start_time} on ${selectedDate}. Please cancel it first.`, 'error');
+        setBookingLoading(false);
+        return;
+      }
+      
+      // Debug: Check for date mismatch between selected date and slot date
+      const slotDate = new Date(slot.date);
+      const selectedDateObj = new Date(selectedDate);
+      
+      // Normalize dates to local timezone for comparison
+      const normalizedSlotDate = normalizeDate(slot.date);
+      const normalizedSelectedDateForSlot = normalizeDate(selectedDate);
+      
+      console.log('Date comparison:', {
+        selectedDate: selectedDate,
+        selectedDateObj: selectedDateObj.toDateString(),
+        slotDate: slot.date,
+        slotDateParsed: slotDate.toDateString(),
+        normalizedSlotDate: normalizedSlotDate.toDateString(),
+        normalizedSelectedDateForSlot: normalizedSelectedDateForSlot.toDateString(),
+        datesMatch: normalizedSlotDate.getTime() === normalizedSelectedDateForSlot.getTime(),
+        timezoneOffset: slotDate.getTimezoneOffset(),
+        selectedTimezoneOffset: selectedDateObj.getTimezoneOffset()
+      });
+      
+      if (normalizedSlotDate.getTime() !== normalizedSelectedDateForSlot.getTime()) {
+        console.error('CRITICAL: Date mismatch detected!');
+        console.error('User selected:', selectedDate);
+        console.error('Slot has date:', slot.date);
+        console.error('Normalized comparison failed');
+        showToast('Date mismatch detected. Please refresh and try again.', 'error');
+        setBookingLoading(false);
+        return;
+      }
+      
+      // Call API to book slot
+      await userFacilitiesApi.bookSlot({ slotId: slot.id });
+      showToast(`Slot booked successfully for ${slot.start_time} - ${slot.end_time}`, 'success');
+      
+      // Refresh data
+      fetchAvailableSlots();
+      fetchMyBookings();
+    } catch (error) {
+      console.error('Error booking slot:', error);
+      
+      // Extract error message from the error object
+      let errorMessage = 'Failed to book slot';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, 'error');
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: number) => {
+    setCancellingBookingId(bookingId);
+    try {
+      // Call API to cancel booking with a default cancellation reason
+      await userFacilitiesApi.cancelBooking(bookingId, { cancellationReason: 'Cancelled by user' });
+      showToast('Booking cancelled successfully', 'success');
+      
+      // Refresh data
+      fetchMyBookings();
+      fetchAvailableSlots(); // Also refresh available slots since capacity is now available
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      showToast('Failed to cancel booking', 'error');
+    } finally {
+      setCancellingBookingId(null);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'available': return 'bg-green-100 text-green-800';
+      case 'booked': return 'bg-red-100 text-red-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'cancelled': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const formatTime = (timeString: string) => {
+    return timeString.slice(0, 5);
+  };
+
+  if (loading) {
   return (
-    <div className="animate-fade-in">
-      <div className="mb-6">
-        <div className="flex items-center space-x-4 mb-6">
-          <label className="text-lg font-semibold">Select Date:</label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"
-          />
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-fade-in space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-blue-400 mb-2" style={{ fontFamily: 'Orbitron, monospace' }}>
+          FACILITIES BOOKING
+        </h1>
+        <p className="text-gray-300">Book your preferred time slots at our world-class facilities</p>
+      </div>
+
+      {/* Filters */}
+      <div className="glass-card p-6 rounded-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Facility</label>
+            <select
+              value={selectedFacility}
+              onChange={(e) => setSelectedFacility(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"
+            >
+              <option value="all">All Facilities</option>
+              {facilities.map(facility => (
+                <option key={facility.id} value={facility.name}>
+                  {facility.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Date</label>
+                      <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              min={todayString}
+              max={maxDateString}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"
+            />
         </div>
         
-        <div className="space-y-6">
-          {facilities.map((facility) => (
-            <div key={facility.id} className="glass-card p-6 rounded-2xl">
-              <h3 className="text-xl font-bold text-blue-400 mb-4">{facility.name}</h3>
-              <p className="text-gray-300 mb-4">Capacity: {facility.capacity} people</p>
-              <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
-                {facility.timeSlots.map((time) => {
-                  const key = `${facility.name}-${time}`;
-                  const isBooked = bookings[key];
-                  return (
+          <div className="flex items-end">
                     <button
-                      key={time}
-                      onClick={() => !isBooked && handleReserve(facility.name, time)}
-                      className={`facility-slot p-4 rounded-lg text-center transition-all duration-300 ${
-                        isBooked 
-                          ? 'reserved cursor-not-allowed' 
-                          : 'available hover:scale-105'
-                      }`}
-                      disabled={isBooked}
-                    >
-                      <div className="text-sm font-semibold">{time}</div>
-                      <div className="text-xs mt-1">
-                        {isBooked ? 'Reserved' : 'Available'}
+              onClick={fetchAvailableSlots}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Search Slots
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Available Slots */}
+      {selectedFacility !== 'all' && availableSlots.length > 0 && (
+        <div className="glass-card p-6 rounded-2xl">
+          <h3 className="text-xl font-bold text-blue-400 mb-4">
+            Available Slots for {selectedDate}
+          </h3>
+          
+          {/* Check for conflicting bookings */}
+          {(() => {
+            const normalizedSelectedDateForConflicts = normalizeDate(selectedDate);
+            
+            const conflictingBookings = myBookings.filter(booking => {
+              const normalizedBookingDate = normalizeDate(booking.booking_date);
+              return normalizedBookingDate.getTime() === normalizedSelectedDateForConflicts.getTime() &&
+                     ['confirmed', 'pending'].includes(booking.status);
+            });
+            
+            if (conflictingBookings.length > 0) {
+              return (
+                <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <i className="fas fa-exclamation-triangle text-yellow-400"></i>
+                    <span className="text-yellow-200 font-medium">Conflicting Bookings</span>
+                  </div>
+                  <p className="text-yellow-100 text-sm">
+                    You have existing bookings for this date. Please cancel them before booking new slots.
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {conflictingBookings.map(booking => (
+                      <div key={booking.id} className="text-xs text-yellow-200">
+                        {booking.facility_name} at {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
                       </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {availableSlots.map((slot) => {
+              // Check if this slot conflicts with existing bookings
+              const normalizedSelectedDateForSlotConflict = normalizeDate(selectedDate);
+              
+              const hasConflict = myBookings.some(booking => {
+                const normalizedBookingDate = normalizeDate(booking.booking_date);
+                return normalizedBookingDate.getTime() === normalizedSelectedDateForSlotConflict.getTime() && 
+                       booking.start_time === slot.start_time &&
+                       ['confirmed', 'pending'].includes(booking.status);
+              });
+              
+              return (
+                <div key={slot.id} className="text-center">
+                  <button
+                    onClick={() => handleBookSlot(slot)}
+                    disabled={slot.status !== 'available' || bookingLoading || hasConflict}
+                    className={`w-full p-4 rounded-lg transition-all duration-300 ${
+                      hasConflict
+                        ? 'bg-red-600 text-white cursor-not-allowed opacity-75'
+                        : slot.status === 'available'
+                        ? 'bg-green-600 hover:bg-green-700 text-white hover:scale-105'
+                        : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                    }`}
+                    title={hasConflict ? 'You already have a booking for this time' : ''}
+                  >
+                    <div className="font-semibold">
+                      {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                    </div>
+                    <div className="text-sm mt-1">
+                      PKR {slot.member_price}
+                    </div>
+                    <div className="text-xs mt-1 opacity-75">
+                      {hasConflict ? 'Conflict' : slot.status === 'available' ? 'Available' : 'Booked'}
+                    </div>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* My Bookings */}
+      <div className="glass-card p-6 rounded-2xl">
+        <h3 className="text-xl font-bold text-blue-400 mb-4">My Bookings</h3>
+        
+        {myBookings.length === 0 ? (
+          <p className="text-gray-400 text-center py-4">No bookings found</p>
+        ) : (
+          <div className="space-y-4">
+            {myBookings.map((booking) => (
+              <div key={booking.id} className="bg-gray-800 p-4 rounded-lg flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-white">{booking.facility_name}</h4>
+                  <p className="text-gray-300">
+                    {new Date(booking.date).toLocaleDateString()} at {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                  </p>
+                  <p className="text-sm text-gray-400">PKR {booking.price_paid}</p>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(booking.status)}`}>
+                    {booking.status}
+                  </span>
+                  
+                  {booking.status === 'confirmed' && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to cancel your booking for ${booking.facility_name} on ${new Date(booking.date).toLocaleDateString()} at ${formatTime(booking.start_time)}?`)) {
+                          handleCancelBooking(booking.id);
+                        }
+                      }}
+                      disabled={cancellingBookingId === booking.id}
+                      className={`px-3 py-2 rounded text-sm transition-colors ${
+                        cancellingBookingId === booking.id
+                          ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                          : 'bg-red-600 text-white hover:bg-red-700'
+                      }`}
+                    >
+                      {cancellingBookingId === booking.id ? 'Cancelling...' : 'Cancel'}
                     </button>
-                  );
-                })}
+                  )}
+              </div>
+            </div>
+          ))}
+        </div>
+        )}
+      </div>
+
+      {/* Facilities Overview */}
+      <div className="glass-card p-6 rounded-2xl">
+        <h3 className="text-xl font-bold text-blue-400 mb-4">Available Facilities</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {facilities.map((facility) => (
+            <div key={facility.id} className="bg-gray-800 rounded-lg overflow-hidden hover:scale-105 transition-transform duration-300">
+              <img
+                src={facility.image_url}
+                alt={facility.name}
+                className="w-full h-48 object-cover"
+              />
+              <div className="p-4">
+                <h4 className="text-lg font-semibold text-white mb-2">{facility.name}</h4>
+                <p className="text-gray-300 text-sm mb-3">{facility.description}</p>
+                <div className="flex justify-between text-sm text-gray-400">
+                  <span>{facility.location}</span>
+                  <span>Capacity: {facility.max_capacity}</span>
+                </div>
+                <button
+                  onClick={() => setSelectedFacility(facility.name)}
+                  className="w-full mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  View Slots
+                </button>
               </div>
             </div>
           ))}

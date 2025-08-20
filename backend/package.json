@@ -13,7 +13,10 @@
     "create-users": "node src/create-sample-users.js",
     "create-trainer-data": "node src/create-trainer-sample-data.js",
     "create-mehlab": "node src/create-mehlab-user.js",
-    "setup": "npm run init-db-new && npm run create-users && npm run create-trainer-data"
+    "setup": "npm run init-db-new && npm run create-users && npm run create-trainer-data",
+    "setup-store": "npm run setup-store-schema && npm run create-sample-store-data",
+    "setup-store-schema": "node scripts/run-store-schema.js",
+    "create-sample-store-data": "node scripts/create-sample-store-data.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

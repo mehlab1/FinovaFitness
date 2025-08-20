@@ -100,3 +100,10 @@ export const verifyNutritionist = async (req, res, next) => {
     res.status(500).json({ error: 'Authentication failed' });
   }
 };
+
+// Convenience middleware functions for routes
+export const requireAuth = verifyToken;
+export const requireAdmin = verifyAdmin;
+export const requireTrainer = verifyTrainer;
+export const requireMember = verifyMember;
+export const requireNutritionist = verifyNutritionist;
