@@ -13,6 +13,9 @@ import chatRoutes from './routes/chat.js';
 import mealPlanTemplateRoutes from './routes/mealPlanTemplates.js';
 import facilityRoutes from './routes/facilities.js';
 import storeRoutes from './routes/store.js';
+import monthlyPlanRoutes from './routes/monthlyPlans.js';
+import slotGenerationRoutes from './routes/slotGeneration.js';
+import slotAssignmentRoutes from './routes/slotAssignments.js';
 
 // Load environment variables
 dotenv.config();
@@ -60,6 +63,9 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/meal-plan-templates', mealPlanTemplateRoutes);
 app.use('/api/facilities', facilityRoutes);
 app.use('/api/store', storeRoutes);
+app.use('/api/monthly-plans', monthlyPlanRoutes);
+app.use('/api/slot-generation', slotGenerationRoutes);
+app.use('/api/slot-assignments', slotAssignmentRoutes);
 
 // API routes will be added here
 app.get('/api', (req, res) => {

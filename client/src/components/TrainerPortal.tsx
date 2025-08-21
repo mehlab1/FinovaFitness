@@ -9,6 +9,9 @@ import { SessionNotes } from './trainer/SessionNotes';
 import { TrainerAnalytics } from './trainer/TrainerAnalytics';
 import { TrainerAnnouncements } from './trainer/TrainerAnnouncements';
 import { TrainerSubscription } from './trainer/TrainerSubscription';
+import { MonthlyPlanManagement } from './trainer/MonthlyPlanManagement';
+import { SlotGenerationManagement } from './trainer/SlotGenerationManagement';
+
 
 interface TrainerPortalProps {
   user: User | null;
@@ -17,7 +20,25 @@ interface TrainerPortalProps {
 
 export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [trainerId, setTrainerId] = useState<number | null>(null);
   const { showToast } = useToast();
+
+  // Fetch trainer ID when user changes
+  useEffect(() => {
+    const fetchTrainerId = async () => {
+      if (user?.id) {
+        try {
+          // We'll use the user ID directly since the backend now handles the mapping
+          setTrainerId(user.id);
+        } catch (error) {
+          console.error('Failed to fetch trainer ID:', error);
+          showToast('Failed to load trainer information', 'error');
+        }
+      }
+    };
+
+    fetchTrainerId();
+  }, [user?.id, showToast]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -39,6 +60,25 @@ export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
         return <TrainerAnnouncements showToast={showToast} />;
       case 'subscription':
         return <TrainerSubscription showToast={showToast} />;
+      case 'monthly-plans':
+        return trainerId ? <MonthlyPlanManagement trainerId={trainerId} /> : (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-pink-400 mx-auto mb-4"></div>
+              <p className="text-gray-300 text-lg">Loading trainer information...</p>
+            </div>
+          </div>
+        );
+      case 'slot-generation':
+        return trainerId ? <SlotGenerationManagement trainerId={trainerId} /> : (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-pink-400 mx-auto mb-4"></div>
+              <p className="text-gray-300 text-lg">Loading trainer information...</p>
+            </div>
+          </div>
+        );
+
       default:
         return <TrainerDashboard user={user} showToast={showToast} />;
     }
@@ -47,14 +87,19 @@ export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
-      <div className="sidebar w-64 h-screen fixed left-0 top-0 p-6">
-        <div className="flex items-center space-x-3 mb-8">
-          <i className="fas fa-dumbbell text-2xl text-pink-400 neon-glow"></i>
-          <h1 className="text-xl font-bold text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-            FINOVA FITNESS
-          </h1>
+      <div className="sidebar w-64 h-screen fixed left-0 top-0 flex flex-col">
+        {/* Fixed Header */}
+        <div className="p-6 pb-4 flex-shrink-0">
+          <div className="flex items-center space-x-3">
+            <i className="fas fa-dumbbell text-2xl text-pink-400 neon-glow"></i>
+            <h1 className="text-xl font-bold text-pink-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+              FINOVA FITNESS
+            </h1>
+          </div>
         </div>
-        <nav className="space-y-2">
+        
+        {/* Scrollable Navigation */}
+        <nav className="flex-1 overflow-y-auto px-6 pb-6 space-y-2 scrollbar-thin scrollbar-thumb-pink-400 scrollbar-track-gray-800">
           {[
             { id: 'dashboard', icon: 'fas fa-tachometer-alt', label: 'Dashboard', color: 'text-pink-400' },
             { id: 'profile', icon: 'fas fa-user-edit', label: 'Edit Profile', color: 'text-cyan-400' },
@@ -64,7 +109,10 @@ export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
             { id: 'ratings', icon: 'fas fa-star', label: 'Ratings & Reviews', color: 'text-yellow-400' },
             { id: 'analytics', icon: 'fas fa-chart-bar', label: 'Analytics', color: 'text-orange-400' },
             { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
-            { id: 'subscription', icon: 'fas fa-credit-card', label: 'Subscription', color: 'text-blue-400' }
+            { id: 'subscription', icon: 'fas fa-credit-card', label: 'Subscription', color: 'text-blue-400' },
+            { id: 'monthly-plans', icon: 'fas fa-calendar-check', label: 'Monthly Plans', color: 'text-green-400' },
+            { id: 'slot-generation', icon: 'fas fa-calendar-plus', label: 'Slot Generation & Assignment', color: 'text-purple-400' },
+
           ].map((item) => (
             <button
               key={item.id}
