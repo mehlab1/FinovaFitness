@@ -5,6 +5,7 @@ import { useToast } from './Toast';
 import { memberApi } from '../services/api/memberApi';
 import { publicFacilitiesApi, userFacilitiesApi } from '../services/api/facilitiesApi';
 import { TrainersTab } from './member/TrainersTab';
+import { MemberStore } from './store/MemberStore';
 import { CheckCircle, Star, MessageSquare } from 'lucide-react';
 import { Button } from './ui/button';
 import Chat from './Chat';
@@ -163,7 +164,7 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
       case 'facilities':
         return <FacilitiesBooking showToast={showToast} />;
       case 'store':
-        return <MemberStore showToast={showToast} />;
+        return <MemberStoreWrapper showToast={showToast} />;
       case 'loyalty':
         return <LoyaltyReferrals user={user} showToast={showToast} />;
       case 'announcements':
@@ -4749,170 +4750,8 @@ const FacilitiesBooking = ({ showToast }: { showToast: (message: string, type?: 
   );
 };
 
-const MemberStore = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [cart, setCart] = useState<any[]>([]);
-  const [showCart, setShowCart] = useState(false);
-
-  const addToCart = (product: any) => {
-    setCart([...cart, product]);
-    showToast(`${product.name} added to cart`, 'success');
-  };
-
-  const getTotalPrice = () => {
-    return cart.reduce((total, item) => total + item.memberPrice, 0).toFixed(2);
-  };
-
-  const products = [
-    {
-      id: 1,
-      name: 'Whey Protein Powder',
-      price: 13999,
-      memberPrice: 12599,
-      category: 'Supplements',
-      image: 'https://images.unsplash.com/photo-1519864600265-abb23847ef2c?auto=format&fit=crop&w=400&q=80'
-    },
-    {
-      id: 2,
-      name: 'Resistance Bands Set',
-      price: 8399,
-      memberPrice: 7559,
-      category: 'Equipment',
-      image: 'https://images.unsplash.com/photo-1517960413843-0aee8e2d471c?auto=format&fit=crop&w=400&q=80'
-    },
-    {
-      id: 3,
-      name: 'Finova Fitness T-Shirt',
-      price: 6999,
-      memberPrice: 6299,
-      category: 'Apparel',
-      image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=400&q=80'
-    },
-    {
-      id: 4,
-      name: 'Pre-Workout Supplement',
-      price: 11199,
-      memberPrice: 10079,
-      category: 'Supplements',
-      image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80'
-    },
-    {
-      id: 5,
-      name: 'Yoga Mat',
-      price: 9799,
-      memberPrice: 8819,
-      category: 'Equipment',
-      image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=400&q=80'
-    },
-    {
-      id: 6,
-      name: 'Gym Hoodie',
-      price: 13999,
-      memberPrice: 12599,
-      category: 'Apparel',
-      image: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=400&q=80'
-    }
-  ];
-
-  return (
-    <div className="animate-fade-in">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-          Member Store
-        </h2>
-        <button
-          onClick={() => setShowCart(true)}
-          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-        >
-          Cart ({cart.length})
-        </button>
-      </div>
-      
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product) => (
-          <div key={product.id} className="product-card p-6 rounded-2xl">
-            <div className="bg-gray-800 h-48 rounded-lg mb-4 flex items-center justify-center relative">
-              <img 
-                src={product.image} 
-                alt={product.name}
-                className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  target.style.display = 'none';
-                  const nextElement = target.nextElementSibling as HTMLElement;
-                  if (nextElement) {
-                    nextElement.style.display = 'flex';
-                  }
-                }}
-              />
-              <div className="hidden w-full h-full flex items-center justify-center absolute inset-0">
-                <i className="fas fa-image text-4xl text-gray-600"></i>
-              </div>
-            </div>
-            <h3 className="text-lg font-bold mb-2">{product.name}</h3>
-            <p className="text-gray-300 text-sm mb-4">{product.category}</p>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <span className="text-lg line-through text-gray-500">PKR {product.price.toLocaleString()}</span>
-                <span className="text-xl font-bold text-green-400 ml-2">PKR {product.memberPrice.toLocaleString()}</span>
-                <div className="text-sm text-green-400">Member Price (10% off)</div>
-              </div>
-            </div>
-            <button
-              onClick={() => addToCart(product)}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors"
-            >
-              Add to Cart
-            </button>
-          </div>
-        ))}
-      </div>
-      
-      {/* Cart Modal */}
-      {showCart && (
-        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-          <div className="glass-card p-6 rounded-2xl max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-green-400">Shopping Cart</h3>
-              <button onClick={() => setShowCart(false)} className="close-button text-gray-300 hover:text-white p-2 rounded-lg" title="Close">
-                <span className="text-lg font-normal leading-none" aria-hidden="true">×</span>
-              </button>
-            </div>
-            
-            <div className="space-y-4 mb-4">
-              {cart.length === 0 ? (
-                <p className="text-gray-400 text-center">Your cart is empty</p>
-              ) : (
-                cart.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center">
-                    <span>{item.name}</span>
-                    <span className="text-green-400">PKR {item.memberPrice.toLocaleString()}</span>
-                  </div>
-                ))
-              )}
-            </div>
-            
-            {cart.length > 0 && (
-              <div className="border-t border-gray-600 pt-4">
-                <div className="flex justify-between items-center mb-4">
-                  <strong>Total: PKR {getTotalPrice()}</strong>
-                </div>
-                <button
-                  onClick={() => {
-                    showToast(`Order placed! Total: PKR ${getTotalPrice()}`, 'success');
-                    setCart([]);
-                    setShowCart(false);
-                  }}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-semibold transition-colors"
-                >
-                  Checkout
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+const MemberStoreWrapper = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
+  return <MemberStore showToast={showToast} />;
 };
 
 const LoyaltyReferrals = ({ user, showToast }: { user: User | null; showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {

@@ -16,6 +16,7 @@ import {
 } from '../services/api/facilitiesApi';
 import { RevenueDashboard } from './RevenueDashboard';
 import { RevenueManagement } from './RevenueManagement';
+import StoreManagement from './admin/StoreManagement';
 
 interface AdminPortalProps {
   user: User | null;
@@ -50,6 +51,8 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
         return <AnnouncementsManagement showToast={showToast} />;
       case 'subscription':
         return <SubscriptionManagement showToast={showToast} />;
+      case 'store':
+        return <StoreManagement showToast={showToast} />;
       default:
         return <AdminDashboard user={user} showToast={showToast} />;
     }
@@ -80,7 +83,8 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
                 { id: 'rewards', icon: 'fas fa-trophy', label: 'Consistency Rewards', color: 'text-green-400' },
                 { id: 'analytics', icon: 'fas fa-chart-line', label: 'Analytics', color: 'text-pink-400' },
                 { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
-                { id: 'subscription', icon: 'fas fa-cogs', label: 'Subscription Management', color: 'text-purple-400' }
+                { id: 'subscription', icon: 'fas fa-cogs', label: 'Subscription Management', color: 'text-purple-400' },
+                { id: 'store', icon: 'fas fa-store', label: 'Online Store', color: 'text-cyan-400' }
               ].map((item) => (
                 <button
                   key={item.id}

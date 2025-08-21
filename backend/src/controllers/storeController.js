@@ -915,14 +915,15 @@ class StoreController {
         params.push(start_date, end_date);
       }
 
-      const result = await query(
+      // Get sales data
+      const salesResult = await query(
         `SELECT 
           DATE(created_at) as date,
           COUNT(*) as total_orders,
           SUM(final_amount) as total_revenue,
           COUNT(DISTINCT customer_email) as unique_customers,
-          SUM(loyalty_points_earned) as total_loyalty_points_earned,
-          SUM(loyalty_points_used) as total_loyalty_points_used
+          COALESCE(SUM(loyalty_points_earned), 0) as total_loyalty_points_earned,
+          COALESCE(SUM(loyalty_points_used), 0) as total_loyalty_points_used
         FROM store_orders 
         ${dateFilter}
         GROUP BY DATE(created_at)
@@ -931,14 +932,71 @@ class StoreController {
         params
       );
 
+      // Get top selling products (handle case where no orders exist)
+      let topProductsResult;
+      try {
+        topProductsResult = await query(
+          `SELECT 
+            si.id,
+            si.name,
+            COALESCE(SUM(soi.quantity), 0) as quantity_sold,
+            COALESCE(SUM(soi.quantity * soi.price_at_time), 0) as revenue
+          FROM store_items si
+          LEFT JOIN store_order_items soi ON si.id = soi.item_id
+          LEFT JOIN store_orders so ON soi.order_id = so.id
+          ${dateFilter ? `AND so.created_at BETWEEN $${params.length + 1} AND $${params.length + 2}` : ''}
+          WHERE si.is_active = true
+          GROUP BY si.id, si.name
+          ORDER BY quantity_sold DESC
+          LIMIT 10`,
+          start_date && end_date ? [...params, start_date, end_date] : []
+        );
+      } catch (error) {
+        console.error('Error getting top products:', error);
+        topProductsResult = { rows: [] };
+      }
+
+      // Get low stock items
+      const lowStockResult = await query(
+        `SELECT 
+          si.id,
+          si.name,
+          si.stock_quantity as current_stock,
+          si.low_stock_threshold as threshold
+        FROM store_items si
+        WHERE si.stock_quantity <= si.low_stock_threshold
+        ORDER BY si.stock_quantity ASC
+        LIMIT 10`
+      );
+
+      const totalOrders = salesResult.rows.reduce((sum, row) => sum + parseInt(row.total_orders || 0), 0);
+      const totalRevenue = salesResult.rows.reduce((sum, row) => sum + parseFloat(row.total_revenue || 0), 0);
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+      // Format revenue by period
+      const revenueByPeriod = salesResult.rows.map(row => ({
+        period: row.date,
+        revenue: parseFloat(row.total_revenue || 0),
+        orders: parseInt(row.total_orders || 0)
+      }));
+
       res.json({
-        period,
-        report_data: result.rows,
-        summary: {
-          total_orders: result.rows.reduce((sum, row) => sum + parseInt(row.total_orders), 0),
-          total_revenue: result.rows.reduce((sum, row) => sum + parseFloat(row.total_revenue || 0), 0),
-          unique_customers: result.rows.reduce((sum, row) => sum + parseInt(row.unique_customers), 0)
-        }
+        total_revenue: totalRevenue,
+        total_orders: totalOrders,
+        average_order_value: averageOrderValue,
+        top_selling_products: topProductsResult.rows.map(row => ({
+          id: row.id,
+          name: row.name,
+          quantity_sold: parseInt(row.quantity_sold || 0),
+          revenue: parseFloat(row.revenue || 0)
+        })),
+        revenue_by_period: revenueByPeriod,
+        low_stock_items: lowStockResult.rows.map(row => ({
+          id: row.id,
+          name: row.name,
+          current_stock: parseInt(row.current_stock),
+          threshold: parseInt(row.threshold)
+        }))
       });
     } catch (error) {
       console.error('Error generating sales report:', error);
@@ -1173,18 +1231,33 @@ class StoreController {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
+      // Get user's email for fallback matching
+      const userResult = await query(
+        `SELECT email FROM users WHERE id = $1`,
+        [userId]
+      );
+      
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      const userEmail = userResult.rows[0].email;
+
       const result = await query(
         `SELECT 
           so.*, 
           COUNT(soi.id) as item_count
         FROM store_orders so
         LEFT JOIN store_order_items soi ON so.id = soi.order_id
-        WHERE so.cart_id IN (
-          SELECT id FROM store_carts WHERE user_id = $1
+        WHERE (
+          so.cart_id IN (
+            SELECT id FROM store_carts WHERE user_id = $1
+          )
+          OR (so.cart_id IS NULL AND so.customer_email = $2)
         )
         GROUP BY so.id
         ORDER BY so.created_at DESC`,
-        [userId]
+        [userId, userEmail]
       );
 
       res.json(result.rows);
@@ -1331,7 +1404,11 @@ class StoreController {
 
       const result = await query(
         `SELECT 
-          sr.*, u.name as user_name
+          sr.*, 
+          CASE 
+            WHEN u.id IS NOT NULL THEN CONCAT(u.first_name, ' ', u.last_name)
+            ELSE sr.guest_name
+          END as user_name
         FROM store_reviews sr
         LEFT JOIN users u ON sr.user_id = u.id
         WHERE sr.item_id = $1 AND sr.is_approved = true
@@ -1718,7 +1795,7 @@ class StoreController {
               `INSERT INTO loyalty_transactions (
                 user_id, points_change, transaction_type, description, reference_id
               ) VALUES ($1, $2, $3, $4, $5)`,
-              [cart.user_id, pointsEarned, 'store_purchase', `Store purchase - Order ${orderNumber}`, order.id]
+              [cart.user_id, pointsEarned, 'purchase', `Store purchase - Order ${orderNumber}`, order.id]
             );
           }
 
@@ -1736,7 +1813,7 @@ class StoreController {
               `INSERT INTO loyalty_transactions (
                 user_id, points_change, transaction_type, description, reference_id
               ) VALUES ($1, $2, $3, $4, $5)`,
-              [cart.user_id, -loyalty_points_to_use, 'store_redemption', `Store purchase - Order ${orderNumber}`, order.id]
+              [cart.user_id, -loyalty_points_to_use, 'redemption', `Store purchase - Order ${orderNumber}`, order.id]
             );
           }
         }

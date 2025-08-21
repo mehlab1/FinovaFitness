@@ -14,6 +14,9 @@ export { authApi } from './authApi';
 // Export membership API
 export { membershipApi } from './membershipApi';
 
+// Export store API
+export { storeApi } from './storeApi';
+
 // Common API utilities
 export const API_BASE_URL = 'http://localhost:3001/api';
 
