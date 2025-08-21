@@ -1231,33 +1231,18 @@ class StoreController {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      // Get user's email for fallback matching
-      const userResult = await query(
-        `SELECT email FROM users WHERE id = $1`,
-        [userId]
-      );
-      
-      if (userResult.rows.length === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      
-      const userEmail = userResult.rows[0].email;
-
       const result = await query(
         `SELECT 
           so.*, 
           COUNT(soi.id) as item_count
         FROM store_orders so
         LEFT JOIN store_order_items soi ON so.id = soi.order_id
-        WHERE (
-          so.cart_id IN (
-            SELECT id FROM store_carts WHERE user_id = $1
-          )
-          OR (so.cart_id IS NULL AND so.customer_email = $2)
+        WHERE so.cart_id IN (
+          SELECT id FROM store_carts WHERE user_id = $1
         )
         GROUP BY so.id
         ORDER BY so.created_at DESC`,
-        [userId, userEmail]
+        [userId]
       );
 
       res.json(result.rows);
@@ -1404,11 +1389,7 @@ class StoreController {
 
       const result = await query(
         `SELECT 
-          sr.*, 
-          CASE 
-            WHEN u.id IS NOT NULL THEN CONCAT(u.first_name, ' ', u.last_name)
-            ELSE sr.guest_name
-          END as user_name
+          sr.*, u.name as user_name
         FROM store_reviews sr
         LEFT JOIN users u ON sr.user_id = u.id
         WHERE sr.item_id = $1 AND sr.is_approved = true
@@ -1795,7 +1776,7 @@ class StoreController {
               `INSERT INTO loyalty_transactions (
                 user_id, points_change, transaction_type, description, reference_id
               ) VALUES ($1, $2, $3, $4, $5)`,
-              [cart.user_id, pointsEarned, 'purchase', `Store purchase - Order ${orderNumber}`, order.id]
+              [cart.user_id, pointsEarned, 'store_purchase', `Store purchase - Order ${orderNumber}`, order.id]
             );
           }
 
@@ -1813,7 +1794,7 @@ class StoreController {
               `INSERT INTO loyalty_transactions (
                 user_id, points_change, transaction_type, description, reference_id
               ) VALUES ($1, $2, $3, $4, $5)`,
-              [cart.user_id, -loyalty_points_to_use, 'redemption', `Store purchase - Order ${orderNumber}`, order.id]
+              [cart.user_id, -loyalty_points_to_use, 'store_redemption', `Store purchase - Order ${orderNumber}`, order.id]
             );
           }
         }

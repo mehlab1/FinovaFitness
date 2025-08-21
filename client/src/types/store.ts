@@ -19,6 +19,7 @@ export interface StoreItem {
   member_discount_percentage: number;
   category_id: number;
   category_name?: string;
+  category_description?: string;
   stock_quantity: number;
   low_stock_threshold: number;
   is_active: boolean;
@@ -42,19 +43,31 @@ export interface CartItem {
   created_at: string;
 }
 
+export interface StoreCart {
+  id: number;
+  user_id?: number;
+  guest_email?: string;
+  guest_name?: string;
+  guest_phone?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface StoreOrder {
   id: number;
+  cart_id?: number;
   order_number: string;
   customer_name: string;
   customer_email: string;
-  customer_phone: string;
+  customer_phone?: string;
   total_amount: number;
   member_discount_total: number;
   final_amount: number;
-  payment_method: string;
-  payment_status: string;
-  order_status: string;
+  payment_method: 'online' | 'in_person';
+  payment_status: 'pending' | 'confirmed' | 'failed';
+  order_status: 'pending' | 'processing' | 'ready_for_pickup' | 'completed' | 'cancelled';
   pickup_notes?: string;
+  admin_notes?: string;
   created_at: string;
   updated_at: string;
   items: StoreOrderItem[];
@@ -113,12 +126,15 @@ export interface PromotionalCode {
   id: number;
   code: string;
   name: string;
+  description: string;
   discount_type: 'percentage' | 'fixed';
   discount_value: number;
   discount_amount: number;
   min_order_amount: number;
   is_member_only: boolean;
   valid_until: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CheckoutData {
@@ -147,15 +163,30 @@ export interface CheckoutResponse {
 // ==============================================
 
 export interface StoreAnalytics {
-  total_revenue: number;
-  total_orders: number;
-  average_order_value: number;
-  top_selling_products: Array<{
+  revenue: {
+    total: number;
+    period: string;
+    growth_percentage: number;
+  };
+  orders: {
+    total: number;
+    pending: number;
+    completed: number;
+    canceled: number;
+  };
+  products: {
+    total: number;
+    active: number;
+    low_stock: number;
+    out_of_stock: number;
+  };
+  top_products: Array<{
     id: number;
     name: string;
     quantity_sold: number;
     revenue: number;
   }>;
+  low_stock_items: StoreItem[];
   salesByPeriod: Array<{
     period: string;
     sales: number;
@@ -166,12 +197,6 @@ export interface StoreAnalytics {
     category_name: string;
     sales: number;
     orders: number;
-  }>;
-  low_stock_items: Array<{
-    id: number;
-    name: string;
-    stock_quantity: number;
-    low_stock_threshold: number;
   }>;
 }
 
@@ -292,50 +317,39 @@ export interface ReviewsResponse {
 }
 
 // ==============================================
-// ADMIN ANALYTICS & INVENTORY TYPES
+// INVENTORY TRANSACTION TYPES
 // ==============================================
 
-export interface StoreAnalytics {
-  revenue: {
-    total: number;
-    period: string;
-    growth_percentage: number;
-  };
-  orders: {
-    total: number;
-    pending: number;
-    completed: number;
-    canceled: number;
-  };
-  products: {
-    total: number;
-    active: number;
-    low_stock: number;
-    out_of_stock: number;
-  };
-  top_products: Array<{
-    id: number;
-    name: string;
-    quantity_sold: number;
-    revenue: number;
-  }>;
-  low_stock_items: StoreItem[];
+export interface InventoryTransaction {
+  id: number;
+  item_id: number;
+  transaction_type: 'sale' | 'purchase' | 'adjustment' | 'return';
+  quantity: number;
+  previous_stock: number;
+  new_stock: number;
+  reference_type?: string;
+  reference_id?: number;
+  notes?: string;
+  created_by?: number;
+  created_at: string;
 }
 
+// ==============================================
+// GUEST USER TYPES
+// ==============================================
 
+export interface GuestUser {
+  guest_email: string;
+  guest_name: string;
+  guest_phone?: string;
+}
 
-export interface StorePromotion {
-  id: number;
-  code: string;
-  description: string;
-  discount_type: 'percentage' | 'fixed';
-  discount_value: number;
-  min_order_amount?: number;
-  max_uses?: number;
-  used_count: number;
-  is_active: boolean;
-  starts_at: string;
-  expires_at: string;
-  created_at: string;
-  updated_at: string;
+// ==============================================
+// STOCK UPDATE TYPES
+// ==============================================
+
+export interface StockUpdateData {
+  stock_quantity: number;
+  notes?: string;
+  transaction_type?: 'adjustment' | 'purchase' | 'return';
 }

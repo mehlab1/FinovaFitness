@@ -1,37 +1,148 @@
 // ==============================================
-// STORE API SERVICE FOR MEMBERS & ADMIN
+// AUTHENTICATION HELPER
 // ==============================================
 
-import {
-  StoreCategory,
-  StoreItem,
-  CartItem,
-  StoreOrder,
-  WishlistItem,
-  ProductReview,
-  LoyaltyPoints,
-  PromotionalCode,
-  CheckoutData,
-  CheckoutResponse,
-  ReviewsResponse,
-  ApiResponse,
-  StoreAnalytics,
-  InventoryOverview,
-  StorePromotion
-} from '../../types/store';
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : '',
+  };
+};
+
+// ==============================================
+// TYPES & INTERFACES
+// ==============================================
+
+export interface StoreCategory {
+  id: number;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoreItem {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  member_discount_percentage: number;
+  category_id: number;
+  category_name?: string;
+  stock_quantity: number;
+  low_stock_threshold: number;
+  is_active: boolean;
+  rating: number;
+  review_count: number;
+  wishlist_count: number;
+  is_featured: boolean;
+  is_member_only: boolean;
+  min_loyalty_points_required: number;
+  max_purchase_quantity: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoreOrder {
+  id: number;
+  order_number: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  total_amount: number;
+  member_discount_amount: number;
+  final_amount: number;
+  payment_method: string;
+  payment_status: string;
+  order_status: string;
+  pickup_notes?: string;
+  loyalty_points_used: number;
+  loyalty_points_earned: number;
+  loyalty_points_value: number;
+  promotional_code?: string;
+  promotional_discount: number;
+  created_at: string;
+  updated_at: string;
+  items: StoreOrderItem[];
+}
+
+export interface StoreOrderItem {
+  id: number;
+  order_id: number;
+  item_id: number;
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface StorePromotion {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  min_order_amount: number;
+  usage_limit: number;
+  used_count: number;
+  is_member_only: boolean;
+  is_active: boolean;
+  valid_from: string;
+  valid_until: string;
+  created_at: string;
+}
+
+export interface StoreAnalytics {
+  total_revenue: number;
+  total_orders: number;
+  average_order_value: number;
+  top_selling_products: Array<{
+    id: number;
+    name: string;
+    quantity_sold: number;
+    revenue: number;
+  }>;
+  revenue_by_period: Array<{
+    period: string;
+    revenue: number;
+    orders: number;
+  }>;
+  low_stock_items: Array<{
+    id: number;
+    name: string;
+    current_stock: number;
+    threshold: number;
+  }>;
+}
+
+export interface InventoryOverview {
+  id: number;
+  name: string;
+  stock_quantity: number;
+  low_stock_threshold: number;
+  category_name: string;
+  stock_status: 'in_stock' | 'low_stock' | 'out_of_stock';
+}
+
+// ==============================================
+// STORE API SERVICE
+// ==============================================
 
 class StoreApiService {
   private baseUrl = 'http://localhost:3001/api/store';
 
   // ==============================================
-  // AUTHENTICATION HELPER
+  // CUSTOM FETCH WITH AUTH
   // ==============================================
 
   private async fetchWithAuth(url: string, options: RequestInit = {}) {
     const token = localStorage.getItem('token');
     
     if (!token) {
-      throw new Error('401: No authentication token found. Please log in.');
+      throw new Error('401: No authentication token found. Please log in as an admin user.');
     }
     
     const response = await fetch(url, {
@@ -59,17 +170,17 @@ class StoreApiService {
     return this.fetchWithAuth(`${this.baseUrl}/categories`);
   }
 
-  async addCategory(categoryData: { name: string; description?: string }): Promise<StoreCategory> {
+  async addCategory(category: { name: string; description?: string }): Promise<StoreCategory> {
     return this.fetchWithAuth(`${this.baseUrl}/categories`, {
       method: 'POST',
-      body: JSON.stringify(categoryData),
+      body: JSON.stringify(category),
     });
   }
 
-  async updateCategory(categoryId: number, categoryData: { name: string; description?: string }): Promise<StoreCategory> {
-    return this.fetchWithAuth(`${this.baseUrl}/categories/${categoryId}`, {
+  async updateCategory(id: number, category: { name: string; description?: string }): Promise<StoreCategory> {
+    return this.fetchWithAuth(`${this.baseUrl}/categories/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(categoryData),
+      body: JSON.stringify(category),
     });
   }
 
@@ -83,7 +194,7 @@ class StoreApiService {
     is_active?: boolean;
     limit?: number;
     offset?: number;
-  }): Promise<StoreItem[]> {
+  }): Promise<{ items: StoreItem[]; total: number }> {
     const queryParams = new URLSearchParams();
     if (params?.category_id) queryParams.append('category_id', params.category_id.toString());
     if (params?.search) queryParams.append('search', params.search);
@@ -95,9 +206,87 @@ class StoreApiService {
     return this.fetchWithAuth(url);
   }
 
-  async deleteItem(itemId: number): Promise<{ message: string }> {
-    return this.fetchWithAuth(`${this.baseUrl}/admin/items/${itemId}`, {
+  async addItem(item: {
+    name: string;
+    description: string;
+    price: number;
+    member_discount_percentage: number;
+    category_id: number;
+    stock_quantity: number;
+    low_stock_threshold: number;
+    is_featured?: boolean;
+    is_member_only?: boolean;
+    min_loyalty_points_required?: number;
+    max_purchase_quantity?: number;
+  }): Promise<StoreItem> {
+    return this.fetchWithAuth(`${this.baseUrl}/items`, {
+      method: 'POST',
+      body: JSON.stringify(item),
+    });
+  }
+
+  async updateItem(id: number, item: Partial<StoreItem>): Promise<StoreItem> {
+    return this.fetchWithAuth(`${this.baseUrl}/items/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(item),
+    });
+  }
+
+  async deleteItem(id: number): Promise<{ message: string }> {
+    return this.fetchWithAuth(`${this.baseUrl}/admin/items/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  async updateStock(id: number, stock_quantity: number): Promise<StoreItem> {
+    return this.fetchWithAuth(`${this.baseUrl}/items/${id}/stock`, {
+      method: 'PUT',
+      body: JSON.stringify({ stock_quantity }),
+    });
+  }
+
+  // ==============================================
+  // ORDER MANAGEMENT
+  // ==============================================
+
+  async getAllOrders(params?: {
+    status?: string;
+    payment_status?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ orders: StoreOrder[]; total: number }> {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.payment_status) queryParams.append('payment_status', params.payment_status);
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+
+    const url = `${this.baseUrl}/admin/orders${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.fetchWithAuth(url);
+  }
+
+  async updateOrderStatus(id: number, status: string): Promise<StoreOrder> {
+    return this.fetchWithAuth(`${this.baseUrl}/admin/orders/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async confirmPayment(id: number): Promise<StoreOrder> {
+    return this.fetchWithAuth(`${this.baseUrl}/admin/orders/${id}/payment`, {
+      method: 'PUT',
+    });
+  }
+
+  async processRefund(orderId: number, refundData: {
+    refund_amount: number;
+    refund_reason: string;
+  }): Promise<StoreOrder> {
+    return this.fetchWithAuth(`${this.baseUrl}/admin/orders/${orderId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(refundData),
     });
   }
 
@@ -109,33 +298,8 @@ class StoreApiService {
     return this.fetchWithAuth(`${this.baseUrl}/admin/inventory`);
   }
 
-  async updateStock(itemId: number, newStock: number): Promise<{ message: string }> {
-    return this.fetchWithAuth(`${this.baseUrl}/items/${itemId}/stock`, {
-      method: 'PUT',
-      body: JSON.stringify({ stock_quantity: newStock }),
-    });
-  }
-
-  // ==============================================
-  // ORDER MANAGEMENT
-  // ==============================================
-
-  async getAllOrders(): Promise<StoreOrder[]> {
-    return this.fetchWithAuth(`${this.baseUrl}/admin/orders`);
-  }
-
-  async updateOrderStatus(orderId: number, status: string): Promise<{ message: string }> {
-    return this.fetchWithAuth(`${this.baseUrl}/admin/orders/${orderId}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
-    });
-  }
-
-  async confirmPayment(orderId: number, paymentStatus: string = 'confirmed'): Promise<{ message: string }> {
-    return this.fetchWithAuth(`${this.baseUrl}/admin/orders/${orderId}/payment`, {
-      method: 'PUT',
-      body: JSON.stringify({ payment_status: paymentStatus }),
-    });
+  async getLowStockAlerts(): Promise<InventoryOverview[]> {
+    return this.fetchWithAuth(`${this.baseUrl}/admin/alerts/low-stock`);
   }
 
   // ==============================================
@@ -146,192 +310,87 @@ class StoreApiService {
     return this.fetchWithAuth(`${this.baseUrl}/admin/promotions`);
   }
 
-  async updatePromotion(promotionId: number, updateData: { is_active?: boolean }): Promise<StorePromotion> {
-    return this.fetchWithAuth(`${this.baseUrl}/admin/promotions/${promotionId}`, {
+  async createPromotion(promotion: {
+    code: string;
+    name: string;
+    description: string;
+    discount_type: 'percentage' | 'fixed';
+    discount_value: number;
+    min_order_amount: number;
+    usage_limit: number;
+    is_member_only: boolean;
+    valid_from: string;
+    valid_until: string;
+  }): Promise<StorePromotion> {
+    return this.fetchWithAuth(`${this.baseUrl}/admin/promotions`, {
+      method: 'POST',
+      body: JSON.stringify(promotion),
+    });
+  }
+
+  async updatePromotion(id: number, promotion: Partial<StorePromotion>): Promise<StorePromotion> {
+    return this.fetchWithAuth(`${this.baseUrl}/admin/promotions/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updateData),
+      body: JSON.stringify(promotion),
     });
   }
 
   // ==============================================
-  // ANALYTICS & REPORTS
+  // REPORTS & ANALYTICS
   // ==============================================
 
-  async generateSalesReport(params: { period: string }): Promise<StoreAnalytics> {
+  async generateSalesReport(params?: {
+    period: 'daily' | 'weekly' | 'monthly';
+    start_date?: string;
+    end_date?: string;
+  }): Promise<StoreAnalytics> {
     const queryParams = new URLSearchParams();
-    queryParams.append('period', params.period);
-    
-    return this.fetchWithAuth(`${this.baseUrl}/admin/reports/sales?${queryParams.toString()}`);
+    if (params?.period) queryParams.append('period', params.period);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+
+    const url = `${this.baseUrl}/admin/reports/sales${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.fetchWithAuth(url);
   }
 
-  async generateInventoryReport(): Promise<any> {
+  async generateInventoryReport(): Promise<{
+    total_items: number;
+    low_stock_items: number;
+    out_of_stock_items: number;
+    total_inventory_value: number;
+  }> {
     return this.fetchWithAuth(`${this.baseUrl}/admin/reports/inventory`);
   }
 
   // ==============================================
-  // CART MANAGEMENT
+  // PUBLIC ENDPOINTS (for reference)
   // ==============================================
 
-  async createOrGetCart(): Promise<{ id: number }> {
-    return this.fetchWithAuth(`${this.baseUrl}/cart`, {
-      method: 'POST',
-      body: JSON.stringify({ user_id: this.getUserId() }),
-    });
-  }
-
-  async addToCart(cartId: number, itemId: number, quantity: number): Promise<CartItem[]> {
-    return this.fetchWithAuth(`${this.baseUrl}/cart/items`, {
-      method: 'POST',
-      body: JSON.stringify({ cart_id: cartId, item_id: itemId, quantity }),
-    });
-  }
-
-  async getCart(cartId: number): Promise<CartItem[]> {
-    return this.fetchWithAuth(`${this.baseUrl}/cart/${cartId}`);
-  }
-
-  async updateCartItem(cartId: number, itemId: number, quantity: number): Promise<{ message: string }> {
-    return this.fetchWithAuth(`${this.baseUrl}/cart/${cartId}/items/${itemId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ quantity }),
-    });
-  }
-
-  // ==============================================
-  // CHECKOUT & ORDERS
-  // ==============================================
-
-  async checkout(checkoutData: CheckoutData): Promise<CheckoutResponse> {
-    return this.fetchWithAuth(`${this.baseUrl}/checkout-enhanced`, {
-      method: 'POST',
-      body: JSON.stringify(checkoutData),
-    });
-  }
-
-  async getOrderByNumber(orderNumber: string): Promise<StoreOrder> {
-    return this.fetchWithAuth(`${this.baseUrl}/orders/${orderNumber}`);
-  }
-
-  async getMemberOrderHistory(): Promise<StoreOrder[]> {
-    return this.fetchWithAuth(`${this.baseUrl}/member/orders`);
-  }
-
-  // ==============================================
-  // WISHLIST MANAGEMENT
-  // ==============================================
-
-  async getWishlist(): Promise<WishlistItem[]> {
-    return this.fetchWithAuth(`${this.baseUrl}/member/wishlist`);
-  }
-
-  async addToWishlist(itemId: number): Promise<WishlistItem> {
-    return this.fetchWithAuth(`${this.baseUrl}/member/wishlist`, {
-      method: 'POST',
-      body: JSON.stringify({ item_id: itemId }),
-    });
-  }
-
-  async removeFromWishlist(itemId: number): Promise<{ message: string }> {
-    return this.fetchWithAuth(`${this.baseUrl}/member/wishlist/${itemId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // ==============================================
-  // LOYALTY POINTS
-  // ==============================================
-
-  async getLoyaltyPointsBalance(): Promise<LoyaltyPoints> {
-    return this.fetchWithAuth(`${this.baseUrl}/member/loyalty-points`);
-  }
-
-  async applyLoyaltyPoints(cartId: number, pointsToUse: number): Promise<{
+  async validatePromoCode(data: {
+    code: string;
+    cart_total: number;
+    is_member: boolean;
+  }): Promise<{
+    valid: boolean;
+    discount_amount: number;
     message: string;
-    points_used: number;
-    discount_value: number;
   }> {
-    return this.fetchWithAuth(`${this.baseUrl}/member/loyalty-points/apply`, {
+    const response = await fetch(`${this.baseUrl}/validate-promo-code`, {
       method: 'POST',
-      body: JSON.stringify({ cart_id: cartId, points_to_use: pointsToUse }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     });
-  }
 
-  // ==============================================
-  // PROMOTIONAL CODES
-  // ==============================================
-
-  async validatePromotionalCode(code: string, cartTotal: number): Promise<{
-    promotion: PromotionalCode;
-  }> {
-    return this.fetchWithAuth(`${this.baseUrl}/validate-promo-code`, {
-      method: 'POST',
-      body: JSON.stringify({ 
-        code, 
-        cart_total: cartTotal, 
-        is_member: true 
-      }),
-    });
-  }
-
-  // ==============================================
-  // PRODUCT REVIEWS
-  // ==============================================
-
-  async getProductReviews(itemId: number, page: number = 1, limit: number = 10): Promise<ReviewsResponse> {
-    return this.fetchWithAuth(`${this.baseUrl}/items/${itemId}/reviews?page=${page}&limit=${limit}`);
-  }
-
-  async addProductReview(itemId: number, review: {
-    rating: number;
-    review_text: string;
-    guest_name?: string;
-    guest_email?: string;
-  }): Promise<ProductReview> {
-    return this.fetchWithAuth(`${this.baseUrl}/items/${itemId}/reviews`, {
-      method: 'POST',
-      body: JSON.stringify(review),
-    });
-  }
-
-  // ==============================================
-  // UTILITY METHODS
-  // ==============================================
-
-  private getUserId(): number {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return user.id;
-  }
-
-  // ==============================================
-  // ERROR HANDLING
-  // ==============================================
-
-  private handleError(error: any): never {
-    console.error('Store API Error:', error);
-    
-    if (error.message.includes('401')) {
-      throw new Error('Please log in to access the store.');
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`${response.status}: ${errorText}`);
     }
-    
-    if (error.message.includes('403')) {
-      throw new Error('You do not have permission to access this feature.');
-    }
-    
-    if (error.message.includes('404')) {
-      throw new Error('The requested resource was not found.');
-    }
-    
-    if (error.message.includes('500')) {
-      throw new Error('Server error. Please try again later.');
-    }
-    
-    throw new Error(error.message || 'An unexpected error occurred.');
+
+    return response.json();
   }
 }
-
-// ==============================================
-// EXPORT SINGLETON INSTANCE
-// ==============================================
 
 export const storeApi = new StoreApiService();
 export default storeApi;

@@ -28,8 +28,6 @@ CREATE TABLE IF NOT EXISTS store_items (
     stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
     low_stock_threshold INTEGER DEFAULT 5 CHECK (low_stock_threshold >= 0),
     image_url TEXT,
-    rating DECIMAL(3,2) DEFAULT 0.00 CHECK (rating >= 0 AND rating <= 5), -- Average rating
-    review_count INTEGER DEFAULT 0 CHECK (review_count >= 0), -- Total number of reviews
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -120,63 +118,6 @@ CREATE TABLE IF NOT EXISTS store_order_status_history (
 );
 
 -- ==============================================
--- STORE REVIEWS
--- ==============================================
-
-CREATE TABLE IF NOT EXISTS store_reviews (
-    id SERIAL PRIMARY KEY,
-    item_id INTEGER REFERENCES store_items(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- NULL for guest reviews
-    guest_name VARCHAR(255), -- For guest reviews
-    guest_email VARCHAR(255), -- For guest reviews
-    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    review_text TEXT,
-    is_verified_purchase BOOLEAN DEFAULT false,
-    is_approved BOOLEAN DEFAULT true, -- Admin can moderate reviews
-    helpful_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- Ensure either user_id or guest details are provided
-    CONSTRAINT valid_reviewer CHECK (
-        (user_id IS NOT NULL) OR 
-        (guest_name IS NOT NULL AND guest_email IS NOT NULL)
-    )
-);
-
--- ==============================================
--- STORE WISHLISTS
--- ==============================================
-
-CREATE TABLE IF NOT EXISTS store_wishlists (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    item_id INTEGER REFERENCES store_items(id) ON DELETE CASCADE,
-    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- Ensure unique wishlist items per user
-    UNIQUE(user_id, item_id)
-);
-
--- ==============================================
--- STORE PROMOTIONS
--- ==============================================
-
-CREATE TABLE IF NOT EXISTS store_promotions (
-    id SERIAL PRIMARY KEY,
-    code VARCHAR(50) UNIQUE NOT NULL,
-    description TEXT,
-    discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
-    discount_value DECIMAL(10,2) NOT NULL CHECK (discount_value > 0),
-    min_order_amount DECIMAL(10,2) DEFAULT 0,
-    max_uses INTEGER, -- NULL means unlimited
-    used_count INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT true,
-    starts_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- ==============================================
 -- INVENTORY TRANSACTIONS
 -- ==============================================
 
@@ -209,34 +150,6 @@ CREATE INDEX IF NOT EXISTS idx_store_orders_status ON store_orders(order_status)
 CREATE INDEX IF NOT EXISTS idx_store_order_items_order ON store_order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_store_order_status_history_order ON store_order_status_history(order_id);
 CREATE INDEX IF NOT EXISTS idx_store_inventory_transactions_item ON store_inventory_transactions(item_id);
-CREATE INDEX IF NOT EXISTS idx_store_reviews_item ON store_reviews(item_id);
-CREATE INDEX IF NOT EXISTS idx_store_reviews_user ON store_reviews(user_id);
-CREATE INDEX IF NOT EXISTS idx_store_reviews_approved ON store_reviews(is_approved);
-CREATE INDEX IF NOT EXISTS idx_store_wishlists_user ON store_wishlists(user_id);
-CREATE INDEX IF NOT EXISTS idx_store_wishlists_item ON store_wishlists(item_id);
-CREATE INDEX IF NOT EXISTS idx_store_promotions_code ON store_promotions(code);
-CREATE INDEX IF NOT EXISTS idx_store_promotions_active ON store_promotions(is_active);
-
--- ==============================================
--- TRIGGERS FOR UPDATED_AT
--- ==============================================
-
--- Function to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Create triggers for updated_at (after all tables are created)
-CREATE TRIGGER update_store_categories_updated_at BEFORE UPDATE ON store_categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_store_items_updated_at BEFORE UPDATE ON store_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_store_carts_updated_at BEFORE UPDATE ON store_carts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_store_orders_updated_at BEFORE UPDATE ON store_orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_store_reviews_updated_at BEFORE UPDATE ON store_reviews FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_store_promotions_updated_at BEFORE UPDATE ON store_promotions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ==============================================
 -- INSERT DEFAULT CATEGORIES
@@ -271,10 +184,7 @@ FROM (
         ('store_orders'),
         ('store_order_items'),
         ('store_order_status_history'),
-        ('store_inventory_transactions'),
-        ('store_reviews'),
-        ('store_wishlists'),
-        ('store_promotions')
+        ('store_inventory_transactions')
 ) AS expected_tables(table_name)
 LEFT JOIN information_schema.tables ist 
     ON ist.table_name = expected_tables.table_name 

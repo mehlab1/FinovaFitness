@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { storeApi } from '../../services/api/storeApi';
-import { StoreItem, StoreCategory, StoreOrder, StoreAnalytics, InventoryOverview, StorePromotion } from '../../types/store';
+import { storeApi, StoreAnalytics, InventoryOverview, StoreItem, StoreCategory, StoreOrder, StorePromotion } from '../../services/api/storeApi';
 import { useToast } from '../Toast';
 
 interface StoreManagementProps {
@@ -161,8 +160,8 @@ const StoreDashboard: React.FC<StoreDashboardProps> = ({ analytics, inventory, l
     );
   }
 
-  const lowStockItems = (inventory || []).filter(item => item.stock_status === 'low_stock');
-  const outOfStockItems = (inventory || []).filter(item => item.stock_status === 'out_of_stock');
+  const lowStockItems = inventory.filter(item => item.stock_status === 'low_stock');
+  const outOfStockItems = inventory.filter(item => item.stock_status === 'out_of_stock');
 
   return (
     <div className="space-y-8">
@@ -222,7 +221,7 @@ const StoreDashboard: React.FC<StoreDashboardProps> = ({ analytics, inventory, l
             Top Selling Products
           </h3>
           <div className="space-y-3">
-            {analytics?.top_selling_products.slice(0, 5).map((product: any, index: number) => (
+            {analytics?.top_selling_products.slice(0, 5).map((product, index) => (
               <div key={product.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-700/50 transition-all duration-200">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
@@ -314,27 +313,11 @@ const ProductManagement: React.FC<{ showToast: (message: string, type?: 'success
         storeApi.getAllItems(),
         storeApi.getAllCategories()
       ]);
-      
-      // Ensure we have valid data before setting state
-      if (productsData && Array.isArray(productsData)) {
-        setProducts(productsData);
-      } else {
-        setProducts([]);
-        console.warn('No products data received from API');
-      }
-      
-      if (categoriesData && Array.isArray(categoriesData)) {
+      setProducts(productsData.items);
       setCategories(categoriesData);
-      } else {
-        setCategories([]);
-        console.warn('No categories data received from API');
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
       showToast('Failed to load products data', 'error');
-      // Set empty arrays as fallback
-      setProducts([]);
-      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -345,7 +328,7 @@ const ProductManagement: React.FC<{ showToast: (message: string, type?: 'success
     
     try {
       await storeApi.deleteItem(productId);
-      setProducts((products || []).filter(p => p.id !== productId));
+      setProducts(products.filter(p => p.id !== productId));
       showToast('Product deleted successfully', 'success');
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -353,7 +336,7 @@ const ProductManagement: React.FC<{ showToast: (message: string, type?: 'success
     }
   };
 
-  const filteredProducts = (products || []).filter(product => {
+  const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === null || product.category_id === selectedCategory;
@@ -412,7 +395,7 @@ const ProductManagement: React.FC<{ showToast: (message: string, type?: 'success
               className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
               <option value="">All Categories</option>
-              {(categories || []).map(category => (
+              {categories.map(category => (
                 <option key={category.id} value={category.id}>{category.name}</option>
               ))}
             </select>
@@ -511,7 +494,7 @@ const OrderManagement: React.FC<{ showToast: (message: string, type?: 'success' 
     try {
       setLoading(true);
       const ordersData = await storeApi.getAllOrders();
-      setOrders(ordersData);
+      setOrders(Array.isArray(ordersData) ? ordersData : ordersData.orders || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
       showToast('Failed to load orders', 'error');
@@ -523,7 +506,7 @@ const OrderManagement: React.FC<{ showToast: (message: string, type?: 'success' 
   const handleStatusUpdate = async (orderId: number, status: string) => {
     try {
       await storeApi.updateOrderStatus(orderId, status);
-      setOrders((orders || []).map(order => 
+      setOrders(orders.map(order => 
         order.id === orderId ? { ...order, order_status: status } : order
       ));
       showToast('Order status updated successfully', 'success');
@@ -536,7 +519,7 @@ const OrderManagement: React.FC<{ showToast: (message: string, type?: 'success' 
   const handlePaymentConfirmation = async (orderId: number) => {
     try {
       await storeApi.confirmPayment(orderId);
-      setOrders((orders || []).map(order => 
+      setOrders(orders.map(order => 
         order.id === orderId ? { ...order, payment_status: 'confirmed' } : order
       ));
       showToast('Payment confirmed successfully', 'success');
@@ -546,7 +529,7 @@ const OrderManagement: React.FC<{ showToast: (message: string, type?: 'success' 
     }
   };
 
-  const filteredOrders = (orders || []).filter(order => {
+  const filteredOrders = orders.filter(order => {
     const matchesSearch = order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          order.customer_email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -557,8 +540,9 @@ const OrderManagement: React.FC<{ showToast: (message: string, type?: 'success' 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-500/20 text-yellow-400';
-      case 'processing': return 'bg-blue-500/20 text-blue-400';
-      case 'ready_for_pickup': return 'bg-green-500/20 text-green-400';
+      case 'confirmed': return 'bg-blue-500/20 text-blue-400';
+      case 'preparing': return 'bg-orange-500/20 text-orange-400';
+      case 'ready': return 'bg-green-500/20 text-green-400';
       case 'completed': return 'bg-green-600/20 text-green-300';
       case 'cancelled': return 'bg-red-500/20 text-red-400';
       default: return 'bg-gray-500/20 text-gray-400';
@@ -620,8 +604,9 @@ const OrderManagement: React.FC<{ showToast: (message: string, type?: 'success' 
             >
               <option value="all">All Orders</option>
               <option value="pending">Pending</option>
-              <option value="processing">Processing</option>
-              <option value="ready_for_pickup">Ready for Pickup</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="preparing">Preparing</option>
+              <option value="ready">Ready for Pickup</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
@@ -639,7 +624,7 @@ const OrderManagement: React.FC<{ showToast: (message: string, type?: 'success' 
                   <div className="flex items-center gap-4 mb-3">
                     <h3 className="text-lg font-semibold text-white">#{order.order_number}</h3>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(order.order_status)}`}>
-                      {order.order_status.replace('_', ' ').charAt(0).toUpperCase() + order.order_status.replace('_', ' ').slice(1)}
+                      {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
                     </span>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(order.payment_status)}`}>
                       Payment: {order.payment_status}
@@ -691,8 +676,9 @@ const OrderManagement: React.FC<{ showToast: (message: string, type?: 'success' 
                         className="bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="ready_for_pickup">Ready for Pickup</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="preparing">Preparing</option>
+                        <option value="ready">Ready for Pickup</option>
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
@@ -768,7 +754,7 @@ const InventoryManagement: React.FC<{ showToast: (message: string, type?: 'succe
   const handleStockUpdate = async (itemId: number, newStock: number) => {
     try {
       await storeApi.updateStock(itemId, newStock);
-      setInventory((inventory || []).map(item => 
+      setInventory(inventory.map(item => 
         item.id === itemId ? { 
           ...item, 
           stock_quantity: newStock,
@@ -784,7 +770,7 @@ const InventoryManagement: React.FC<{ showToast: (message: string, type?: 'succe
     }
   };
 
-  const filteredInventory = (inventory || []).filter(item => {
+  const filteredInventory = inventory.filter(item => {
     if (filterStatus === 'all') return true;
     return item.stock_status === filterStatus;
   });
@@ -819,10 +805,10 @@ const InventoryManagement: React.FC<{ showToast: (message: string, type?: 'succe
   }
 
   const stockStats = {
-    total: (inventory || []).length,
-    inStock: (inventory || []).filter(item => item.stock_status === 'in_stock').length,
-    lowStock: (inventory || []).filter(item => item.stock_status === 'low_stock').length,
-    outOfStock: (inventory || []).filter(item => item.stock_status === 'out_of_stock').length,
+    total: inventory.length,
+    inStock: inventory.filter(item => item.stock_status === 'in_stock').length,
+    lowStock: inventory.filter(item => item.stock_status === 'low_stock').length,
+    outOfStock: inventory.filter(item => item.stock_status === 'out_of_stock').length,
   };
 
   return (
@@ -933,12 +919,12 @@ const InventoryManagement: React.FC<{ showToast: (message: string, type?: 'succe
                         <input
                           type="number"
                           value={editingStock.newStock}
-                          onChange={(e) => editingStock && setEditingStock({...editingStock, newStock: parseInt(e.target.value) || 0})}
+                          onChange={(e) => setEditingStock({...editingStock, newStock: parseInt(e.target.value) || 0})}
                           className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-center"
                           min="0"
                         />
                         <button
-                          onClick={() => editingStock && handleStockUpdate(item.id, editingStock.newStock)}
+                          onClick={() => handleStockUpdate(item.id, editingStock.newStock)}
                           className="text-green-400 hover:text-green-300 p-1"
                         >
                           <i className="fas fa-check"></i>
@@ -1042,7 +1028,7 @@ const PromotionManagement: React.FC<{ showToast: (message: string, type?: 'succe
   const handleTogglePromotion = async (promoId: number, isActive: boolean) => {
     try {
       await storeApi.updatePromotion(promoId, { is_active: !isActive });
-      setPromotions((promotions || []).map(promo => 
+      setPromotions(promotions.map(promo => 
         promo.id === promoId ? { ...promo, is_active: !isActive } : promo
       ));
       showToast(`Promotion ${!isActive ? 'activated' : 'deactivated'} successfully`, 'success');
@@ -1082,7 +1068,7 @@ const PromotionManagement: React.FC<{ showToast: (message: string, type?: 'succe
 
       {/* Promotions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {(promotions || []).map(promotion => (
+        {promotions.map(promotion => (
           <div key={promotion.id} className="bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden hover:border-pink-500/50 transition-all duration-300">
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
@@ -1197,11 +1183,11 @@ const CategoryManagement: React.FC<{ showToast: (message: string, type?: 'succes
     try {
       if (editingCategory) {
         const updated = await storeApi.updateCategory(editingCategory.id, categoryData);
-        setCategories((categories || []).map(cat => cat.id === editingCategory.id ? updated : cat));
+        setCategories(categories.map(cat => cat.id === editingCategory.id ? updated : cat));
         showToast('Category updated successfully', 'success');
       } else {
         const newCategory = await storeApi.addCategory(categoryData);
-        setCategories([...(categories || []), newCategory]);
+        setCategories([...categories, newCategory]);
         showToast('Category created successfully', 'success');
       }
       setEditingCategory(null);
@@ -1242,7 +1228,7 @@ const CategoryManagement: React.FC<{ showToast: (message: string, type?: 'succes
 
       {/* Categories Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {(categories || []).map(category => (
+        {categories.map(category => (
           <div key={category.id} className="bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden hover:border-yellow-500/50 transition-all duration-300">
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
@@ -1281,7 +1267,7 @@ const CategoryManagement: React.FC<{ showToast: (message: string, type?: 'succes
         ))}
       </div>
 
-      {(categories || []).length === 0 && (
+      {categories.length === 0 && (
         <div className="text-center py-20">
           <div className="w-20 h-20 bg-gray-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <i className="fas fa-folder text-gray-400 text-3xl"></i>
@@ -1546,18 +1532,18 @@ const ReportsManagement: React.FC<{ showToast: (message: string, type?: 'success
         )}
 
         {/* Low Stock Items */}
-        {inventoryReport && inventoryReport.length > 0 && (
+        {salesReport?.low_stock_items && salesReport.low_stock_items.length > 0 && (
           <div>
             <h4 className="text-lg font-semibold text-red-400 mb-4">Items Needing Attention</h4>
             <div className="space-y-2">
-              {inventoryReport.filter((item: InventoryOverview) => item.stock_status === 'low_stock' || item.stock_status === 'out_of_stock').slice(0, 5).map((item: InventoryOverview) => (
+              {salesReport.low_stock_items.map(item => (
                 <div key={item.id} className="flex justify-between items-center p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                   <div>
                     <p className="text-white font-medium">{item.name}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-red-400 font-bold">{item.stock_quantity} units</p>
-                    <p className="text-gray-400 text-xs">Threshold: {item.low_stock_threshold}</p>
+                    <p className="text-red-400 font-bold">{item.current_stock} units</p>
+                    <p className="text-gray-400 text-xs">Threshold: {item.threshold}</p>
                   </div>
                 </div>
               ))}

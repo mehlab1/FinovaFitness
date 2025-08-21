@@ -3,6 +3,7 @@ import { trainers, classes, products, blogPosts } from '../data/mockData';
 import { usePortal } from '../hooks/usePortal';
 import { authApi } from '../services/api';
 import { MembershipPlan } from '../types';
+import { PublicStore } from './public-store/PublicStore';
 
 interface WebsitePortalProps {
   onSignIn: () => void;
@@ -984,35 +985,32 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
     </div>
   );
 
-  const StorePage = () => (
-    <div className="animate-fade-in">
-      <div className="container mx-auto px-6 py-12">
-        <h1 className="text-4xl font-bold text-center mb-12 neon-glow text-blue-400" style={{ fontFamily: 'Orbitron, monospace' }}>
-          Online Store
-        </h1>
-        
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {products.map((product) => (
-            <div key={product.id} className="product-card p-6 rounded-2xl hover-glow transition-all duration-300">
-              <img src={product.image} alt={product.name} className="w-full h-48 object-cover rounded-lg mb-4" />
-              <h3 className="text-lg font-bold mb-2">{product.name}</h3>
-              <p className="text-gray-300 text-sm mb-4">{product.description}</p>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <span className="text-xl font-bold">PKR {product.price.toLocaleString()}</span>
-                  <div className="text-sm text-green-400">Members save 10%</div>
-                </div>
-                <span className="text-sm text-gray-400">{product.category}</span>
-              </div>
-              <button className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold hover-glow transition-all duration-300">
-                Add to Cart
-              </button>
-            </div>
-          ))}
-        </div>
+  const StorePage = () => {
+    const [showToast, setShowToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+    const handleShowToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+      setShowToast({ message, type });
+      setTimeout(() => setShowToast(null), 3000);
+    };
+
+    return (
+      <div className="animate-fade-in">
+        {/* Toast Notification */}
+        {showToast && (
+          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
+            showToast.type === 'success' ? 'bg-green-500 text-white' :
+            showToast.type === 'error' ? 'bg-red-500 text-white' :
+            'bg-blue-500 text-white'
+          }`}>
+            {showToast.message}
+          </div>
+        )}
+
+        {/* Import and render the PublicStore component */}
+        <PublicStore showToast={handleShowToast} />
       </div>
-    </div>
-  );
+    );
+  };
 
   // Render page function - defined after all components
   const renderPage = useMemo(() => {
