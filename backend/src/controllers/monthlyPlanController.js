@@ -90,7 +90,7 @@ export const createMonthlyPlan = async (req, res) => {
         max_subscribers,
         description || null,
         true, // requires_admin_approval
-        false // admin_approved - will be approved by admin
+        null // admin_approved - NULL means pending approval
       ]
     );
 

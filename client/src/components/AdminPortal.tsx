@@ -17,6 +17,7 @@ import {
 import { RevenueDashboard } from './RevenueDashboard';
 import { RevenueManagement } from './RevenueManagement';
 import StoreManagement from './admin/StoreManagement';
+import { AdminMonthlyPlanApproval } from './admin/AdminMonthlyPlanApproval';
 
 interface AdminPortalProps {
   user: User | null;
@@ -53,6 +54,8 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
         return <SubscriptionManagement showToast={showToast} />;
       case 'store':
         return <StoreManagement showToast={showToast} />;
+      case 'monthly-plans':
+        return <AdminMonthlyPlanApproval showToast={showToast} />;
       default:
         return <AdminDashboard user={user} showToast={showToast} />;
     }
@@ -84,7 +87,8 @@ export const AdminPortal = ({ user, onLogout }: AdminPortalProps) => {
                 { id: 'analytics', icon: 'fas fa-chart-line', label: 'Analytics', color: 'text-pink-400' },
                 { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
                 { id: 'subscription', icon: 'fas fa-cogs', label: 'Subscription Management', color: 'text-purple-400' },
-                { id: 'store', icon: 'fas fa-store', label: 'Online Store', color: 'text-cyan-400' }
+                { id: 'store', icon: 'fas fa-store', label: 'Online Store', color: 'text-cyan-400' },
+                { id: 'monthly-plans', icon: 'fas fa-calendar-check', label: 'Monthly Plan Approval', color: 'text-purple-400' }
               ].map((item) => (
                 <button
                   key={item.id}

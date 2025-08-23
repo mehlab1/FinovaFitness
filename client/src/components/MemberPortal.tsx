@@ -7,6 +7,7 @@ import { publicFacilitiesApi, userFacilitiesApi } from '../services/api/faciliti
 import { TrainersTab } from './member/TrainersTab';
 import { MemberStore } from './store/MemberStore';
 import { CheckCircle, Star, MessageSquare } from 'lucide-react';
+import { MemberMonthlyPlans } from './member/MemberMonthlyPlans';
 import { Button } from './ui/button';
 import Chat from './Chat';
 
@@ -156,6 +157,8 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
           setPendingReviewSession(session);
           setCurrentPage('reviews');
         }} />;
+      case 'monthly-plans':
+        return <MemberMonthlyPlans showToast={showToast} user={user} />;
       case 'nutritionists':
         return <NutritionistsTab showToast={showToast} user={user} onNavigateToReviews={(session) => {
           setPendingReviewSession(session);
@@ -201,6 +204,7 @@ export const MemberPortal = ({ user, onLogout }: MemberPortalProps) => {
                 { id: 'membership', icon: 'fas fa-id-card', label: 'Membership', color: 'text-pink-400' },
                 { id: 'workout', icon: 'fas fa-dumbbell', label: 'Workout Schedule', color: 'text-purple-400' },
                 { id: 'trainers', icon: 'fas fa-user-tie', label: 'Trainers', color: 'text-orange-400' },
+                { id: 'monthly-plans', icon: 'fas fa-calendar-check', label: 'Monthly Plans', color: 'text-cyan-400' },
                 { id: 'nutritionists', icon: 'fas fa-apple-alt', label: 'Nutritionists', color: 'text-purple-400' },
                 { id: 'facilities', icon: 'fas fa-swimming-pool', label: 'Facilities', color: 'text-blue-400' },
                 { id: 'store', icon: 'fas fa-shopping-cart', label: 'Store', color: 'text-green-400' },

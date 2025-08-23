@@ -52,10 +52,9 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
     // Get current membership plan details
     const planResult = await query(
       `SELECT mp.current_plan_id, mpl.name as plan_name, mpl.price, mpl.duration_months,
-              u.membership_start_date, u.membership_end_date
+              mp.membership_start_date, mp.membership_end_date
        FROM member_profiles mp
        LEFT JOIN membership_plans mpl ON mp.current_plan_id = mpl.id
-       LEFT JOIN users u ON mp.user_id = u.id
        WHERE mp.user_id = $1`,
       [userId]
     );
@@ -1618,10 +1617,9 @@ router.post('/calculate-plan-change', verifyMemberToken, async (req, res) => {
     // Get current plan details
     const currentPlanResult = await query(
       `SELECT mp.current_plan_id, mpl.name as plan_name, mpl.price, mpl.duration_months,
-              u.membership_start_date, u.membership_end_date
+              mp.membership_start_date, mp.membership_end_date
        FROM member_profiles mp
        LEFT JOIN membership_plans mpl ON mp.current_plan_id = mpl.id
-       LEFT JOIN users u ON mp.user_id = u.id
        WHERE mp.user_id = $1`,
       [userId]
     );

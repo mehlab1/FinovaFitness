@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { User } from '../types';
 import { useToast } from './Toast';
+import { WalkInSalesForm, WalkInSalesPreview, WalkInSalesReceipt } from './WalkInSales';
 
 interface FrontDeskPortalProps {
   user: User | null;
@@ -181,135 +182,112 @@ const ManualCheckIn = ({ showToast }: { showToast: (message: string, type?: 'suc
 };
 
 const WalkInSales = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [saleData, setSaleData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    plan: '',
-    paymentMethod: 'cash'
-  });
+  const [currentStep, setCurrentStep] = useState<'form' | 'preview' | 'receipt'>('form');
+  const [memberData, setMemberData] = useState<any>(null);
+  const [transactionData, setTransactionData] = useState<any>(null);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
 
-  const plans = [
-    { id: 'drop-in', name: 'Drop-In', price: 25 },
-    { id: 'monthly', name: 'Monthly', price: 79 },
-    { id: 'quarterly', name: 'Quarterly', price: 199 },
-    { id: 'yearly', name: 'Yearly', price: 599 }
-  ];
+        const handleFormSubmit = async (data: any) => {
+          try {
+            // data is the API response from createMember, which includes membership dates
+            setMemberData({
+              ...data.profile,
+              id: data.user.id, // Add the user ID as member ID
+              user_id: data.user.id, // Also include user_id for consistency
+              email: data.user.email,
+              default_password: data.default_password,
+              membership_plan: data.membership_plan,
+              payment_details: data.payment_details,
+              // Add payment method and confirmation to memberData for receipt
+              payment_method: data.payment_details.method,
+              payment_confirmed: data.payment_details.confirmed
+            });
+            setTransactionData({
+              transaction_id: `TXN-${Date.now()}`,
+              plan_name: data.membership_plan.name,
+              plan_price: data.membership_plan.price,
+              amount: data.payment_details.amount,
+              payment_method: data.payment_details.method,
+              member_name: `${data.profile.first_name} ${data.profile.last_name}`,
+              email: data.user.email,
+              default_password: data.default_password
+            });
+            setSelectedPlan(data.membership_plan); // Set the selected plan from API response
+            setCurrentStep('receipt');
+            showToast('Member created successfully!', 'success');
+          } catch (error) {
+            console.error('Error creating member:', error);
+            showToast('Failed to create member. Please try again.', 'error');
+          }
+        };
 
-  const handleSale = () => {
-    if (saleData.name && saleData.email && saleData.phone && saleData.plan) {
-      const selectedPlan = plans.find(p => p.id === saleData.plan);
-      showToast(`Membership sold to ${saleData.name} for $${selectedPlan?.price}`, 'success');
-      setSaleData({ name: '', email: '', phone: '', plan: '', paymentMethod: 'cash' });
-    } else {
-      showToast('Please fill in all required fields', 'error');
+  const handlePreview = async (data: any) => {
+    setMemberData(data);
+    
+    // Get plan details if membership_plan_id is provided
+    if (data.membership_plan_id) {
+      try {
+        const response = await fetch(`http://localhost:3001/api/frontdesk/membership-plans`);
+        const plansData = await response.json();
+        if (plansData.success && plansData.data) {
+          const plan = plansData.data.find((p: any) => p.id === parseInt(data.membership_plan_id));
+          setSelectedPlan(plan);
+        }
+      } catch (error) {
+        console.error('Error fetching plan details:', error);
+      }
     }
+    
+    setCurrentStep('preview');
+  };
+
+  const handlePreviewConfirm = () => {
+    handleFormSubmit(memberData);
+  };
+
+  const handlePreviewBack = () => {
+    setCurrentStep('form');
+    // Don't clear memberData so form data is preserved
+  };
+
+  const handleReceiptClose = () => {
+    setCurrentStep('form');
+    setMemberData(null);
+    setTransactionData(null);
+  };
+
+  const handleReceiptPrint = () => {
+    window.print();
   };
 
   return (
     <div className="animate-fade-in">
-      <div className="glass-card p-6 rounded-2xl">
-        <h2 className="text-2xl font-bold text-cyan-400 mb-6" style={{ fontFamily: 'Orbitron, monospace' }}>
-          Walk-In Membership Sales
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Customer Name *</label>
-              <input
-                type="text"
-                value={saleData.name}
-                onChange={(e) => setSaleData({ ...saleData, name: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-cyan-400 focus:outline-none transition-colors"
-                placeholder="Enter customer name"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Email *</label>
-              <input
-                type="email"
-                value={saleData.email}
-                onChange={(e) => setSaleData({ ...saleData, email: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-cyan-400 focus:outline-none transition-colors"
-                placeholder="Enter email address"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Phone *</label>
-              <input
-                type="tel"
-                value={saleData.phone}
-                onChange={(e) => setSaleData({ ...saleData, phone: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-cyan-400 focus:outline-none transition-colors"
-                placeholder="Enter phone number"
-              />
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Membership Plan *</label>
-              <select
-                value={saleData.plan}
-                onChange={(e) => setSaleData({ ...saleData, plan: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-cyan-400 focus:outline-none transition-colors"
-              >
-                <option value="">Select a plan</option>
-                {plans.map(plan => (
-                  <option key={plan.id} value={plan.id}>
-                    {plan.name} - ${plan.price}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Payment Method</label>
-              <select
-                value={saleData.paymentMethod}
-                onChange={(e) => setSaleData({ ...saleData, paymentMethod: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-cyan-400 focus:outline-none transition-colors"
-              >
-                <option value="cash">Cash</option>
-                <option value="card">Credit/Debit Card</option>
-                <option value="check">Check</option>
-              </select>
-            </div>
-            
-            {saleData.plan && (
-              <div className="bg-gray-900 p-4 rounded-lg">
-                <h3 className="font-bold text-green-400 mb-2">Sale Summary</h3>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Plan:</span>
-                    <span>{plans.find(p => p.id === saleData.plan)?.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Price:</span>
-                    <span className="text-green-400">${plans.find(p => p.id === saleData.plan)?.price}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Payment:</span>
-                    <span>{saleData.paymentMethod}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="mt-6">
-          <button
-            onClick={handleSale}
-            className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-lg font-bold hover-glow transition-all duration-300"
-          >
-            Complete Sale
-          </button>
-        </div>
-      </div>
+      {currentStep === 'form' && (
+        <WalkInSalesForm 
+          onSubmit={handleFormSubmit}
+          onPreview={handlePreview}
+          initialData={memberData}
+        />
+      )}
+      
+      {currentStep === 'preview' && memberData && (
+        <WalkInSalesPreview
+          memberData={memberData}
+          selectedPlan={selectedPlan}
+          onConfirm={handlePreviewConfirm}
+          onBack={handlePreviewBack}
+        />
+      )}
+      
+      {currentStep === 'receipt' && memberData && transactionData && (
+        <WalkInSalesReceipt
+          memberData={memberData}
+          transactionData={transactionData}
+          selectedPlan={selectedPlan}
+          onPrint={handleReceiptPrint}
+          onClose={handleReceiptClose}
+        />
+      )}
     </div>
   );
 };

@@ -10,7 +10,6 @@ import { query } from '../database.js';
 export const createSlotGenerationBatch = async (req, res) => {
   try {
     const {
-      trainer_id, // This will actually be user_id from frontend
       batch_name,
       generation_start_date,
       generation_end_date,
@@ -22,12 +21,15 @@ export const createSlotGenerationBatch = async (req, res) => {
       notes
     } = req.body;
 
+    // Get trainer_id from authenticated user
+    const trainer_id = req.trainer.id;
+
     // Validate required fields
-    if (!trainer_id || !batch_name || !generation_start_date || !generation_end_date || 
+    if (!batch_name || !generation_start_date || !generation_end_date || 
         !selected_days || !daily_start_time || !daily_end_time) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: trainer_id, batch_name, generation_start_date, generation_end_date, selected_days, daily_start_time, daily_end_time'
+        message: 'Missing required fields: batch_name, generation_start_date, generation_end_date, selected_days, daily_start_time, daily_end_time'
       });
     }
 
@@ -66,20 +68,8 @@ export const createSlotGenerationBatch = async (req, res) => {
       });
     }
 
-    // First, get the trainer ID from the user ID
-    const trainerCheck = await query(
-      'SELECT t.id as trainer_id FROM trainers t WHERE t.user_id = $1',
-      [trainer_id]
-    );
-
-    if (trainerCheck.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trainer not found for this user'
-      });
-    }
-
-    const actualTrainerId = trainerCheck.rows[0].trainer_id;
+    // Use the trainer_id directly from authenticated user
+    const actualTrainerId = trainer_id;
 
     // Check if batch name already exists for this trainer
     const existingBatch = await query(
@@ -158,30 +148,8 @@ export const createSlotGenerationBatch = async (req, res) => {
  */
 export const getTrainerSlotBatches = async (req, res) => {
   try {
-    const { trainer_id } = req.params; // This will actually be user_id from frontend
-
-    // Validate trainer_id
-    if (!trainer_id) {
-      return res.status(400).json({
-        success: false,
-        message: 'Trainer ID is required'
-      });
-    }
-
-    // First, get the trainer ID from the user ID
-    const trainerCheck = await query(
-      'SELECT t.id as trainer_id FROM trainers t WHERE t.user_id = $1',
-      [trainer_id]
-    );
-
-    if (trainerCheck.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trainer not found for this user'
-      });
-    }
-
-    const actualTrainerId = trainerCheck.rows[0].trainer_id;
+    // Get trainer_id from authenticated user
+    const actualTrainerId = req.trainer.id;
 
     // Get all batches for the trainer
     const result = await query(

@@ -280,12 +280,42 @@ router.get('/', async (req, res) => {
     }
 
     const result = await query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.phone, u.membership_type, u.is_active, u.created_at, u.subscription_status
+      `SELECT 
+        u.id, 
+        u.email, 
+        u.first_name, 
+        u.last_name, 
+        u.role, 
+        u.phone, 
+        u.membership_type, 
+        u.is_active, 
+        u.created_at, 
+        u.subscription_status,
+        mp.current_plan_id,
+        mp.membership_start_date,
+        mp.membership_end_date,
+        mpl.name as plan_name,
+        mpl.price as plan_price
        FROM users u 
+       LEFT JOIN member_profiles mp ON u.id = mp.user_id
+       LEFT JOIN membership_plans mpl ON mp.current_plan_id = mpl.id
        ORDER BY u.created_at DESC`
     );
 
-    res.json({ users: result.rows });
+    // Transform the data to include membership_type from plan_name for members
+    const transformedUsers = result.rows.map(user => {
+      if (user.role === 'member') {
+        return {
+          ...user,
+          membership_type: user.plan_name || user.membership_type || null,
+          membership_start_date: user.membership_start_date,
+          membership_end_date: user.membership_end_date
+        };
+      }
+      return user;
+    });
+
+    res.json({ users: transformedUsers });
 
   } catch (error) {
     console.error('Get users error:', error);

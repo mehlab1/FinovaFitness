@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS trainer_monthly_plans (
     max_subscribers INTEGER NOT NULL DEFAULT 1 CHECK (max_subscribers > 0),
     is_active BOOLEAN DEFAULT true,
     requires_admin_approval BOOLEAN DEFAULT true,
-    admin_approved BOOLEAN DEFAULT false,
+    admin_approved BOOLEAN DEFAULT NULL,
     admin_approval_date TIMESTAMP,
     admin_approval_notes TEXT,
     description TEXT,
@@ -90,13 +90,17 @@ CREATE TABLE IF NOT EXISTS monthly_plan_subscriptions (
     subscription_start_date DATE NOT NULL,
     subscription_end_date DATE,
     auto_renewal BOOLEAN DEFAULT false,
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'expired', 'pending', 'paused')),
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'expired', 'pending', 'paused', 'rejected')),
     sessions_remaining INTEGER NOT NULL,
     total_paid DECIMAL(10,2) NOT NULL,
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     next_billing_date DATE,
     cancellation_date DATE,
     cancellation_reason TEXT,
+    trainer_approval_date TIMESTAMP,
+    trainer_approval_notes TEXT,
+    trainer_rejection_date TIMESTAMP,
+    trainer_rejection_reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT valid_subscription_dates CHECK (subscription_end_date IS NULL OR subscription_end_date >= subscription_start_date),
@@ -176,6 +180,8 @@ CREATE INDEX IF NOT EXISTS idx_monthly_plan_subscriptions_member_id ON monthly_p
 CREATE INDEX IF NOT EXISTS idx_monthly_plan_subscriptions_trainer_id ON monthly_plan_subscriptions(trainer_id);
 CREATE INDEX IF NOT EXISTS idx_monthly_plan_subscriptions_status ON monthly_plan_subscriptions(status);
 CREATE INDEX IF NOT EXISTS idx_monthly_plan_subscriptions_dates ON monthly_plan_subscriptions(subscription_start_date, subscription_end_date);
+CREATE INDEX IF NOT EXISTS idx_monthly_plan_subscriptions_trainer_approval_date ON monthly_plan_subscriptions(trainer_approval_date);
+CREATE INDEX IF NOT EXISTS idx_monthly_plan_subscriptions_trainer_rejection_date ON monthly_plan_subscriptions(trainer_rejection_date);
 
 -- Slot Assignments Indexes
 CREATE INDEX IF NOT EXISTS idx_slot_assignments_slot_id ON slot_assignments(slot_id);

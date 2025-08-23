@@ -53,8 +53,7 @@ export const SlotGenerationManagement: React.FC<SlotGenerationManagementProps> =
   const [filteredSlots, setFilteredSlots] = useState<AvailableSlot[]>([]);
 
   // Form state
-  const [formData, setFormData] = useState<CreateSlotBatchData>({
-    trainer_id: trainerId,
+  const [formData, setFormData] = useState<Omit<CreateSlotBatchData, 'trainer_id'>>({
     batch_name: '',
     generation_start_date: '',
     generation_end_date: '',
@@ -112,8 +111,8 @@ export const SlotGenerationManagement: React.FC<SlotGenerationManagementProps> =
 
   const loadBatches = async () => {
     try {
-      console.log('Loading slot batches for trainer ID:', trainerId);
-      const response = await slotGenerationApi.getTrainerSlotBatches(trainerId);
+      console.log('Loading slot batches for authenticated trainer');
+      const response = await slotGenerationApi.getTrainerSlotBatches();
       console.log('Slot batches loaded successfully:', response.data);
       setBatches(response.data);
     } catch (error) {
@@ -284,7 +283,6 @@ export const SlotGenerationManagement: React.FC<SlotGenerationManagementProps> =
 
   const resetForm = () => {
     setFormData({
-      trainer_id: trainerId,
       batch_name: '',
       generation_start_date: '',
       generation_end_date: '',
@@ -591,7 +589,6 @@ export const SlotGenerationManagement: React.FC<SlotGenerationManagementProps> =
   const handleEdit = (batch: SlotGenerationBatch) => {
     setEditingBatch(batch);
     setFormData({
-      trainer_id: trainerId,
       batch_name: batch.batch_name,
       generation_start_date: new Date(batch.generation_start_date).toISOString().split('T')[0],
       generation_end_date: new Date(batch.generation_end_date).toISOString().split('T')[0],
@@ -1426,188 +1423,7 @@ export const SlotGenerationManagement: React.FC<SlotGenerationManagementProps> =
         </div>
       )}
 
-      {/* Slot Generation Form */}
-      {showCreateForm && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-xl font-semibold text-pink-400 mb-4">
-            {editingBatch ? 'Edit Slot Generation Batch' : 'Create New Slot Generation Batch'}
-          </h3>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Batch Name *
-                </label>
-                <input
-                  type="text"
-                  name="batch_name"
-                  value={formData.batch_name}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
-                  placeholder="e.g., September Morning Slots"
-                  required
-                />
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Slot Duration (minutes) *
-                </label>
-                <input
-                  type="number"
-                  name="slot_duration"
-                  value={formData.slot_duration}
-                  onChange={handleInputChange}
-                  min="15"
-                  max="180"
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Start Date *
-                </label>
-                <input
-                  type="date"
-                  name="generation_start_date"
-                  value={formData.generation_start_date}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  End Date *
-                </label>
-                <input
-                  type="date"
-                  name="generation_end_date"
-                  value={formData.generation_end_date}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Break Duration (minutes)
-                </label>
-                <input
-                  type="number"
-                  name="break_duration"
-                  value={formData.break_duration}
-                  onChange={handleInputChange}
-                  min="0"
-                  max="60"
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Daily Start Time *
-                </label>
-                <input
-                  type="time"
-                  name="daily_start_time"
-                  value={formData.daily_start_time}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Daily End Time *
-                </label>
-                <input
-                  type="time"
-                  name="daily_end_time"
-                  value={formData.daily_end_time}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-3">
-                Select Days *
-              </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {dayOptions.map(day => (
-                  <label key={day.value} className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      value={day.value}
-                      checked={formData.selected_days.includes(day.value)}
-                      onChange={handleInputChange}
-                      className="w-4 h-4 text-pink-500 bg-gray-700 border-gray-600 focus:ring-pink-400 focus:ring-2"
-                    />
-                    <span className="text-gray-300 text-sm">{day.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Notes (Optional)
-              </label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleInputChange}
-                rows={3}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors resize-none"
-                placeholder="Any additional notes about this batch..."
-              />
-            </div>
-
-            <div className="flex justify-end space-x-4 pt-4 border-t border-gray-700">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCreateForm(false);
-                  resetForm();
-                }}
-                className="px-6 py-3 text-gray-300 hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="bg-pink-500 hover:bg-pink-600 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 disabled:transform-none"
-              >
-                {saving ? (
-                  <span>
-                    <i className="fas fa-spinner fa-spin mr-2"></i>
-                    {editingBatch ? 'Updating...' : 'Generating...'}
-                  </span>
-                ) : (
-                  <span>
-                    <i className="fas fa-save mr-2"></i>
-                    {editingBatch ? 'Update Batch' : 'Generate Slots'}
-                  </span>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {/* Batches List */}
       <div className="mt-12 space-y-6">
@@ -1765,7 +1581,180 @@ export const SlotGenerationManagement: React.FC<SlotGenerationManagementProps> =
             <h3 className="text-xl font-semibold text-pink-400 mb-4">
               {editingBatch ? 'Edit Slot Generation Batch' : 'Create New Slot Generation Batch'}
             </h3>
-            {/* Form content would go here */}
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Batch Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="batch_name"
+                    value={formData.batch_name}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
+                    placeholder="e.g., September Morning Slots"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Slot Duration (minutes) *
+                  </label>
+                  <input
+                    type="number"
+                    name="slot_duration"
+                    value={formData.slot_duration}
+                    onChange={handleInputChange}
+                    min="15"
+                    max="180"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Start Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="generation_start_date"
+                    value={formData.generation_start_date}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    End Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="generation_end_date"
+                    value={formData.generation_end_date}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Break Duration (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    name="break_duration"
+                    value={formData.break_duration}
+                    onChange={handleInputChange}
+                    min="0"
+                    max="60"
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Daily Start Time *
+                  </label>
+                  <input
+                    type="time"
+                    name="daily_start_time"
+                    value={formData.daily_start_time}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Daily End Time *
+                  </label>
+                  <input
+                    type="time"
+                    name="daily_end_time"
+                    value={formData.daily_end_time}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Select Days *
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {dayOptions.map(day => (
+                    <label key={day.value} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        value={day.value}
+                        checked={formData.selected_days.includes(day.value)}
+                        onChange={handleInputChange}
+                        className="w-4 h-4 text-pink-500 bg-gray-700 border-gray-600 focus:ring-pink-400 focus:ring-2"
+                      />
+                      <span className="text-gray-300 text-sm">{day.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-pink-400 transition-colors resize-none"
+                  placeholder="Any additional notes about this batch..."
+                />
+              </div>
+
+              <div className="flex justify-end space-x-4 pt-4 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    resetForm();
+                  }}
+                  className="px-6 py-3 text-gray-300 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="bg-pink-500 hover:bg-pink-600 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 disabled:transform-none"
+                >
+                  {saving ? (
+                    <span>
+                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      {editingBatch ? 'Updating...' : 'Generating...'}
+                    </span>
+                  ) : (
+                    <span>
+                      <i className="fas fa-save mr-2"></i>
+                      {editingBatch ? 'Update Batch' : 'Generate Slots'}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -105,7 +105,7 @@ class SlotGenerationApiService {
   /**
    * Create a new slot generation batch
    */
-  async createSlotGenerationBatch(batchData: CreateSlotBatchData): Promise<{ success: boolean; message: string; data: SlotGenerationBatch }> {
+  async createSlotGenerationBatch(batchData: Omit<CreateSlotBatchData, 'trainer_id'>): Promise<{ success: boolean; message: string; data: SlotGenerationBatch }> {
     return this.fetchWithAuth(`${this.baseUrl}/create`, {
       method: 'POST',
       body: JSON.stringify(batchData),
@@ -113,10 +113,10 @@ class SlotGenerationApiService {
   }
 
   /**
-   * Get all slot generation batches for a specific trainer
+   * Get all slot generation batches for the authenticated trainer
    */
-  async getTrainerSlotBatches(trainerId: number): Promise<{ success: boolean; message: string; data: SlotGenerationBatch[] }> {
-    return this.fetchWithAuth(`${this.baseUrl}/trainer/${trainerId}`);
+  async getTrainerSlotBatches(): Promise<{ success: boolean; message: string; data: SlotGenerationBatch[] }> {
+    return this.fetchWithAuth(`${this.baseUrl}/trainer/me`);
   }
 
   /**

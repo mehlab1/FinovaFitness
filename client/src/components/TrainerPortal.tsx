@@ -11,6 +11,7 @@ import { TrainerAnnouncements } from './trainer/TrainerAnnouncements';
 import { TrainerSubscription } from './trainer/TrainerSubscription';
 import { MonthlyPlanManagement } from './trainer/MonthlyPlanManagement';
 import { SlotGenerationManagement } from './trainer/SlotGenerationManagement';
+import { TrainerSubscriptionManagement } from './trainer/TrainerSubscriptionManagement';
 
 
 interface TrainerPortalProps {
@@ -69,6 +70,8 @@ export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
             </div>
           </div>
         );
+      case 'subscription-management':
+        return <TrainerSubscriptionManagement showToast={showToast} />;
       case 'slot-generation':
         return trainerId ? <SlotGenerationManagement trainerId={trainerId} /> : (
           <div className="flex items-center justify-center h-64">
@@ -111,6 +114,7 @@ export const TrainerPortal = ({ user, onLogout }: TrainerPortalProps) => {
             { id: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements', color: 'text-yellow-400' },
             { id: 'subscription', icon: 'fas fa-credit-card', label: 'Subscription', color: 'text-blue-400' },
             { id: 'monthly-plans', icon: 'fas fa-calendar-check', label: 'Monthly Plans', color: 'text-green-400' },
+            { id: 'subscription-management', icon: 'fas fa-users-cog', label: 'Subscription Management', color: 'text-orange-400' },
             { id: 'slot-generation', icon: 'fas fa-calendar-plus', label: 'Slot Generation & Assignment', color: 'text-purple-400' },
 
           ].map((item) => (

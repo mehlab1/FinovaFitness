@@ -278,7 +278,7 @@ export const WebsitePortal = ({ onSignIn, onBookClass }: WebsitePortalProps) => 
   const handlePortalSelect = (portalId: string) => {
     setShowPortalDropdown(false);
     // This will trigger the portal selection in the parent App component
-    if (portalId === 'member') {
+    if (portalId === 'member' || portalId === 'frontdesk') {
       onSignIn();
     }
   };
