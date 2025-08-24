@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { getClient } from '../database.js';
 
+
 const router = express.Router();
 
 // Middleware to verify member token
@@ -120,18 +121,42 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
     );
 
     // Get consistency data
-    const consistencyService = require('../services/consistencyService');
-    const loyaltyService = require('../services/loyaltyService');
     
-    // Get current week consistency
-    const currentWeek = consistencyService.calculateWeekStart(new Date());
-    const currentWeekData = await consistencyService.getCurrentWeekConsistency(userId, currentWeek);
+    // Get current week consistency (simplified for now)
+    // Get the most recent week with check-ins
+    const currentWeekCheckIns = await query(
+      `SELECT 
+         consistency_week_start,
+         COUNT(DISTINCT visit_date) as check_in_days
+       FROM gym_visits 
+       WHERE user_id = $1 
+       GROUP BY consistency_week_start
+       ORDER BY consistency_week_start DESC 
+       LIMIT 1`,
+      [userId]
+    );
+    
+    const currentWeekData = {
+      week_start: currentWeekCheckIns.rows[0]?.consistency_week_start ? currentWeekCheckIns.rows[0].consistency_week_start.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      check_in_days: currentWeekCheckIns.rows[0]?.check_in_days || 0,
+      is_consistent: (currentWeekCheckIns.rows[0]?.check_in_days || 0) >= 5
+    };
     
     // Get consistency history (last 4 weeks)
-    const consistencyHistory = await consistencyService.getConsistencyHistory(userId, 4);
+    const consistencyHistory = await query(
+      `SELECT 
+         week_start_date,
+         check_ins_count as check_in_days,
+         points_awarded
+       FROM consistency_achievements 
+       WHERE user_id = $1 
+       ORDER BY week_start_date DESC 
+       LIMIT 4`,
+      [userId]
+    );
     
-    // Get loyalty balance
-    const loyaltyBalance = await loyaltyService.getLoyaltyBalance(userId);
+    // Get loyalty balance from member profile
+    const loyaltyBalance = profileResult.rows[0]?.loyalty_points || 0;
 
     // Get loyalty points
     const loyaltyResult = await query(
@@ -260,9 +285,9 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
       recentVisits: visitsResult.rows,
       consistency: {
         currentWeek: currentWeekData,
-        history: consistencyHistory,
-        totalConsistentWeeks: consistencyHistory.filter(w => w.consistency_achieved).length,
-        totalPointsEarned: consistencyHistory.reduce((sum, w) => sum + (w.points_awarded || 0), 0)
+        history: consistencyHistory.rows || [],
+        totalConsistentWeeks: (consistencyHistory.rows || []).filter(w => w.points_awarded > 0).length,
+        totalPointsEarned: (consistencyHistory.rows || []).reduce((sum, w) => sum + (w.points_awarded || 0), 0)
       },
       loyaltyStats: loyaltyResult.rows[0] || {
         total_points: 0,

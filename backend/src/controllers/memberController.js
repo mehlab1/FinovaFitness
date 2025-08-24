@@ -13,10 +13,16 @@ export const getDashboard = async (req, res) => {
 
     // Get upcoming bookings
     const bookingsResult = await query(
-      `SELECT b.*, ts.trainer_id, u.first_name as trainer_first_name, u.last_name as trainer_last_name
+      `SELECT b.*, 
+              CASE 
+                WHEN b.trainer_id IS NOT NULL THEN CONCAT(tu.first_name, ' ', tu.last_name)
+                WHEN b.class_id IS NOT NULL THEN c.name
+                ELSE 'General Booking'
+              END as booking_name
        FROM bookings b 
        LEFT JOIN trainers t ON b.trainer_id = t.id
-       LEFT JOIN users u ON t.user_id = u.id
+       LEFT JOIN users tu ON t.user_id = tu.id
+       LEFT JOIN classes c ON b.class_id = c.id
        WHERE b.user_id = $1 AND b.booking_date >= CURRENT_DATE 
        ORDER BY b.booking_date, b.start_time LIMIT 5`,
       [userId]
@@ -24,9 +30,17 @@ export const getDashboard = async (req, res) => {
 
     // Get recent gym visits
     const visitsResult = await query(
-      `SELECT * FROM gym_visits 
+      `SELECT 
+         id,
+         user_id,
+         visit_date,
+         check_in_time,
+         check_in_type,
+         consistency_week_start,
+         consistency_points_awarded
+       FROM gym_visits 
        WHERE user_id = $1 
-       ORDER BY visit_date DESC LIMIT 5`,
+       ORDER BY check_in_time DESC LIMIT 5`,
       [userId]
     );
 
@@ -46,8 +60,8 @@ export const getDashboard = async (req, res) => {
         streak_days: 0,
         last_gym_visit: null
       },
-      upcomingBookings: bookingsResult.rows,
-      recentVisits: visitsResult.rows,
+      upcomingBookings: bookingsResult.rows || [],
+      recentVisits: visitsResult.rows || [],
       loyaltyStats: loyaltyResult.rows[0] || {
         total_points: 0,
         total_transactions: 0
