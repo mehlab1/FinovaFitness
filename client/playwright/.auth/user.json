@@ -1,0 +1,43 @@
+{
+  "cookies": [
+    {
+      "name": "__cf_bm",
+      "value": "Nui3bG1ueIQAU14h42rTk2bl9Un5rBsaS6CGbOzd9Lg-1755988636-1.0.1.1-tly8mGwLr6rq_wp99hTmoh_rpoMwf89SHEhtPBjCuG587CBOPDkETEnFeXMkGId0KgWLz3ZOSoXuMklo5XDgkcetox3jdQn2PmeQ38y3qeA",
+      "domain": ".replit.com",
+      "path": "/",
+      "expires": 1755990435.887573,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_cfuvid",
+      "value": "Fe6OyRtX0F7WhGzUtYbUyENaqKj6rElxgf2qp4iPZng-1755988636073-0.0.1.1-604800000",
+      "domain": ".replit.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:5173",
+      "localStorage": [
+        {
+          "name": "token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjUsImVtYWlsIjoiZnJvbnRkZXNrQGZpbm92YWZpdG5lc3MuY29tIiwicm9sZSI6ImZyb250X2Rlc2siLCJpYXQiOjE3NTU5ODg2NDEsImV4cCI6MTc1NjU5MzQ0MX0.L0svcPtW9GVwm9Mo95tkaR38gQmf06kiuJnNlbOCKyo"
+        },
+        {
+          "name": "user",
+          "value": "{\"id\":5,\"email\":\"frontdesk@finovafitness.com\",\"first_name\":\"Jessica\",\"last_name\":\"Wilson\",\"role\":\"front_desk\",\"is_active\":true}"
+        },
+        {
+          "name": "currentPortal",
+          "value": "front_desk"
+        }
+      ]
+    }
+  ]
+}

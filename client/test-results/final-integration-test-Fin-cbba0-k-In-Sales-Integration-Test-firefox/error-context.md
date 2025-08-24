@@ -1,0 +1,96 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e7]: 
+          - heading "FINOVA FITNESS" [level=1] [ref=e8]
+        - navigation [ref=e9]:
+          - button " Manual Check-In" [ref=e10] [cursor=pointer]:
+            - generic [ref=e11] [cursor=pointer]: 
+            - generic [ref=e12] [cursor=pointer]: Manual Check-In
+          - button " Walk-In Sales" [active] [ref=e13] [cursor=pointer]:
+            - generic [ref=e14] [cursor=pointer]: 
+            - generic [ref=e15] [cursor=pointer]: Walk-In Sales
+          - button " POS Summary" [ref=e16] [cursor=pointer]:
+            - generic [ref=e17] [cursor=pointer]: 
+            - generic [ref=e18] [cursor=pointer]: POS Summary
+          - button " Announcements" [ref=e19] [cursor=pointer]:
+            - generic [ref=e20] [cursor=pointer]: 
+            - generic [ref=e21] [cursor=pointer]: Announcements
+          - button " Subscription Management" [ref=e22] [cursor=pointer]:
+            - generic [ref=e23] [cursor=pointer]: 
+            - generic [ref=e24] [cursor=pointer]: Subscription Management
+      - generic [ref=e25]:
+        - generic [ref=e27]:
+          - heading "Sales" [level=2] [ref=e28]
+          - generic [ref=e29]:
+            - generic [ref=e30]: "Front Desk:"
+            - button "Logout" [ref=e31] [cursor=pointer]
+        - generic [ref=e34]:
+          - heading "Walk-In Sales - New Member Registration" [level=2] [ref=e35]
+          - generic [ref=e36]:
+            - generic [ref=e37]:
+              - generic [ref=e38]:
+                - generic [ref=e39]: First Name *
+                - textbox "Enter first name" [ref=e40]
+              - generic [ref=e41]:
+                - generic [ref=e42]: Last Name *
+                - textbox "Enter last name" [ref=e43]
+            - generic [ref=e44]:
+              - generic [ref=e45]:
+                - generic [ref=e46]: Email *
+                - textbox "Enter email address" [ref=e47]
+              - generic [ref=e48]:
+                - generic [ref=e49]: Phone Number *
+                - textbox "Enter phone number" [ref=e50]
+            - generic [ref=e51]:
+              - generic [ref=e52]:
+                - generic [ref=e53]: Date of Birth
+                - textbox [ref=e54]
+              - generic [ref=e55]:
+                - generic [ref=e56]: Gender
+                - combobox [ref=e57]:
+                  - option "Select gender" [selected]
+                  - option "Male"
+                  - option "Female"
+                  - option "Other"
+            - generic [ref=e58]:
+              - generic [ref=e59]: Address
+              - textbox "Enter address" [ref=e60]
+            - generic [ref=e61]:
+              - generic [ref=e62]: Emergency Contact
+              - textbox "Enter emergency contact name and phone" [ref=e63]
+            - generic [ref=e64]:
+              - generic [ref=e65]: Membership Plan *
+              - combobox [ref=e66]:
+                - option "Select a membership plan" [selected]
+                - option "Drop-In - $7000.00 ()"
+                - option "Monthly - $22000.00 ()"
+                - option "Quarterly - $55000.00 ()"
+                - option "Yearly - $165000.00 ()"
+            - generic [ref=e67]:
+              - generic [ref=e68]:
+                - generic [ref=e69]: Payment Method *
+                - combobox [ref=e70]:
+                  - option "Select payment method" [selected]
+                  - option "Cash"
+                  - option "Credit Card"
+                  - option "Debit Card"
+                  - option "Online Payment"
+              - generic [ref=e71]:
+                - checkbox [ref=e72]
+                - generic [ref=e73]: Payment Confirmed *
+            - generic [ref=e74]:
+              - button "Preview Details" [ref=e75] [cursor=pointer]
+              - button "Complete Sale" [ref=e76] [cursor=pointer]
+    - button " AI" [ref=e78] [cursor=pointer]:
+      - generic [ref=e80] [cursor=pointer]:
+        - generic [ref=e82] [cursor=pointer]: 
+        - generic [ref=e83] [cursor=pointer]: AI
+  - region "Notifications (F8)":
+    - list
+```

@@ -63,9 +63,6 @@
       - generic [ref=e66] [cursor=pointer]:
         - generic [ref=e68] [cursor=pointer]: 
         - generic [ref=e69] [cursor=pointer]: AI
-    - generic [ref=e74]:
-      - generic [ref=e75]: 
-      - generic [ref=e76]: Welcome back, Jessica!
   - region "Notifications (F8)":
     - list
 ```

@@ -20,6 +20,7 @@ import adminMonthlyPlanRoutes from './routes/adminMonthlyPlans.js';
 import memberMonthlyPlanRoutes from './routes/memberMonthlyPlans.js';
 import trainerSubscriptionRoutes from './routes/trainerSubscriptions.js';
 import frontDeskRoutes from './routes/frontdesk.js';
+import checkInRoutes from './routes/checkIn.js';
 
 // Load environment variables
 dotenv.config();
@@ -74,6 +75,7 @@ app.use('/api/admin/monthly-plans', adminMonthlyPlanRoutes);
 app.use('/api/member/monthly-plans', memberMonthlyPlanRoutes);
 app.use('/api/trainer/subscriptions', trainerSubscriptionRoutes);
 app.use('/api/frontdesk', frontDeskRoutes);
+app.use('/api/checkin', checkInRoutes);
 
 // API routes will be added here
 app.get('/api', (req, res) => {

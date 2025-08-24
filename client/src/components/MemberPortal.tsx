@@ -406,7 +406,7 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
         <div className="metric-card p-4 rounded-xl border-purple-400 cursor-pointer group relative overflow-hidden" onClick={() => openBalanceModal()}>
           {/* Animated background gradient */}
           <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
@@ -489,6 +489,28 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
             {referralCount > 0 ? 'Friends joined' : 'Invite friends to earn points'}
           </p>
         </div>
+
+        {/* Consistency Card */}
+        <div className="metric-card p-6 rounded-xl border-orange-400">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-orange-400" style={{ fontFamily: 'Orbitron, monospace' }}>Consistency</h3>
+            <i className="fas fa-calendar-check text-orange-400 text-2xl"></i>
+          </div>
+          <p className="text-2xl font-bold text-white">
+            {dashboardData?.consistency?.currentWeek?.check_ins_count || 0}/7 days
+          </p>
+          <p className="text-gray-300">
+            {dashboardData?.consistency?.currentWeek?.consistency_achieved 
+              ? 'Weekly goal achieved! 🎉' 
+              : `${7 - (dashboardData?.consistency?.currentWeek?.check_ins_count || 0)} more days needed`
+            }
+          </p>
+          {dashboardData?.consistency?.totalConsistentWeeks > 0 && (
+            <p className="text-orange-300 text-xs mt-1">
+              {dashboardData.consistency.totalConsistentWeeks} consistent week{dashboardData.consistency.totalConsistentWeeks > 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Progress Widgets */}
@@ -565,6 +587,145 @@ const Dashboard = ({ user, showToast }: { user: User | null; showToast: (message
           </div>
         </div>
       )}
+
+      {/* Check-in History Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Recent Check-ins */}
+        <div className="metric-card p-6 rounded-xl border-cyan-400">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-cyan-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+              Recent Check-ins
+            </h3>
+            <i className="fas fa-clock text-cyan-400 text-2xl"></i>
+          </div>
+          
+          {dashboardData?.consistency?.currentWeek?.check_ins && dashboardData.consistency.currentWeek.check_ins.length > 0 ? (
+            <div className="space-y-3">
+              {dashboardData.consistency.currentWeek.check_ins.slice(0, 5).map((checkIn: any, index: number) => (
+                <div 
+                  key={index}
+                  className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:bg-gray-700/50 transition-all duration-200"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-cyan-500/20 rounded-full flex items-center justify-center">
+                      <i className="fas fa-check text-cyan-400 text-sm"></i>
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">
+                        {new Date(checkIn.check_in_time).toLocaleDateString('en-US', { 
+                          weekday: 'short', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                      <p className="text-gray-400 text-sm">
+                        {new Date(checkIn.check_in_time).toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-cyan-400 text-xs font-medium">
+                      {checkIn.check_in_type === 'manual' ? 'Manual' : 'Auto'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-calendar-times text-cyan-400 text-2xl"></i>
+              </div>
+              <p className="text-gray-400 mb-2">No check-ins this week</p>
+              <p className="text-gray-500 text-sm">Visit the gym to start tracking your consistency!</p>
+            </div>
+          )}
+        </div>
+
+        {/* Consistency History */}
+        <div className="metric-card p-6 rounded-xl border-purple-400">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-purple-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+              Consistency History
+            </h3>
+            <i className="fas fa-chart-line text-purple-400 text-2xl"></i>
+          </div>
+          
+          {dashboardData?.consistency?.history && dashboardData.consistency.history.length > 0 ? (
+            <div className="space-y-3">
+              {dashboardData.consistency.history.slice(0, 4).map((week: any, index: number) => (
+                <div 
+                  key={index}
+                  className={`p-3 rounded-lg border transition-all duration-200 ${
+                    week.consistency_achieved 
+                      ? 'bg-green-500/10 border-green-500/30' 
+                      : 'bg-gray-800/50 border-gray-700/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                        week.consistency_achieved 
+                          ? 'bg-green-500/20' 
+                          : 'bg-gray-600/50'
+                      }`}>
+                        <i className={`fas ${
+                          week.consistency_achieved 
+                            ? 'fa-check text-green-400' 
+                            : 'fa-times text-gray-400'
+                        } text-xs`}></i>
+                      </div>
+                      <span className="text-white font-medium">
+                        Week of {new Date(week.week_start_date).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-sm font-medium ${
+                        week.consistency_achieved 
+                          ? 'text-green-400' 
+                          : 'text-gray-400'
+                      }`}>
+                        {week.check_ins_count}/7 days
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs ${
+                      week.consistency_achieved 
+                        ? 'text-green-300' 
+                        : 'text-gray-500'
+                    }`}>
+                      {week.consistency_achieved 
+                        ? 'Consistency achieved! 🎉' 
+                        : 'Need more check-ins'
+                      }
+                    </span>
+                    {week.points_awarded > 0 && (
+                      <span className="text-yellow-400 text-xs font-medium">
+                        +{week.points_awarded} points
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-chart-bar text-purple-400 text-2xl"></i>
+              </div>
+              <p className="text-gray-400 mb-2">No consistency history</p>
+              <p className="text-gray-500 text-sm">Start checking in regularly to build your consistency!</p>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Balance Modal */}
       {showBalanceModal && (

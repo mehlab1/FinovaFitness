@@ -1,0 +1,68 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e7]: 
+          - heading "FINOVA FITNESS" [level=1] [ref=e8]
+        - navigation [ref=e9]:
+          - button " Manual Check-In" [ref=e10] [cursor=pointer]:
+            - generic [ref=e11] [cursor=pointer]: 
+            - generic [ref=e12] [cursor=pointer]: Manual Check-In
+          - button " Walk-In Sales" [ref=e13] [cursor=pointer]:
+            - generic [ref=e14] [cursor=pointer]: 
+            - generic [ref=e15] [cursor=pointer]: Walk-In Sales
+          - button " POS Summary" [ref=e16] [cursor=pointer]:
+            - generic [ref=e17] [cursor=pointer]: 
+            - generic [ref=e18] [cursor=pointer]: POS Summary
+          - button " Announcements" [ref=e19] [cursor=pointer]:
+            - generic [ref=e20] [cursor=pointer]: 
+            - generic [ref=e21] [cursor=pointer]: Announcements
+          - button " Subscription Management" [ref=e22] [cursor=pointer]:
+            - generic [ref=e23] [cursor=pointer]: 
+            - generic [ref=e24] [cursor=pointer]: Subscription Management
+      - generic [ref=e25]:
+        - generic [ref=e27]:
+          - heading "Checkin" [level=2] [ref=e28]
+          - generic [ref=e29]:
+            - generic [ref=e30]: "Front Desk:"
+            - button "Logout" [ref=e31] [cursor=pointer]
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - heading "Member Check-In" [level=2] [ref=e35]
+            - generic [ref=e37]:
+              - generic [ref=e38]: Search Member
+              - textbox "Search by name, email, or member ID..." [ref=e39]
+          - generic [ref=e40]:
+            - heading "Recent Check-ins" [level=3] [ref=e41]
+            - generic [ref=e42]:
+              - generic [ref=e43]:
+                - generic [ref=e44]:
+                  - generic [ref=e45]: John Smith
+                  - generic [ref=e46]: 2 minutes ago
+                - generic [ref=e47]: +10 points
+              - generic [ref=e48]:
+                - generic [ref=e49]:
+                  - generic [ref=e50]: Sarah Davis
+                  - generic [ref=e51]: 15 minutes ago
+                - generic [ref=e52]: +10 points
+              - generic [ref=e53]:
+                - generic [ref=e54]:
+                  - generic [ref=e55]: Mike Johnson
+                  - generic [ref=e56]: 32 minutes ago
+                - generic [ref=e57]: +10 points
+              - generic [ref=e58]:
+                - generic [ref=e59]:
+                  - generic [ref=e60]: Emma Wilson
+                  - generic [ref=e61]: 45 minutes ago
+                - generic [ref=e62]: +10 points
+    - button " AI" [ref=e64] [cursor=pointer]:
+      - generic [ref=e66] [cursor=pointer]:
+        - generic [ref=e68] [cursor=pointer]: 
+        - generic [ref=e69] [cursor=pointer]: AI
+  - region "Notifications (F8)":
+    - list
+```

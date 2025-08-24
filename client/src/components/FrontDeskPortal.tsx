@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { User } from '../types';
 import { useToast } from './Toast';
 import { WalkInSalesForm, WalkInSalesPreview, WalkInSalesReceipt } from './WalkInSales';
+import ManualCheckInForm from './ManualCheckIn/ManualCheckInForm';
 
 interface FrontDeskPortalProps {
   user: User | null;
@@ -15,7 +16,7 @@ export const FrontDeskPortal = ({ user, onLogout }: FrontDeskPortalProps) => {
   const renderPage = () => {
     switch (currentPage) {
       case 'checkin':
-        return <ManualCheckIn showToast={showToast} />;
+        return <ManualCheckInForm />;
       case 'sales':
         return <WalkInSales showToast={showToast} />;
       case 'pos':
@@ -25,7 +26,7 @@ export const FrontDeskPortal = ({ user, onLogout }: FrontDeskPortalProps) => {
       case 'subscription':
         return <FrontDeskSubscription showToast={showToast} />;
       default:
-        return <ManualCheckIn showToast={showToast} />;
+        return <ManualCheckInForm />;
     }
   };
 
@@ -88,98 +89,7 @@ export const FrontDeskPortal = ({ user, onLogout }: FrontDeskPortalProps) => {
   );
 };
 
-const ManualCheckIn = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMember, setSelectedMember] = useState<any>(null);
 
-  const members = [
-    { id: 1, name: 'John Smith', email: 'john@email.com', membershipId: 'M001', plan: 'Quarterly', status: 'Active' },
-    { id: 2, name: 'Sarah Davis', email: 'sarah@email.com', membershipId: 'M002', plan: 'Monthly', status: 'Active' },
-    { id: 3, name: 'Mike Johnson', email: 'mike@email.com', membershipId: 'M003', plan: 'Yearly', status: 'Active' },
-    { id: 4, name: 'Emma Wilson', email: 'emma@email.com', membershipId: 'M004', plan: 'Monthly', status: 'Active' },
-    { id: 5, name: 'David Brown', email: 'david@email.com', membershipId: 'M005', plan: 'Quarterly', status: 'Active' }
-  ];
-
-  const filteredMembers = members.filter(member =>
-    member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.membershipId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleCheckIn = (member: any) => {
-    setSelectedMember(member);
-    showToast(`${member.name} checked in - loyalty points added!`, 'success');
-  };
-
-  return (
-    <div className="animate-fade-in">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-cyan-400 mb-4" style={{ fontFamily: 'Orbitron, monospace' }}>
-          Member Check-In
-        </h2>
-        <div className="glass-card p-6 rounded-2xl">
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Search Member</label>
-            <input
-              type="text"
-              placeholder="Search by name, email, or member ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:border-cyan-400 focus:outline-none transition-colors"
-            />
-          </div>
-          
-          {searchTerm && (
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-cyan-400">Search Results</h3>
-              {filteredMembers.length > 0 ? (
-                filteredMembers.map((member) => (
-                  <div key={member.id} className="bg-gray-900 p-4 rounded-lg flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-white">{member.name}</h4>
-                      <p className="text-gray-300">{member.email} • ID: {member.membershipId}</p>
-                      <p className="text-sm text-gray-400">Plan: {member.plan} • Status: {member.status}</p>
-                    </div>
-                    <button
-                      onClick={() => handleCheckIn(member)}
-                      className="bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-                    >
-                      <i className="fas fa-qrcode mr-2"></i>
-                      Check In
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-400">No members found matching "{searchTerm}"</p>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Recent Check-ins */}
-      <div className="glass-card p-6 rounded-2xl">
-        <h3 className="text-xl font-bold text-cyan-400 mb-4">Recent Check-ins</h3>
-        <div className="space-y-2">
-          {[
-            { name: 'John Smith', time: '2 minutes ago', points: '+10 points' },
-            { name: 'Sarah Davis', time: '15 minutes ago', points: '+10 points' },
-            { name: 'Mike Johnson', time: '32 minutes ago', points: '+10 points' },
-            { name: 'Emma Wilson', time: '45 minutes ago', points: '+10 points' }
-          ].map((checkin, index) => (
-            <div key={index} className="bg-gray-900 p-3 rounded-lg flex items-center justify-between">
-              <div>
-                <span className="font-semibold text-white">{checkin.name}</span>
-                <span className="text-gray-400 ml-2">{checkin.time}</span>
-              </div>
-              <span className="text-green-400 font-semibold">{checkin.points}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const WalkInSales = ({ showToast }: { showToast: (message: string, type?: 'success' | 'error' | 'info') => void }) => {
   const [currentStep, setCurrentStep] = useState<'form' | 'preview' | 'receipt'>('form');

@@ -119,6 +119,20 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
       [userId]
     );
 
+    // Get consistency data
+    const consistencyService = require('../services/consistencyService');
+    const loyaltyService = require('../services/loyaltyService');
+    
+    // Get current week consistency
+    const currentWeek = consistencyService.calculateWeekStart(new Date());
+    const currentWeekData = await consistencyService.getCurrentWeekConsistency(userId, currentWeek);
+    
+    // Get consistency history (last 4 weeks)
+    const consistencyHistory = await consistencyService.getConsistencyHistory(userId, 4);
+    
+    // Get loyalty balance
+    const loyaltyBalance = await loyaltyService.getLoyaltyBalance(userId);
+
     // Get loyalty points
     const loyaltyResult = await query(
       `SELECT 
@@ -244,6 +258,12 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
       pauseDetails: pauseResult.rows[0] || null,
       upcomingBookings: bookingsResult.rows,
       recentVisits: visitsResult.rows,
+      consistency: {
+        currentWeek: currentWeekData,
+        history: consistencyHistory,
+        totalConsistentWeeks: consistencyHistory.filter(w => w.consistency_achieved).length,
+        totalPointsEarned: consistencyHistory.reduce((sum, w) => sum + (w.points_awarded || 0), 0)
+      },
       loyaltyStats: loyaltyResult.rows[0] || {
         total_points: 0,
         total_transactions: 0

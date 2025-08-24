@@ -23,10 +23,10 @@ setup('authenticate as front desk user', async ({ page }) => {
   await page.click('button[type="submit"]');
   
   // Wait for successful login and navigation to front desk
-  await page.waitForSelector('text=FINOVA FITNESS');
+  await page.waitForSelector('h1:has-text("FINOVA FITNESS")', { timeout: 10000 });
   
   // Verify we're logged in as front desk user
-  await expect(page.locator('text=FINOVA FITNESS')).toBeVisible();
+  await expect(page.locator('h1:has-text("FINOVA FITNESS")')).toBeVisible();
   
   // Store authentication state
   await page.context().storageState({ path: 'playwright/.auth/user.json' });
