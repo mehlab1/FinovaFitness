@@ -114,33 +114,61 @@ router.get('/dashboard', verifyMemberToken, async (req, res) => {
 
     // Get recent gym visits
     const visitsResult = await query(
-      `SELECT * FROM gym_visits 
+      `SELECT 
+         id,
+         user_id,
+         TO_CHAR(visit_date, 'YYYY-MM-DD') as visit_date,
+         check_in_time,
+         check_in_type,
+         consistency_week_start,
+         consistency_points_awarded,
+         created_at
+       FROM gym_visits 
        WHERE user_id = $1 
-       ORDER BY visit_date DESC LIMIT 5`,
+       ORDER BY visit_date DESC, check_in_time DESC LIMIT 5`,
       [userId]
     );
+    
+    console.log('Debug - visitsResult rows:', visitsResult.rows);
 
     // Get consistency data
     
-    // Get current week consistency (simplified for now)
-    // Get the most recent week with check-ins
+    // Calculate current week (Monday to Sunday)
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday, go back 6 days, otherwise go back (dayOfWeek - 1) days
+    const mondayOfThisWeek = new Date(today);
+    mondayOfThisWeek.setDate(today.getDate() - daysToMonday);
+    mondayOfThisWeek.setHours(0, 0, 0, 0);
+    
+    const sundayOfThisWeek = new Date(mondayOfThisWeek);
+    sundayOfThisWeek.setDate(mondayOfThisWeek.getDate() + 6);
+    sundayOfThisWeek.setHours(23, 59, 59, 999);
+    
+    console.log('Debug - Today:', today.toLocaleDateString());
+    console.log('Debug - Monday of this week:', mondayOfThisWeek.toLocaleDateString());
+    console.log('Debug - Sunday of this week:', sundayOfThisWeek.toLocaleDateString());
+    
+    // Get current week check-ins
     const currentWeekCheckIns = await query(
       `SELECT 
-         consistency_week_start,
          COUNT(DISTINCT visit_date) as check_in_days
        FROM gym_visits 
        WHERE user_id = $1 
-       GROUP BY consistency_week_start
-       ORDER BY consistency_week_start DESC 
-       LIMIT 1`,
-      [userId]
+       AND visit_date >= $2::date 
+       AND visit_date <= $3::date`,
+      [userId, mondayOfThisWeek.toLocaleDateString('en-CA'), sundayOfThisWeek.toLocaleDateString('en-CA')]
     );
     
     const currentWeekData = {
-      week_start: currentWeekCheckIns.rows[0]?.consistency_week_start ? currentWeekCheckIns.rows[0].consistency_week_start.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      check_in_days: currentWeekCheckIns.rows[0]?.check_in_days || 0,
-      is_consistent: (currentWeekCheckIns.rows[0]?.check_in_days || 0) >= 5
+      week_start: mondayOfThisWeek.toLocaleDateString('en-CA'), // Use YYYY-MM-DD format
+      check_ins_count: parseInt(currentWeekCheckIns.rows[0]?.check_in_days) || 0, // Frontend expects check_ins_count
+      is_consistent: (parseInt(currentWeekCheckIns.rows[0]?.check_in_days) || 0) >= 5,
+      check_ins: visitsResult.rows // Add recent check-ins to currentWeek data
     };
+    
+    console.log('Debug - currentWeekCheckIns result:', currentWeekCheckIns.rows[0]);
+    console.log('Debug - currentWeekData:', currentWeekData);
     
     // Get consistency history (last 4 weeks)
     const consistencyHistory = await query(

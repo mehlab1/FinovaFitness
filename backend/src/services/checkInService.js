@@ -123,12 +123,19 @@ class CheckInService {
         RETURNING id, user_id, visit_date, check_in_time, check_in_type
       `;
       
-      const visitDate = new Date(check_in_time).toISOString().split('T')[0];
+      // Use provided check_in_time and extract visit date
+      const checkInDate = new Date(check_in_time);
+      const visitDate = checkInDate.getFullYear() + '-' + 
+                       String(checkInDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                       String(checkInDate.getDate()).padStart(2, '0');
+      
+      // Use provided check_in_time
+      const localCheckInTime = check_in_time;
       
       const checkInResult = await client.query(insertQuery, [
         user_id,
         visitDate,
-        check_in_time,
+        localCheckInTime,
         check_in_type,
         weekStart
       ]);

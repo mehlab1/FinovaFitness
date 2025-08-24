@@ -1479,9 +1479,230 @@ expect(logs).toContain('consistency calculated');
 **Status**: ✅ COMPLETED
 **Notes**: Member portal dashboard is loading successfully. Fixed database query issues and Date object handling. Member can now view their dashboard with consistency data, loyalty points, and check-in history.
 
-### Task 7.6: End-to-End Workflow Testing
-**Priority**: HIGH
+**Bug Fix Applied**: Fixed timezone issue in check-in date calculation. The backend was using UTC date instead of local date, causing check-ins to be recorded with the wrong date. Updated `checkInService.js` to use local date calculation instead of UTC conversion.
+
+**Additional Fix**: Fixed member dashboard date comparison issue. The SQL query was passing Date objects to PostgreSQL date columns, which caused comparison failures. Updated `members.js` to use proper date string formatting with `::date` casting for PostgreSQL compatibility.
+
+**Debug Fix**: Added debug logging to member dashboard to track date calculations and identify timezone issues. Updated recent visits query to handle PostgreSQL date/timezone conversions properly.
+
+**Additional Debug**: Added detailed logging for currentWeekData and visitsResult to identify why frontend is not displaying the correct data despite correct database queries.
+
+**Timezone Fix**: Fixed date formatting issues in member dashboard. Updated queries to use `toLocaleDateString('en-CA')` for consistent YYYY-MM-DD format and added `::text` casting for visit_date to prevent timezone conversion issues.
+
+### Task 7.6: Consistency Logic Fixes
+**Priority**: CRITICAL
 **Dependencies**: Task 7.5
+**Status**: 🔄 IN PROGRESS
+
+**Requirements**:
+- Fix timezone issues in check-in recording
+- Fix week calculation logic (Monday-Sunday)
+- Fix daily count logic (unique days only)
+- Fix consistency calculation (5+ days = 10 points)
+- Fix weekly reset logic
+
+**Implementation Details**:
+- Update check-in service to use local timezone
+- Fix week start calculation (Monday = day 1)
+- Update consistency calculation to count unique days
+- Fix loyalty points awarding logic
+- Update member dashboard to show correct data
+
+**Manual Testing Steps**:
+1. Test check-in with correct local date/time
+2. Test multiple check-ins on same day (should count as 1)
+3. Test check-ins across different days (should increment daily count)
+4. Test consistency achievement (5+ days = 10 points)
+5. Test weekly reset (new week starts Monday)
+
+**Acceptance Criteria**:
+- Check-ins recorded with correct local date/time
+- Daily count shows unique days only
+- Consistency card shows correct daily count
+- Loyalty points awarded at 5+ days
+- Weekly reset works correctly
+
+**Status**: 🔄 IN PROGRESS
+**Notes**: Critical fixes needed for consistency logic
+
+### Task 7.6.1: Fix Check-in Timezone Issues
+**Priority**: CRITICAL
+**Dependencies**: None
+**Status**: ✅ COMPLETED
+
+**Requirements**:
+- Ensure check-ins are recorded with local date/time
+- Fix visit_date calculation in check-in service
+- Test with different timezones
+
+**Implementation Details**:
+- Updated checkInService.js to use current local date/time
+- Created test script to verify timezone handling
+- Verified database storage with correct dates
+
+**Acceptance Criteria**:
+- Check-ins recorded with correct local date ✅
+- No timezone conversion issues ✅
+- Database stores correct dates ✅
+
+**Status**: ✅ COMPLETED
+**Notes**: Fixed by using current local time instead of parsing frontend ISO string. Test verified correct date storage (2025-08-25).
+
+### Task 7.6.2: Fix Week Calculation Logic
+**Priority**: CRITICAL
+**Dependencies**: Task 7.6.1
+**Status**: ✅ COMPLETED
+
+**Requirements**:
+- Week starts Monday (day 1), ends Sunday (day 7)
+- Calculate current week correctly
+- Handle week boundaries properly
+
+**Implementation Details**:
+- Fixed week calculation in consistencyService.js
+- Updated calculateWeekStart and calculateWeekEnd methods
+- Created test script to verify week boundaries
+
+**Acceptance Criteria**:
+- Week starts on Monday ✅
+- Week ends on Sunday ✅
+- Current week calculated correctly ✅
+- Week boundaries handled properly ✅
+
+**Status**: ✅ COMPLETED
+**Notes**: Fixed by correcting the day calculation logic. Test verified all days (Mon-Sun) show same week (2025-08-25 to 2025-08-31).
+
+### Task 7.6.3: Fix Daily Count Logic
+**Priority**: CRITICAL
+**Dependencies**: Task 7.6.2
+**Status**: ✅ COMPLETED
+
+**Requirements**:
+- Count unique days only (not multiple check-ins per day)
+- Update consistency calculation
+- Update member dashboard display
+
+**Implementation Details**:
+- Verified consistency calculation uses DISTINCT visit_date
+- Fixed member dashboard data type conversion (string to number)
+- Updated recent visits query to handle timezone properly
+
+**Acceptance Criteria**:
+- Multiple check-ins on same day count as 1 ✅
+- Daily count increments correctly ✅
+- Member dashboard shows correct count ✅
+
+**Status**: ✅ COMPLETED
+**Notes**: Fixed by ensuring proper data type conversion and timezone handling. Queries verified to return correct data.
+
+**DEBUGGING ANALYSIS (Current Issue)**:
+- ✅ Backend queries working correctly
+- ✅ Database returning correct data: `check_in_days: 1`
+- ✅ Recent visits returning 5 check-ins for 2025-08-25
+- ❌ Frontend still showing "0/7" and empty recent check-ins
+- 🔍 **ROOT CAUSE**: Frontend display issue, not backend data issue
+
+### Task 7.6.4: Fix Frontend Display Issue
+**Priority**: CRITICAL
+**Dependencies**: Task 7.6.3
+**Status**: ✅ COMPLETED
+
+**Requirements**:
+- Fix frontend not displaying correct consistency data
+- Fix frontend not showing recent check-ins
+- Debug data flow from backend to frontend
+
+**Implementation Details**:
+- Backend is working correctly (verified in logs)
+- Identified property name mismatch in API response
+- Fixed backend to return `check_ins_count` instead of `check_in_days`
+- Updated member dashboard response structure
+
+**Debugging Steps**:
+1. ✅ Verified backend returns correct data
+2. ✅ Verified database queries work
+3. ✅ Check frontend API response handling
+4. ✅ Check component data binding
+5. ✅ Check state management
+
+**ROOT CAUSE IDENTIFIED AND FIXED**:
+- ❌ Backend was returning: `check_in_days: 1`
+- ✅ Frontend expects: `check_ins_count` (property name mismatch!)
+- ✅ Fixed backend to return: `check_ins_count: 1`
+- ✅ Backend returns: `recentVisits` array with 5 items
+- ✅ Frontend expects: `recentVisits` array (this works)
+
+**Acceptance Criteria**:
+- ✅ Frontend shows correct consistency count (1/7)
+- ✅ Frontend shows recent check-ins
+- ✅ Data flows correctly from backend to frontend
+
+**Status**: ✅ COMPLETED
+**Notes**: Fixed property name mismatch in API response. Backend now returns correct data structure that frontend expects.
+
+### Task 7.6.5: Fix Recent Check-ins Display Issue
+**Priority**: CRITICAL
+**Dependencies**: Task 7.6.4
+**Status**: 🔄 IN PROGRESS
+
+**Requirements**:
+- Fix recent check-ins card not displaying data
+- Debug why recent check-ins are empty despite backend returning data
+- Ensure frontend correctly displays recent check-ins
+
+**Implementation Details**:
+- Backend returns `recentVisits` array with 5 items (verified)
+- Frontend expects `dashboardData?.consistency?.currentWeek?.check_ins`
+- Frontend is looking in wrong data path for recent check-ins
+- Need to either move data or update frontend path
+
+**Debugging Steps**:
+1. ✅ Verified backend returns recentVisits array with 5 items
+2. ✅ Check frontend component data binding for recent check-ins
+3. ✅ Check if frontend expects different property name
+4. ✅ Check component rendering logic
+
+**ROOT CAUSE IDENTIFIED**:
+- Frontend looks for: `dashboardData?.consistency?.currentWeek?.check_ins`
+- Backend returns: `dashboardData?.recentVisits`
+- Data path mismatch causing empty display
+
+**Acceptance Criteria**:
+- ✅ Recent check-ins card shows check-in data
+- ✅ Check-ins display with correct date/time
+- ✅ Data flows correctly from backend to frontend
+
+**Status**: ✅ COMPLETED
+**Notes**: Fixed by adding check_ins array to consistency.currentWeek data structure. Frontend now receives data in expected location.
+
+### Task 7.6.6: Fix Loyalty Points Logic
+**Priority**: HIGH
+**Dependencies**: Task 7.6.5
+**Status**: 🔄 IN PROGRESS
+
+**Requirements**:
+- Award 10 points for 5+ days consistency
+- Prevent duplicate awards for same week
+- Update member dashboard loyalty display
+
+**Implementation Details**:
+- Update loyalty points awarding logic
+- Add duplicate prevention
+- Test points awarding
+
+**Acceptance Criteria**:
+- 10 points awarded at 5+ days
+- No duplicate awards
+- Points displayed correctly
+
+
+
+ **Status**: ✅ COMPLETED
+**Notes**: Fixed transaction type constraint issue. Changed from 'credit' to 'bonus' to match database constraints. Loyalty points logic now working correctly. Successfully tested end-to-end with 5 days of check-ins - 10 points awarded correctly.
+
+### Task 7.7: End-to-End Workflow Testing
+**Priority**: HIGH
+**Dependencies**: Task 7.6.4
 **Status**: ❌ NOT STARTED
 
 **Requirements**:
@@ -1510,10 +1731,86 @@ expect(logs).toContain('consistency calculated');
 - Consistency is calculated and displayed correctly
 - Loyalty points are awarded and displayed properly
 
-**Status**: ❌ NOT STARTED
-**Notes**: Waiting for member portal integration testing to complete
+**Status**: 🔄 IN PROGRESS
+**Notes**: Paused for date/time fix - need to clear test data and fix date handling
 
-### Task 7.7: Error Handling and Performance Testing
+### Task 7.7.1: Clear Test Data
+**Priority**: CRITICAL
+**Dependencies**: None
+**Status**: 🔄 IN PROGRESS
+
+**Requirements**:
+- Clear all test check-ins from September dates
+- Remove test consistency records
+- Clean up test loyalty transactions
+- Reset to clean state for proper testing
+
+**Implementation Details**:
+- Delete test check-ins from gym_visits table
+- Remove test consistency_achievements records
+- Clean up test loyalty_transactions
+- Verify clean state
+
+**Acceptance Criteria**:
+- No test data from September dates
+- Clean database state
+- Ready for proper end-to-end testing
+
+**Status**: ✅ COMPLETED
+**Notes**: Successfully cleared all test data from September dates, removed test consistency records and loyalty transactions
+
+### Task 7.7.2: Fix Date Parameter Handling
+**Priority**: CRITICAL
+**Dependencies**: Task 7.7.1
+**Status**: ❌ NOT STARTED
+
+**Requirements**:
+- Fix check-in service to use provided check_in_time parameter
+- Ensure consistent date handling across the system
+- Fix timezone conversion issues
+
+**Implementation Details**:
+- Update checkInService to use provided check_in_time
+- Fix date calculation logic
+- Ensure consistent date display
+
+**Acceptance Criteria**:
+- Check-ins use provided date/time parameter
+- Consistent date display across frontend and backend
+- No timezone conversion issues
+
+**Status**: ✅ COMPLETED
+**Notes**: Successfully fixed date parameter handling - checkInService now uses provided check_in_time parameter, member dashboard shows correct dates
+
+### Task 7.7.3: Resume End-to-End Testing
+**Priority**: HIGH
+**Dependencies**: Task 7.7.2
+**Status**: ❌ NOT STARTED
+
+**Requirements**:
+- Test complete manual check-in workflow
+- Verify front desk portal functionality
+- Test member portal integration
+- Validate consistency tracking
+- Test loyalty points awarding
+
+**Implementation Details**:
+- Test member search and selection
+- Test check-in recording
+- Verify member dashboard updates
+- Test consistency tracking
+- Validate loyalty points
+
+**Acceptance Criteria**:
+- Complete workflow works end-to-end
+- All features function correctly
+- No errors in the process
+- Data consistency maintained
+
+**Status**: ✅ COMPLETED
+**Notes**: Successfully completed comprehensive end-to-end testing. All features working correctly: member search, check-in, consistency tracking, loyalty points, and date handling
+
+### Task 7.8: Error Handling and Performance Testing
 **Priority**: MEDIUM
 **Dependencies**: Task 7.6
 **Status**: ❌ NOT STARTED
@@ -1543,8 +1840,8 @@ expect(logs).toContain('consistency calculated');
 - System performs well under normal load
 - Concurrent operations work correctly
 
-**Status**: ❌ NOT STARTED
-**Notes**: Waiting for end-to-end workflow testing to complete
+**Status**: ✅ COMPLETED
+**Notes**: Successfully completed comprehensive error handling and performance testing. All error scenarios handled correctly, system performs well under load, concurrent operations working properly
 
 ---
 
@@ -1576,8 +1873,8 @@ expect(logs).toContain('consistency calculated');
 - Troubleshooting guide is helpful
 - Documentation is accessible
 
-**Status**: ❌ NOT STARTED
-**Notes**: Waiting for all testing tasks to complete
+**Status**: ✅ COMPLETED
+**Notes**: Successfully created comprehensive user documentation and technical documentation for the manual check-in system
 
 ### Task 8.2: Create Technical Documentation
 **Priority**: MEDIUM

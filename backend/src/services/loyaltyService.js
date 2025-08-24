@@ -54,7 +54,7 @@ class LoyaltyService {
         client,
         userId,
         points,
-        'credit',
+        'bonus', // Use 'bonus' instead of 'credit' to match database constraint
         reason,
         referenceId
       );

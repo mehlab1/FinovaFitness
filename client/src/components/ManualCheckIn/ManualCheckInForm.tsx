@@ -45,7 +45,7 @@ export const ManualCheckInForm: React.FC<ManualCheckInFormProps> = ({ className 
 
     const checkInData: CheckInData = {
       user_id: selectedMember.id,
-      check_in_time: new Date().toISOString(),
+      check_in_time: new Date().toISOString(), // Keep ISO string for backend processing
       check_in_type: 'manual'
     };
 

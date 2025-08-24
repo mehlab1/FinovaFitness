@@ -10,9 +10,16 @@ class ConsistencyService {
    */
   calculateWeekStart(date) {
     const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    return new Date(d.setDate(diff)).toISOString().split('T')[0];
+    const dayOfWeek = d.getDay();
+    // Monday = 1, Tuesday = 2, ..., Sunday = 0
+    // Calculate days to subtract to get to Monday
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - daysToMonday);
+    monday.setHours(0, 0, 0, 0);
+    
+    return monday.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
   }
 
   /**
@@ -24,7 +31,8 @@ class ConsistencyService {
     const weekStart = this.calculateWeekStart(date);
     const endDate = new Date(weekStart);
     endDate.setDate(endDate.getDate() + 6); // Add 6 days to get Sunday
-    return endDate.toISOString().split('T')[0];
+    endDate.setHours(23, 59, 59, 999);
+    return endDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
   }
 
   /**
